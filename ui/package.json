@@ -1,0 +1,17 @@
+{
+  "name": "glurff-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "pixi.js": "^7.4.3",
+    "@urbit/http-api": "^2.3.0",
+    "urbit-ob": "^5.0.1"
+  },
+  "devDependencies": {
+    "vite": "^4.4.9"
+  }
+}

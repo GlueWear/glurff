@@ -1,0 +1,235 @@
+* { box-sizing: border-box; }
+/* An author `display` beats the UA's [hidden] rule at equal specificity, so
+   anything below that is both hidden and given a display would otherwise stay
+   on screen -- the profile overlay covering the whole world, permanently. */
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #141820;
+  color: #c9d4e4; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+#stage { position: absolute; inset: 0; }
+#stage canvas { image-rendering: pixelated; display: block; }
+#hud { position: absolute; right: 0; top: 0; bottom: 0; width: 300px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 12px; pointer-events: none;
+  background: linear-gradient(to right, transparent, rgba(10,12,18,.55) 40%); }
+.chat { display: flex; flex-direction: column; gap: .35rem; pointer-events: auto;
+  max-height: 100%; }
+.where { font-weight: 600; text-shadow: 0 1px 2px #000; }
+.dim { color: #7b879b; font-weight: 400; }
+.stream { overflow-y: auto; display: flex; flex-direction: column; gap: .2rem;
+  scrollbar-width: thin;
+  /* Roughly two lines tall: enough to read what was just said, and the rest is
+     a scroll away rather than a wall across the world. */
+  max-height: 3.4rem; }
+.stream:hover { max-height: 40vh; }
+.line { cursor: pointer; }
+/* Replies sit under what they answer. The rule down the left is what makes a
+   thread read as a thread rather than as an accidental indent. */
+.line.reply-line { border-left: 1px solid #2a3244; padding-left: .4rem; }
+.line.reply-line .who { color: #9ec2b8; }
+.line .reply { display: none; margin-left: .3rem; padding: 0 .3rem; font-size: .7rem; }
+.line.open .reply, .line:hover .reply { display: inline-block; }
+.replying { color: #e0a44a; text-shadow: 0 1px 2px #000; }
+.replying .cancel { padding: 0 .3rem; margin-left: .3rem; }
+.line { text-shadow: 0 1px 2px #000, 0 0 4px #000; line-height: 1.35; word-break: break-word; }
+.line .who { color: #7fd6c3; }
+.say input { width: 100%; background: rgba(15,19,29,.85); border: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .3rem; border-radius: 3px; }
+.say input:focus { outline: none; border-color: #7fd6c3; }
+button { background: rgba(15,19,29,.85); border: 1px solid #2a3244; color: #c9d4e4;
+  font: inherit; padding: .25rem .5rem; border-radius: 3px; cursor: pointer; }
+button:hover { border-color: #7fd6c3; }
+.me { align-self: flex-start; }
+
+#rail { position: absolute; left: 12px; bottom: 12px; width: 200px; pointer-events: auto; }
+.rail { background: rgba(10,12,18,.82); border: 1px solid #2a3244; border-radius: 4px;
+  padding: .45rem .55rem; display: flex; flex-direction: column; gap: .3rem; }
+.rail-head { font-weight: 600; display: flex; justify-content: space-between; gap: .4rem; }
+.rail-head .warn { color: #e0a44a; }
+.rail-people { display: flex; flex-direction: column; gap: .15rem; }
+.rail-people .p { color: #c9d4e4; }
+.mic.on { border-color: #7fd6c3; color: #7fd6c3; }
+
+#strip { position: absolute; left: 12px; top: 48px; right: 320px; display: flex;
+  gap: 6px; flex-wrap: wrap; pointer-events: auto; }
+.tile { position: relative; background: #000; border: 1px solid #2a3244; border-radius: 3px;
+  overflow: hidden; }
+.tile video { display: block; width: 100%; height: auto; }
+.tile span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px;
+  background: rgba(0,0,0,.6); padding: 0 3px; }
+.tile .grip { position: absolute; right: 0; bottom: 0; width: 10px; height: 10px;
+  background: #7fd6c3; cursor: ew-resize; opacity: .5; }
+.tile .grip:hover { opacity: 1; }
+.rail-btns { display: flex; gap: 3px; }
+.rail-btns button { flex: 1; }
+.settings { margin-top: .3rem; display: flex; flex-direction: column; gap: .15rem; }
+button.on { border-color: #7fd6c3; color: #7fd6c3; }
+
+/* ---- call settings ---------------------------------------------------- */
+/* The panel is a sibling of the rail body rather than part of it, because the
+   rail redraws several times a second and this must survive that. */
+.settings { background: rgba(10,12,18,.92); border: 1px solid #2a3244;
+  border-radius: 4px; padding: .45rem .55rem; }
+.settings .dev { display: flex; flex-direction: column; gap: .1rem; margin-bottom: .35rem; }
+.settings select { width: 100%; background: rgba(15,19,29,.9); border: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .2rem; border-radius: 3px; }
+.settings select:focus { outline: none; border-color: #7fd6c3; }
+.settings .note { line-height: 1.35; }
+
+/* ---- messages --------------------------------------------------------- */
+.dms { position: absolute; right: 12px; top: 12px; z-index: 5; display: flex; align-items: center; gap: 8px; }
+/* Square, and exactly as tall as the dial beside it. */
+.dm-btn { position: relative; line-height: 0; padding: 0; width: 35px; height: 35px;
+  display: grid; place-items: center; }
+.dm-btn svg { width: 20px; height: 20px; display: block; }
+.dm-btn .dot, .dm-row .dot { display: block; width: 7px; height: 7px; border-radius: 50%;
+  background: #e0a44a; }
+.dm-btn .dot { position: absolute; right: -3px; top: -3px; width: 11px; height: 11px; border: 1px solid #141820; }
+.dm-panel { position: absolute; right: 0; top: calc(100% + 6px); width: 280px;
+  background: rgba(10,12,18,.95); border: 1px solid #2a3244; border-radius: 4px;
+  display: flex; flex-direction: column; max-height: 60vh; }
+.dm-search { background: rgba(15,19,29,.9); border: none; border-bottom: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .4rem .5rem; border-radius: 4px 4px 0 0; }
+.dm-search:focus { outline: none; border-bottom-color: #7fd6c3; }
+.dm-list { overflow-y: auto; scrollbar-width: thin; }
+.pad { padding: .5rem; }
+.dm-row { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem;
+  cursor: pointer; border-bottom: 1px solid rgba(42,50,68,.5); }
+.dm-row:hover { background: rgba(127,214,195,.08); }
+.dm-row.unread .who { color: #e0a44a; }
+.dm-row .av { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 2px;
+  background: #222a38; overflow: hidden; }
+.dm-row .av img, .card-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dm-row .who { white-space: nowrap; }
+.dm-row .prev { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dm-window { position: absolute; right: 0; top: calc(100% + 6px); width: 280px; height: 320px;
+  background: rgba(10,12,18,.95); border: 1px solid #2a3244; border-radius: 4px;
+  display: flex; flex-direction: column; }
+.dm-head { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem;
+  border-bottom: 1px solid #2a3244; }
+.dm-head .who { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.dm-head button { padding: 0 .35rem; line-height: 1.4; }
+.dm-body { flex: 1; overflow-y: auto; scrollbar-width: thin; padding: .4rem .5rem;
+  display: flex; flex-direction: column; gap: .25rem; }
+.dm-msg { line-height: 1.35; word-break: break-word; }
+.dm-msg .a { color: #7fd6c3; margin-right: .3rem; }
+.dm-msg.mine .a { color: #9aa7bd; }
+.dm-send { padding: .4rem; border-top: 1px solid #2a3244; }
+.dm-send input { width: 100%; background: rgba(15,19,29,.9); border: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .3rem; border-radius: 3px; }
+.dm-send input:focus { outline: none; border-color: #7fd6c3; }
+
+/* ---- profile card ------------------------------------------------------ */
+.card-overlay { position: absolute; inset: 0; z-index: 10; display: flex;
+  align-items: center; justify-content: center; background: rgba(6,8,12,.6); }
+.card { position: relative; width: min(420px, 92vw); max-height: 80vh; overflow-y: auto;
+  scrollbar-width: thin; background: #10141d; border: 1px solid #2a3244;
+  border-radius: 5px; padding: 1rem; display: flex; flex-direction: column; gap: .7rem; }
+.card-x { position: absolute; right: .5rem; top: .5rem; padding: 0 .35rem; }
+.card-top { display: flex; gap: .8rem; align-items: flex-start; }
+.card-av { width: 64px; height: 64px; flex: 0 0 64px; background: #222a38;
+  border-radius: 3px; display: grid; place-items: center; overflow: hidden; }
+.card-id { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+.card-name { font-size: 15px; font-weight: 600; }
+.card-ship { color: #7fd6c3; }
+.card-id .wrap { word-break: break-all; }
+.card-id .warn { color: #e0a44a; }
+.card-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
+.card-btns button { flex: 1 1 auto; }
+.card-btns .danger { border-color: #a3524b; color: #d98b83; }
+.card-notes { display: flex; flex-direction: column; gap: .2rem;
+  border-top: 1px solid #2a3244; padding-top: .5rem; }
+.card-note { display: flex; gap: .4rem; overflow: hidden; }
+.card-note .n { color: #e0a44a; white-space: nowrap; }
+.card-note .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.builder { position:fixed; z-index:20; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:min(560px,94vw); max-height:90vh; overflow:auto; background:#202938; border:1px solid #718096;
+  border-radius:12px; padding:20px; box-shadow:0 12px 60px #000a; pointer-events:auto; }
+.builder .row {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0;}
+.builder .label {width:65px;}.builder .part{min-width:85px;}.swatches{display:flex;gap:3px;flex-wrap:wrap;}
+.builder .sw{width:22px;height:22px;padding:0;border:2px solid transparent;}.builder .sw.on{border-color:white;}
+/* The preview sits at the top of the panel, big enough to actually read a
+   fringe or a mouth at 32x34 source pixels. */
+.builder .preview-box{display:flex;align-items:center;gap:14px;margin:10px 0 14px;
+  padding:10px;background:rgba(15,19,29,.85);border:1px solid #2a3244;border-radius:4px;}
+.builder .preview-slot{width:128px;height:136px;display:grid;place-items:center;
+  background:repeating-conic-gradient(#171c26 0% 25%, #12161e 0% 50%) 0 0/16px 16px;
+  border-radius:3px;}
+.builder canvas.preview{image-rendering:pixelated;display:block;}
+.builder .dirs{display:flex;flex-direction:column;gap:4px;}
+.builder .dirs button{text-transform:capitalize;}
+.builder .dirs button.on{border-color:#7fd6c3;color:#7fd6c3;}
+.builder .done{margin-top:12px;}.noise-option{display:flex;gap:6px;align-items:center;margin:8px 0;}
+.dial{background:#202938e8;padding:0 8px;height:35px;border-radius:6px;white-space:nowrap;display:flex;align-items:center;gap:.3rem;}
+.game-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.game-controls:empty{display:none;}
+
+.game-controls[hidden]{display:none;}
+
+/* Imageboard palette, with precisely three recent posts in the compact view. */
+.chat-content {display:flex;flex-direction:column;gap:5px;min-height:0;}
+.chat-toggle {align-self:flex-end;}
+.stream {max-height:none;gap:5px;display:block;}
+.stream:hover {max-height:40vh;}
+.stream:not(:hover) .line:not(.recent) {display:none;}
+.stream .line {background:#f0e0d6;color:#800000;border:1px solid #d9bfb7;padding:7px;margin:0 0 5px;cursor:default;text-shadow:none;font:12px Arial,sans-serif;}
+/* Not scoped to :hover. The indent is the whole point of threading, and
+   hiding it at rest meant replies read as unrelated new lines.
+   Noltbook's rule: 1.5rem per level, five levels at most (lib/timeline caps
+   the depth). The selector must out-rank `.stream .line`, whose margin
+   shorthand otherwise resets the indent to nothing -- which it did. */
+.stream .line.reply-line {margin-left:calc(var(--depth)*1.5rem);}
+/* Our own post, shown before our ship has confirmed it. */
+.stream .line.pending {background:#e9e9e9;border-color:#d2d2d2;}
+.line header {display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;}
+.line .replies {color:#117743;}
+.stream .line .who {color:#117743;font-weight:bold;}
+.line .reply {display:inline-block;color:#0000ee;background:none;border:0;padding:0;margin-left:auto;font:inherit;}
+.post-text {white-space:pre-wrap;overflow-wrap:anywhere;}
+.stream:not(:hover) .post-text {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.stream:hover .post-text {display:block;}
+.chat .say input {background:#ffffee;color:#800000;border:1px solid #d9bfb7;}
+.media-icon svg {width:22px;height:22px;display:block;}
+.media-icon.off {color:#ee6262;}.media-icon.on {color:#91e4bb;}
+
+/* ---- search results --------------------------------------------------- */
+.dm-group { padding: .45rem .5rem .15rem; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: #7b879b; }
+.dm-row .tag, .member-row .tag { color: #e0a44a; font-size: 11px; white-space: nowrap; }
+.dm-row.hit { align-items: flex-start; }
+.dm-row .hit-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dm-row .hit-text .prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- who is here ------------------------------------------------------ */
+.members { position: fixed; left: 12px; top: 12px; z-index: 6; display: flex;
+  flex-direction: column; align-items: flex-start; gap: 6px; }
+.members-panel { width: 260px; max-height: 60vh; overflow-y: auto; scrollbar-width: thin;
+  background: rgba(10,12,18,.95); border: 1px solid #2a3244; border-radius: 4px; }
+.member-row { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem;
+  cursor: pointer; border-bottom: 1px solid rgba(42,50,68,.5); }
+.member-row:hover { background: rgba(127,214,195,.08); }
+.member-row .av { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 2px;
+  background: #222a38; overflow: hidden; }
+.member-row .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.member-row .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-row .make-host { padding: 0 .35rem; font-size: 11px; }
+.host-offer { width: 260px; background: rgba(10,12,18,.95); border: 1px solid #e0a44a;
+  border-radius: 4px; padding: .45rem .55rem; display: flex; flex-direction: column; gap: .35rem; }
+.host-offer .row { display: flex; gap: .3rem; }
+.host-offer .row button { flex: 1; }
+
+/* ---- profile lookup strip ---------------------------------------------- */
+/* First contact with a ship we have never seen, shown the moment the card opens. */
+.card-lookup { display: flex; align-items: center; gap: .45rem; padding: .35rem .55rem;
+  border: 1px solid #2a3244; border-radius: 3px; font-size: 11px; letter-spacing: .05em; }
+.card-lookup[data-state="looking"] { color: #6ea0f7; border-color: #2c4a80; }
+.card-lookup[data-state="reachable"] { color: #4aba8a; border-color: #2d6b52; }
+.card-lookup.done { color: #ffaa00; border-color: #7a5a1c; cursor: pointer; }
+.card-lookup.done:hover, .card-lookup.done:focus { border-color: #ffaa00; outline: none; }
+.card-lookup .dots { display: inline-flex; gap: 3px; }
+.card-lookup .dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+  animation: lookup-dot 1.2s infinite ease-in-out; }
+.card-lookup .dots i:nth-child(2) { animation-delay: .2s; }
+.card-lookup .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes lookup-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
