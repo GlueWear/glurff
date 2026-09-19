@@ -37,13 +37,18 @@ export function gainForDistance(d) {
 }
 
 export class SfuSession {
-  constructor({ our, onStream, onStreamRemoved, onPeerLeft, onStatus, onUsers } = {}) {
+  constructor({ our, onStream, onStreamRemoved, onPeerLeft, onStatus, onUsers, onPermissions } = {}) {
     this.our = our;
     this.onUsers = onUsers ?? (() => {});
     this.onStream = onStream ?? (() => {});
     this.onStreamRemoved = onStreamRemoved ?? (() => {});
     this.onPeerLeft = onPeerLeft ?? (() => {});
     this.onStatus = onStatus ?? (() => {});
+    this.onPermissions = onPermissions ?? (() => {});
+    /* What the SERVER says we may do. `present` is the right to publish, and a
+     * mute takes it away: the credentials are reissued and a `change` arrives
+     * saying so. Until we are told otherwise, assume we may. */
+    this.mayPresent = true;
 
     this.ws = null;
     this.grant = null;
@@ -51,6 +56,7 @@ export class SfuSession {
     this.username = null;
     this.joined = false;
 
+    this.silenced = new Set(); //  ships an admin has muted: never played, never shown
     this.users = new Map(); //  galene client id -> username (a ship)
     this.down = new Map(); //  stream id -> {pc, ship, gain, el}
     this.up = new Map(); //  stream id -> {pc, stream, sent}
@@ -173,6 +179,29 @@ export class SfuSession {
     }
     if (stated) this.username = m.username;
 
+    /* PERMISSIONS. Galene has sent them as a list and as an object across
+     * versions; a message that carries neither says nothing about them and
+     * must not be read as a refusal. */
+    const said = readPermissions(m.permissions);
+    if (said !== null) {
+      const was = this.mayPresent;
+      this.mayPresent = said;
+      if (was && !said) {
+        /* We may no longer publish. Close what is going out -- the server has
+         * already stopped accepting it -- but leave the capture and the user's
+         * intent alone: this is a mute, not a decision to give up the camera.
+         * Media intent is restored if and when `present` comes back. */
+        for (const [id, u] of this.up) {
+          this.send({ type: 'close', id });
+          try { u.pc.close(); } catch {}
+          this.up.delete(id);
+        }
+      } else if (!was && said && this.joined) {
+        for (const [id, q] of this.publications) void this.startPublication(id, q);
+      }
+      this.onPermissions(said);
+    }
+
     if (m.kind === 'join') {
       this.joined = true;
       this.onStatus('connected');
@@ -207,6 +236,9 @@ export class SfuSession {
 
   async startPublication(id, q) {
     if (!this.joined || this.up.has(id)) return;
+    /* The server is not accepting our media; queue it rather than offering
+     * into a refusal. It goes out when `present` comes back. */
+    if (!this.mayPresent) return;
     const pc = new RTCPeerConnection({ iceServers: iceFrom(this.grant) });
     const u = { pc, ...q, localIce: [], remoteIce: [], sent: false };
     this.up.set(id, u);
@@ -235,6 +267,11 @@ export class SfuSession {
       this.onStatus('failed', 'publish-failed');
     }
   }
+
+  /* Does the session still hold this publication? A reconnect clears them all,
+   * so what the media layer thinks it published can outlive what is actually
+   * being sent. */
+  hasPublication(id) { return this.publications.has(id); }
 
   unpublish(id) {
     const q = this.publications.get(id);
@@ -419,7 +456,7 @@ export class SfuSession {
     for (const d of this.down.values()) {
       if (!d.audioEl || !d.ship) continue;
       const p = peers[d.ship];
-      const g = p && us ? gainForDistance(Math.hypot(p.x - us.x, p.y - us.y)) : 0;
+      const g = this.silent(d.ship) ? 0 : (p && us ? gainForDistance(Math.hypot(p.x - us.x, p.y - us.y)) : 0);
       if (Math.abs(d.audioEl.volume - g) > 0.01) d.audioEl.volume = g;
     }
   }
@@ -430,12 +467,35 @@ export class SfuSession {
     for (const d of this.down.values()) if (d.audioEl) applyOutput(d.audioEl);
   }
 
+  /* Participants an admin has muted. Their audio is not played and their
+   * video is not shown -- by everybody, not only by them, which is what makes
+   * a mute a mute rather than a request they could ignore. */
+  setSilenced(ships) {
+    this.silenced = new Set(ships ?? []);
+    for (const d of this.down.values()) {
+      if (!d.audioEl || !d.ship) continue;
+      if (this.silenced.has(d.ship)) d.audioEl.volume = 0;
+    }
+  }
+  silent(ship) { return !!this.silenced?.has(ship); }
+
+  /* Live audio tracks per ship, for a recorder to mix. Never the elements
+   * themselves: nothing outside here reattaches a remote stream. */
+  audioTracks() {
+    const out = [];
+    for (const d of this.down.values()) {
+      if (!d.ship || d.ship === this.our || !d.stream) continue;
+      for (const t of d.stream.getAudioTracks()) if (t.readyState === 'live') out.push({ ship: d.ship, track: t });
+    }
+    return out;
+  }
+
   /* Every stream at full volume. Rooms use this: inside one, distance is not
    * what decides who you are talking to. */
   setFlatGain(g = 1, allowed = null) {
     for (const d of this.down.values()) {
       if (!d.audioEl) continue;
-      const gain = allowed && !allowed.has(d.ship) ? 0 : g;
+      const gain = (allowed && !allowed.has(d.ship)) || this.silent(d.ship) ? 0 : g;
       if (Math.abs(d.audioEl.volume - gain) > 0.01) d.audioEl.volume = gain;
     }
   }
@@ -495,6 +555,7 @@ export class SfuSession {
     }
     this.up.clear();
     this.users.clear();
+    this.mayPresent = true;
     this.onUsers();
     this.joined = false;
     if (this.ws) {
@@ -515,6 +576,15 @@ function iceFrom(grant) {
     if (s.credential) out.credential = s.credential;
     return out;
   });
+}
+
+/* Galene's permissions, across the shapes it has used: a list of strings, an
+ * object of flags, or nothing at all. Returns null when the message says
+ * nothing -- which is not the same as saying no. */
+function readPermissions(p) {
+  if (Array.isArray(p)) return p.includes('present');
+  if (p && typeof p === 'object') return !!p.present;
+  return null;
 }
 
 function shipOf(username) {

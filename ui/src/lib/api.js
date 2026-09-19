@@ -46,6 +46,10 @@ export function initApi() {
   return api;
 }
 
+/* Give the channel back without closing the page: a tab that has been
+ * superseded by a newer one must stop holding subscriptions open. */
+export const closeChannel = () => { try { api?.delete?.(); } catch {} };
+
 export const poke = (app, mark, json) => {
   if(exiting) {
     exitPokes.push({id:api.getEventId(),action:'poke',ship:api.ship,app,mark,json});

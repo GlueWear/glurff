@@ -1,4 +1,3 @@
-import { openWalletSend } from 'lib/wallet';
 /* The profile card.
  *
  * Double-click somebody in the world and this is what opens. It is Noltbook's
@@ -15,6 +14,8 @@ import {
   requestProfile, retryProfile, requestRemoteNotes, onChange,
 } from 'lib/noltbook';
 import { our } from 'lib/api';
+import { sendNock, sendBlocked } from 'lib/wallet';
+import { paintCharacter } from 'world/paint';
 import * as ob from 'urbit-ob';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
@@ -59,12 +60,19 @@ const PAL_LABEL = {
 };
 
 export class ProfileCard {
-  constructor(root, { onOpenDm } = {}) {
+  constructor(root, { onOpenDm, look, onEditCharacter } = {}) {
     this.root = root;
     this.root.className = 'card-overlay';
     this.root.hidden = true;
     this.ship = null;
     this.onOpenDm = onOpenDm ?? (() => {});
+    /* Your character is part of your profile, the way your picture is; the
+     * editor is opened by clicking it. */
+    this.look = look ?? (() => null);
+    this.onEditCharacter = onEditCharacter ?? (() => {});
+    this.sending = false;
+    this.sprite = document.createElement('canvas');
+    this.sprite.className = 'card-sprite';
     this.root.addEventListener('click', (e) => { if (e.target === this.root) this.close(); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.ship) this.close(); });
     /* Profiles and pal status arrive after the card is already on screen. */
@@ -72,6 +80,7 @@ export class ProfileCard {
   }
 
   open(ship) {
+    if (this.ship !== ship) { this.sending = false; this.status = ''; }
     this.ship = ship;
     this.root.hidden = false;
     /* Ask for what we do not have. Someone standing next to us in the world is
@@ -89,6 +98,13 @@ export class ProfileCard {
     this.root.innerHTML = '';
   }
 
+  /* A line under the buttons, without rebuilding the card under the caret. */
+  say(text) {
+    this.status = text;
+    const el = this.root.querySelector('.send-status');
+    if (el) el.textContent = text;
+  }
+
   paint() {
     const ship = this.ship;
     const status = palStatus(ship);
@@ -98,6 +114,7 @@ export class ProfileCard {
     const notes = nb.remoteNotes[ship] ?? [];
     const lookup = nb.lookups[ship];
     const dm = dmWith(ship);
+    const worn = this.look(ship);
 
     this.root.innerHTML = `
       <div class="card">
@@ -113,15 +130,26 @@ export class ProfileCard {
           </div>
         </div>
         ${ship !== our && LOOKUP[lookup] ? `<div class="card-lookup ${LOOKUP[lookup][1] ? 'busy' : 'done'}" data-state="${lookup}"${LOOKUP[lookup][1] ? ' aria-busy="true"' : ' role="button" tabindex="0"'}><span>${LOOKUP[lookup][0]}</span>${LOOKUP[lookup][1] ? '<span class="dots"><i></i><i></i><i></i></span>' : ''}</div>` : ''}
+        ${worn ? `<div class="card-me">
+          <div class="card-sprite-slot"></div>
+          <div class="card-me-text">${ship === our
+            ? '<span class="dim">Your character</span><button class="b-edit">EDIT CHARACTER</button>'
+            : '<span class="dim">In Glurff now</span>'}</div>
+        </div>` : ''}
         ${ship === our ? '<div class="dim">This is you.</div>' : `
         <div class="card-btns">
-          <button class="b-send">SEND</button>
+          <button class="b-send">SEND $NOCK</button>
           <button class="b-dm">${dm ? 'OPEN DM' : 'DM'}</button>
           <button class="b-pal${blocked ? ' danger' : ''}">${PAL_LABEL[status] ?? 'ADD PAL'}</button>
           <button class="b-contact"${status !== 'none' ? ' hidden' : ''}>${isContact(ship) ? 'REMOVE CONTACT' : 'ADD CONTACT'}</button>
           <button class="b-block${blocked ? ' danger' : ''}">${blocked ? 'UNBLOCK' : 'BLOCK'}</button>
         </div>`}
-        <div class="send-status" role="status"></div>
+        <form class="send-form"${this.sending ? '' : ' hidden'}>
+          <input class="send-amount" type="number" min="0" step="0.0001" placeholder="NOCK" autocomplete="off">
+          <button type="submit" class="b-confirm">SEND</button>
+          <button type="button" class="b-cancel">CANCEL</button>
+        </form>
+        <div class="send-status" role="status">${esc(this.status ?? '')}</div>
         <div class="card-notes">
           ${notes.length
             ? notes.map((n) => `<div class="card-note"><span class="n">${esc(n.name)}</span>
@@ -132,13 +160,55 @@ export class ProfileCard {
 
     const q = (c) => this.root.querySelector(c);
     q('.card-x').onclick = () => this.close();
+    /* The character STANDS STILL here. A card is something you read; a figure
+     * marching on the spot beside the text is movement with nothing to say. */
+    const slot = q('.card-sprite-slot');
+    if (slot) {
+      slot.appendChild(this.sprite);
+      const draw = () => paintCharacter(this.sprite, worn, 'down', 0, 5, draw);
+      draw();
+      if (ship === our) this.sprite.onclick = () => { this.close(); this.onEditCharacter(); };
+      this.sprite.classList.toggle('editable', ship === our);
+      const edit = q('.b-edit');
+      if (edit) edit.onclick = () => { this.close(); this.onEditCharacter(); };
+    }
     const retry = q('.card-lookup.done');
     if (retry) {
       retry.onclick = () => retryProfile(ship);
       retry.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); retryProfile(ship); } };
     }
     if (ship === our) return;
-    q('.b-send').onclick=()=>openWalletSend(ship).catch(e=>{if(this.ship===ship)q('.send-status').textContent=e.message;});
+    /* SEND opens the amount, and Iris itself asks for approval -- Noltbook is
+     * never opened and never involved. */
+    q('.b-send').onclick = () => {
+      const why = sendBlocked(ship);
+      if (why) { this.say(why); return; }
+      this.sending = true; this.status = '';
+      this.paint();
+      this.root.querySelector('.send-amount')?.focus();
+    };
+    const form = q('.send-form');
+    if (form) {
+      form.querySelector('.b-cancel').onclick = () => { this.sending = false; this.status = ''; this.paint(); };
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const amount = form.querySelector('.send-amount').value;
+        const button = form.querySelector('.b-confirm');
+        button.disabled = true;
+        this.say('Approve it in Iris…');
+        try {
+          const tx = await sendNock(ship, amount);
+          if (this.ship !== ship) return;
+          this.sending = false;
+          this.status = tx ? `Sent · ${String(tx).slice(0, 12)}…` : 'Sent.';
+          this.paint();
+        } catch (err) {
+          if (this.ship !== ship) return;
+          button.disabled = false;
+          this.say(err?.message || 'Iris could not send that.');
+        }
+      };
+    }
     q('.b-dm').onclick = () => { this.onOpenDm(ship); this.close(); };
     q('.b-pal').onclick = () => {
       if (blocked) return;

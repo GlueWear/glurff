@@ -32,12 +32,21 @@ export const KIND = 'glurff.move';
 export const ACK_KIND = 'glurff.move-ack';
 export const DELIVERY_MS = 3000;
 const ACK_MS = 1000, REPAIR_MS = 2000;
-export const SEND_MS = 250;
+/* A start, a stop or a turn jumps the tick -- but no faster than this, so
+ * somebody wiggling on the spot cannot send twenty a second. */
+const URGENT_MS = 50;
+/* Eight a second while walking, so the person drawing us always has a next
+ * position to walk towards; nothing is sent while we stand still. Starting,
+ * stopping and turning do not wait for the next one of these at all. */
+export const SEND_MS = 125;
 export const BUFFER_LIMIT = 64 * 1024;
 export const SUB = 16;                    //  wire units per tile, as presence uses
 
 const MAX_X = 1024;                       //  64 tiles * SUB
 const MAX_Y = 736;                        //  46 tiles * SUB
+/* Velocity rides with the position, in wire units per second. Running is about
+ * eight tiles a second; anything past twenty is not a walk. */
+const MAX_V = 20 * SUB;
 const DIRS = new Set(['down', 'right', 'up', 'left']);
 const PROTOCOL_VERSION = '2';
 const MAX_TRACKED = 512;
@@ -84,9 +93,21 @@ export function createMovementRelay({
   const lastSeq = new Map();              //  galene client id -> last accepted seq
   const lag = new Map();                  //  ship -> {min, last, max}
   const deliveries = new Map(), acknowledgements = new Map(), receivedAt = new Map();
-  let lastAckFlush = -Infinity, lastRepair = -Infinity;
+  let lastAckFlush = -Infinity, lastRepair = -Infinity, lastUrgent = -Infinity;
   const counts = { sent: 0, dropped: 0, received: 0, stale: 0, invalid: 0,
                    refused: 0, reconnects: 0, unrouted: 0, ackSent:0, ackReceived:0, repairs:0 };
+
+  /* DELIVERY IS PER PERSON, NOT PER TAB. One ship may be connected from more
+   * than one client -- a reloaded tab whose old connection has not been cleaned
+   * up yet, or two devices. Their positions reach them if ANY of those clients
+   * is acknowledging; requiring every client meant one dead tab turned on the
+   * slow ship-to-ship fallback and a repair every couple of seconds. */
+  const clientsOf = (ship) => { const out = []; for (const [id, who] of users) if (who === ship) out.push(id); return out; };
+  const acking = (id) => {
+    const d = deliveries.get(id);
+    return !d || d.sent === d.acked || now() - Math.max(d.firstUnackedAt, d.lastAckAt) < DELIVERY_MS;
+  };
+  const stalled = (id) => { const d = deliveries.get(id); return !!d && d.sent > d.acked && now() - d.lastSentAt >= REPAIR_MS; };
 
   const set = (next, reason = '') => {
     if (state === next) return;
@@ -248,7 +269,11 @@ export function createMovementRelay({
     if (!v || !Number.isSafeInteger(v.s) || !Number.isFinite(v.t) ||
         !Number.isSafeInteger(v.x) || !Number.isSafeInteger(v.y) ||
         v.x < 0 || v.y < 0 || v.x > MAX_X || v.y > MAX_Y || !DIRS.has(v.d) ||
-        (v.h != null && !isShip(v.h))) {
+        (v.h != null && !isShip(v.h)) ||
+        //  Velocity and the walking flag are optional: an older sender has neither.
+        (v.vx != null && !(Number.isSafeInteger(v.vx) && Math.abs(v.vx) <= MAX_V)) ||
+        (v.vy != null && !(Number.isSafeInteger(v.vy) && Math.abs(v.vy) <= MAX_V)) ||
+        (v.m != null && v.m !== 0 && v.m !== 1)) {
       counts.invalid++;
       return;
     }
@@ -273,7 +298,12 @@ export function createMovementRelay({
     if (lag.size > MAX_TRACKED) lag.delete(lag.keys().next().value);
 
     const accepted=onPosition(who, { x: v.x / SUB, y: v.y / SUB, dir: v.d },
-               { t: v.t, seq: v.s, host: v.h ?? null, client: from });
+               { t: v.t, seq: v.s, host: v.h ?? null, client: from,
+                 //  Undefined, not false, from a sender that does not send them:
+                 //  the receiver then works movement out from the positions.
+                 vx: v.vx == null ? undefined : v.vx / SUB,
+                 vy: v.vy == null ? undefined : v.vy / SUB,
+                 moving: v.m == null ? undefined : v.m === 1 });
     receivedAt.set(from,now());
     // ACK only a valid position accepted by the visibility layer. This carries
     // no position or identity claim; attribution comes from Galene's roster.
@@ -296,7 +326,10 @@ export function createMovementRelay({
         acknowledgements.delete(id);counts.ackSent++;
       }
     }
-    if(!pending && latest && now()-lastRepair>=REPAIR_MS && [...deliveries].some(([id,d])=>routes.has(users.get(id)) && d.sent>d.acked && now()-d.lastSentAt>=REPAIR_MS)){
+    /* Repair only for a PERSON nothing is getting through to: every client of
+     * theirs is behind. One stalled client beside a live one is a dead tab, not
+     * a lost position. */
+    if(!pending && latest && now()-lastRepair>=REPAIR_MS && [...routes].some(ship=>{const c=clientsOf(ship);return c.length>0 && c.every(stalled);})){
       pending=latest;lastRepair=now();counts.repairs++;
     }
     if(!pending)return;
@@ -307,7 +340,9 @@ export function createMovementRelay({
     if (!targets.length) { counts.unrouted++; return; }
     if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; return; }
     const value = { s: ++seq, t: pending.t, x: pending.x, y: pending.y, d: pending.dir,
-                    ...(pending.host ? { h: pending.host } : {}) };
+                    ...(pending.host ? { h: pending.host } : {}),
+                    ...(pending.vx || pending.vy ? { vx: pending.vx, vy: pending.vy } : {}),
+                    m: pending.moving ? 1 : 0 };
     let all = true;
     for (const id of targets) {
       if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; all = false; break; }
@@ -354,11 +389,16 @@ export function createMovementRelay({
       forgetRoster();
       set(IDLE, reason);
     },
-    /* Offer our position. Tiles in, wire units out. */
-    send(p) {
+    /* Offer our position. Tiles in, wire units out. `urgent` is a start, a stop
+     * or a turn: it goes now rather than on the next tick, which is what made
+     * people slide past where they stopped and cut corners. */
+    send(p, urgent = false) {
       if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !DIRS.has(p.dir)) return;
+      const wire = (v) => Number.isFinite(v) ? Math.max(-MAX_V, Math.min(MAX_V, Math.round(v * SUB))) : 0;
       pending = latest = { x: Math.round(p.x * SUB), y: Math.round(p.y * SUB), dir: p.dir, t: now(),
-                  host: isShip(p.host) ? p.host : null };
+                  host: isShip(p.host) ? p.host : null,
+                  vx: wire(p.vx), vy: wire(p.vy), moving: !!p.moving };
+      if (urgent && now() - lastUrgent >= URGENT_MS) { lastUrgent = now(); flush(); }
     },
     /* Ships allowed to see us. Positions go to these and no others. */
     route(ships) {
@@ -374,13 +414,7 @@ export function createMovementRelay({
     renewAfter: () => grant?.renewAfter ?? null,
     ships: roster,
     has: (ship) => { for (const who of users.values()) if (who === ship) return true; return false; },
-    delivering: ship => {
-      const clients=[...users].filter(([,who])=>who===ship);
-      return clients.length>0 && clients.every(([id])=>{
-        const d=deliveries.get(id);
-        return !d || d.sent===d.acked || now()-Math.max(d.firstUnackedAt,d.lastAckAt)<DELIVERY_MS;
-      });
-    },
+    delivering: ship => { const c=clientsOf(ship); return c.length>0 && c.some(acking); },
     stats: () => ({
       ...counts, state, joined, permissions,
       peers: users.size, routed: routes.size,

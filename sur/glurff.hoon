@@ -52,13 +52,26 @@
   ^-  (map @ud [id=@ta name=@t headline=@t])
   %-  malt
   ^-  (list [@ud [id=@ta name=@t headline=@t]])
-  :~  [1 ['glurff-room-board' 'Board Room' 'the glurff board room']]
-      [2 ['glurff-room-meeting' 'Meeting Room' 'the glurff meeting room']]
-      [3 ['glurff-room-conference' 'Conference Room' 'the glurff conference room']]
-      [4 ['glurff-room-auditorium' 'Auditorium' 'the glurff auditorium']]
-      [6 ['glurff-room-movie' 'Movie Room' 'the glurff movie room']]
-      [7 ['glurff-room-game' 'Game Room' 'the glurff game room']]
+  ::  The ids are the rooms of the painted map; see ui/src/world/map-data.js,
+  ::  and lib/noltbook.js, which MUST agree with this table.
+  :~  [1 ['glurff-room-bar' 'Bar' 'the glurff bar']]
+      [2 ['glurff-room-auditorium' 'Amphitheatre' 'the glurff amphitheatre']]
+      [3 ['glurff-room-movie' 'Movie Theater' 'the glurff movie theater']]
+      [4 ['glurff-room-office-1' 'Office 1' 'glurff office 1']]
+      [5 ['glurff-room-office-2' 'Office 2' 'glurff office 2']]
+      [6 ['glurff-room-office-3' 'Office 3' 'glurff office 3']]
+      [7 ['glurff-room-office-4' 'Office 4' 'glurff office 4']]
+      [8 ['glurff-room-office-5' 'Office 5' 'glurff office 5']]
+      [9 ['glurff-room-office-6' 'Office 6' 'glurff office 6']]
+      [10 ['glurff-room-office-7' 'Office 7' 'glurff office 7']]
+      [11 ['glurff-room-office-8' 'Office 8' 'glurff office 8']]
+      [12 ['glurff-room-board' 'Board Room' 'the glurff board room']]
+      [14 ['glurff-room-library' 'Library' 'the glurff library']]
+      [15 ['glurff-room-game' 'Game Room' 'the glurff game room']]
   ==
+::  How many rooms the painted map has, and which of them is Rumors.
+++  last-room  `@ud`15
+++  rumors-room  `@ud`13
 ::  The note for a place, the commons included. `~` means "none of ours": the
 ::  Rumors room, and anywhere that is not a room.
 ++  note-for
@@ -96,7 +109,9 @@
 ::  with presence, and re-renderable at any zoom. Slot -> part id plus an
 ::  optional tint; Pixi multiplies the tint through the greyscale sprite, which
 ::  is what turns a small part set into a wide one.
-+$  slot  ?(%body %hair %brows %eyes %mouth %top %bottom)
+::  The slots of the layered character art: a body, what it wears, and what is
+::  on its head. Parts are ids into that art, never images.
++$  slot  ?(%body %bottom %shoes %top %gloves %shoulders %beard %hair %hat)
 +$  piece  [part=@ta tint=(unit @ux)]
 +$  look   (map slot piece)
 ::  Bumped on every change. Peers refetch when the number moves, the way a

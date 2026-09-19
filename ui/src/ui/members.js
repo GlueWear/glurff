@@ -9,7 +9,8 @@
  */
 import { displayName, avatarUrl, onChange } from 'lib/noltbook';
 import { our } from 'lib/api';
-import { rooms, onRooms, offerHost, answerHostOffer, canHandOff } from 'lib/rooms';
+import { rooms, onRooms, offerHost, answerHostOffer, canHandOff, mayHandTo, chooseRoomHost,
+         roleFor, mutedShip } from 'lib/rooms';
 import { roomById, COMMONS } from 'world/places';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
@@ -23,10 +24,16 @@ export class Members {
     root.innerHTML = `
       <button class="members-btn" aria-expanded="false" aria-haspopup="true"></button>
       <div class="members-panel" hidden></div>
-      <div class="host-offer" role="alertdialog" hidden></div>`;
+      <div class="host-offer" role="alertdialog" hidden></div>
+      <div class="door-picker" role="dialog" hidden></div>`;
     this.btn = root.querySelector('.members-btn');
     this.panel = root.querySelector('.members-panel');
     this.offer = root.querySelector('.host-offer');
+    this.door = root.querySelector('.door-picker');
+    this.door.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-host]');
+      if (b) chooseRoomHost(b.dataset.host);
+    });
     this.btn.onclick = () => this.toggle(!this.open);
     document.addEventListener('click', (e) => { if (this.open && !root.contains(e.target)) this.toggle(false); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) this.toggle(false); });
@@ -61,11 +68,16 @@ export class Members {
     const people = [...new Set(this.people())].sort((a, b) =>
       (b === our) - (a === our) || (b === host) - (a === host) ||
       displayName(a).toLowerCase().localeCompare(displayName(b).toLowerCase()));
-    const handOff = place !== COMMONS && canHandOff();
+    /* Hosting can be handed on in a room AND in a proximity huddle -- but only
+     * to somebody who is in that call, never to a bystander standing about in
+     * the commons. */
+    const handOff = canHandOff();
     const ask = rooms.hostAsk, offer = rooms.hostOffer;
+    const picker = rooms.picker;
     const signature = JSON.stringify([place, host, this.open, handOff, ask?.to ?? null,
+      picker ? picker.options.map((o) => [o.host, o.count, displayName(o.host)]) : null,
       offer ? [offer.from, offer.place, !!offer.accepted] : null,
-      people.map((s) => [s, displayName(s), avatarUrl(s)])]);
+      people.map((s) => [s, displayName(s), avatarUrl(s), roleFor(s), mutedShip(s), handOff && mayHandTo(s)])]);
     if (signature === this.signature) return;
     this.signature = signature;
 
@@ -77,14 +89,24 @@ export class Members {
           <span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>
           <span class="who">${esc(displayName(ship))}${ship === our ? ' <span class="dim">(you)</span>' : ''}</span>
           ${ship === host ? `<span class="tag">${place === COMMONS ? 'huddle host' : 'host'}</span>` : ''}
-          ${handOff && ship !== our
+          ${roleFor(ship) === 'admin' ? '<span class="tag">ADMIN</span>' : ''}
+          ${mutedShip(ship) ? '<span class="tag">MUTED</span>' : ''}
+          ${handOff && mayHandTo(ship)
             ? (ask?.to === ship ? '<span class="dim">asked…</span>' : `<button class="make-host" data-ship="${esc(ship)}">Make host</button>`)
             : ''}
         </div>`).join('');
     }
+    /* At the door of a room whose copies the people we know are spread across. */
+    this.door.hidden = !picker;
+    if (picker) {
+      const room = esc(roomById(picker.place)?.name ?? 'this room');
+      this.door.innerHTML = `<span>People you know are in more than one ${room}. Join:</span>
+        <div class="options">${picker.options.map((o) =>
+          `<button data-host="${esc(o.host)}">${esc(displayName(o.host))} · ${o.count}</button>`).join('')}</div>`;
+    }
     this.offer.hidden = !offer;
     if (offer) {
-      const room = esc(roomById(offer.place)?.name ?? 'this room');
+      const room = esc(offer.huddle ? 'this huddle' : roomById(offer.place)?.name ?? 'this room');
       this.offer.innerHTML = offer.accepted
         ? `<span>Taking over as host of ${room}…</span>`
         : `<span>${esc(displayName(offer.from))} asked you to host ${room}.</span>

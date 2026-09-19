@@ -1,0 +1,123 @@
+"""Pack the character parts into one sheet per slot, and write what they are.
+
+The art is Minifantasy's layered NPC set (Krishna Palacio), which is drawn as
+one 128x128 sheet per part: four directions down the sheet, four walk frames
+across, each frame 32x32 with a person about seven pixels tall inside it. Every
+part lines up with every other, which is what makes a character builder out of
+them.
+
+This reads that art from OUTSIDE the repository -- it is licensed for use in
+Glurff, not for redistribution -- and writes:
+
+    public/characters/<slot>.png     every part of that slot on one sheet
+    src/world/character-data.js      what each part is, and where it sits
+
+No ship commands, no network, no deployment. Run from build/ui:
+
+    python3 tools/build_characters.py [--art /path/to/Minifantasy_AMyriadOfNPCs...]
+"""
+from pathlib import Path
+import argparse, json, re, sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pnglib import read_png, write_png                        # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+ART = Path('/Volumes/DEV/Sprites/characters/Minifantasy_AMyriadOfNPCs_v.1.0/'
+           'Minifantasy_NPCs_Assets/Generic_NPCs')
+BLOCK = 128           #  one part: 4 directions x 4 frames of 32x32
+FRAME = 32
+COLS = 8              #  parts across a sheet
+
+#  slot -> (label, folders it is drawn from, optional)
+#  Drawn back to front in the order given here; see world/parts.js.
+SLOTS = [
+    ('body',      'Body',      ['_Characters/Human', '_Characters/Elf', '_Characters/Orc'], False),
+    ('bottom',    'Trousers',  ['Body/Trousers'], True),
+    ('shoes',     'Shoes',     ['Body/Shoes'], True),
+    ('top',       'Top',       ['Body/Shirt', 'Body/Blouses', 'Body/Doublets',
+                                'Body/Jacket', 'Body/Togas'], True),
+    ('gloves',    'Gloves',    ['Body/Gloves'], True),
+    ('shoulders', 'Shoulders', ['Body/ShoulderPads'], True),
+    ('beard',     'Beard',     ['Head/Facial_Hair/*'], True),
+    ('hair',      'Hair',      ['Head/Hairstyles/*'], True),
+    ('hat',       'Hat',       ['Head/Hats/*'], True),
+]
+#  What each direction's row is, read off the art: row 1 faces left, row 3 right.
+DIRS = ['down', 'left', 'up', 'right']
+
+clean = lambda s: re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
+
+
+def parts_for(folders):
+    """Every file for a slot, as (group, colour, path), in a steady order."""
+    out = []
+    for pattern in folders:
+        for folder in sorted(ART.glob(pattern)) if '*' in pattern else [ART / pattern]:
+            if not folder.is_dir():
+                continue
+            group = clean(folder.name)
+            for f in sorted(folder.glob('*.png')):
+                colour = clean(f.stem.split('_')[-1])
+                out.append((group, colour, f))
+    return out
+
+
+def swatch(px, w, h):
+    """The part's own colour, for the button you pick it with."""
+    r = g = b = n = 0
+    for i in range(w * h):
+        if px[i * 4 + 3] < 200:
+            continue
+        r += px[i * 4]; g += px[i * 4 + 1]; b += px[i * 4 + 2]; n += 1
+    if not n:
+        return '#000000'
+    return '#%02x%02x%02x' % (r // n, g // n, b // n)
+
+
+def main():
+    global ART
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--art', type=Path, default=ART)
+    args = ap.parse_args()
+    ART = args.art
+    assert ART.is_dir(), f'character art not found at {ART}'
+    walk = ART / 'Walk'
+    assert walk.is_dir(), f'{walk} not found'
+
+    out_dir = ROOT / 'public/characters'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {'frame': FRAME, 'block': BLOCK, 'dirs': DIRS, 'frames': 4, 'slots': {}}
+    total = 0
+    for slug, label, folders, optional in SLOTS:
+        found = parts_for([f'Walk/{f}' for f in folders])
+        assert found, f'no art for {slug}'
+        rows = (len(found) + COLS - 1) // COLS
+        sheet = bytearray(COLS * BLOCK * rows * BLOCK * 4)
+        sw = COLS * BLOCK
+        variants = []
+        for i, (group, colour, path) in enumerate(found):
+            w, h, px = read_png(str(path))
+            assert (w, h) == (BLOCK, BLOCK), f'{path.name} is {w}x{h}'
+            ox, oy = (i % COLS) * BLOCK, (i // COLS) * BLOCK
+            for y in range(h):
+                src = y * w * 4
+                dst = ((oy + y) * sw + ox) * 4
+                sheet[dst:dst + w * 4] = px[src:src + w * 4]
+            variants.append({'key': f'{group}-{colour}', 'group': group,
+                             'colour': colour, 'swatch': swatch(px, w, h)})
+        write_png(str(out_dir / f'{slug}.png'), sw, rows * BLOCK, bytes(sheet))
+        size = (out_dir / f'{slug}.png').stat().st_size
+        total += size
+        manifest['slots'][slug] = {'label': label, 'cols': COLS, 'optional': optional,
+                                   'variants': variants}
+        print(f'{slug:10} {len(found):4} parts  {sw}x{rows * BLOCK}  {size // 1024:4} kB')
+
+    out = ROOT / 'src/world/character-data.js'
+    out.write_text('/* Generated by tools/build_characters.py. Do not edit by hand.\n'
+                   ' * Minifantasy character parts (Krishna Palacio), packed one sheet per slot. */\n'
+                   'export default ' + json.dumps(manifest, separators=(',', ':')) + ';\n')
+    print(f'{total // 1024} kB of sheets, {out.stat().st_size // 1024} kB of names')
+
+
+if __name__ == '__main__':
+    main()

@@ -19,7 +19,7 @@ function assetVersion() {
     hash.update('\0');
     hash.update(fs.readFileSync(file));
   };
-  for (const file of ['public/sprites', 'public/denoise-worklet.js']) if (fs.existsSync(file)) add(file);
+  for (const file of ['public/characters', 'public/map', 'public/denoise-worklet.js']) if (fs.existsSync(file)) add(file);
   return hash.digest('hex').slice(0, 12);
 }
 

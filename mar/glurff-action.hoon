@@ -69,13 +69,15 @@
         |=  [k=@t j=^json]
         ^-  (unit [slot:g piece:g])
         =/  s=(unit slot:g)
-          ?:  =('body' k)    `%body
-          ?:  =('hair' k)    `%hair
-          ?:  =('brows' k)   `%brows
-          ?:  =('eyes' k)    `%eyes
-          ?:  =('mouth' k)   `%mouth
-          ?:  =('top' k)     `%top
-          ?:  =('bottom' k)  `%bottom
+          ?:  =('body' k)       `%body
+          ?:  =('bottom' k)     `%bottom
+          ?:  =('shoes' k)      `%shoes
+          ?:  =('top' k)        `%top
+          ?:  =('gloves' k)     `%gloves
+          ?:  =('shoulders' k)  `%shoulders
+          ?:  =('beard' k)      `%beard
+          ?:  =('hair' k)       `%hair
+          ?:  =('hat' k)        `%hat
           ~
         ?~  s  ~
         ?.  ?=([%o *] j)  ~

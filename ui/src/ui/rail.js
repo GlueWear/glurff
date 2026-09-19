@@ -4,7 +4,8 @@
  * readout of who can hear you and what you are sending. Video sits along the
  * top: double-click a tile to expand it, drag its corner to size it.
  */
-import { rooms, onRooms, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged } from 'lib/rooms';
+import { rooms, onRooms, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged,
+         canModerate, mayRecord, mutedShip, roleFor } from 'lib/rooms';
 import { devices, onDevices, refreshDevices, chosenDevice, chooseDevice, canPickOutput, noiseReduction, setNoiseReduction } from 'lib/devices';
 import { displayName } from 'lib/noltbook';
 import { copyDiagnostics } from 'lib/diagnostics';
@@ -16,7 +17,10 @@ export class Rail {
     this.root = root;
     this.strip = strip;
     this.expanded = null;
-    this.size = 132;
+    /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
+     * resized every screen in the strip rather than the one under the hand. */
+    this.sizes = new Map();
+    this.size = 132;             //  what a feed starts at
     /* The settings panel lives OUTSIDE the repainted markup.
      *
      * The rail redraws on every presence tick -- several times a second -- and
@@ -34,13 +38,27 @@ export class Rail {
     this.paint();
   }
 
+  /* What a recording should draw: the tiles as they are on screen. Elements,
+   * not streams -- the recorder copies pixels and never re-attaches media. */
+  recordableTiles() {
+    const out = [];
+    for (const v of this.videos()) {
+      const el = this.tiles?.get(v.key);
+      const video = el?.querySelector('video');
+      if (video) out.push({ video, label: v.label, screen: v.key === 'screen' || v.label.endsWith('Screen') });
+    }
+    return out;
+  }
+
   videos() {
     /* Our own camera and screen first, muted -- playing your own microphone
      * back at you is an echo, not a feature. */
     const mine = [...rooms.localStreams.entries()]
       .map(([kind, s]) => ({ key: kind, label: kind === 'screen' ? 'Your screen' : 'You', stream: s, mine: true }));
+    /* Somebody an admin has muted is not shown, by anybody. */
+    const muted = new Set(rooms.blocked ?? []);
     const theirs = [...rooms.remoteStreams.entries()]
-      .filter(([, r]) => r.stream.getVideoTracks().some(t=>t.readyState!=='ended'))
+      .filter(([, r]) => !muted.has(r.ship) && r.stream.getVideoTracks().some(t=>t.readyState!=='ended'))
       .map(([id, r]) => ({ key: 'remote:'+id, label: displayName(r.ship)+(r.label==='screen'?' · Screen':''), stream: r.stream, mine: false }));
     return [...mine, ...theirs];
   }
@@ -51,24 +69,45 @@ export class Rail {
     const wanted = new Set(vids.map(v=>v.key));
     for (const [key,el] of this.tiles) if(!wanted.has(key)) {
       const video=el.querySelector('video');video.pause();video.srcObject=null;el.remove();this.tiles.delete(key);
+      this.sizes.delete(key);
+      if(this.expanded===key)this.expanded=null;
     }
-    const w = this.expanded ? Math.max(this.size,320) : this.size;
     for (const [i,v] of vids.entries()) {
+      /* The one you have opened up gets a floor of 320 and twice the width;
+       * everything else keeps whatever it was last dragged to. */
+      const own = this.sizes.get(v.key) ?? this.size;
+      const w = this.expanded === v.key ? Math.max(own, 320) * 2 : own;
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
         el.innerHTML='<video autoplay playsinline muted></video><span></span><i class="grip"></i>';
         this.tiles.set(v.key,el);
         el.ondblclick=()=>{this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
-        el.querySelector('.grip').onmousedown=e=>{
-          e.preventDefault();const startX=e.clientX,startW=el.offsetWidth;
-          const move=ev=>{this.size=Math.max(96,Math.min(720,startW+ev.clientX-startX));this.paintStrip();};
-          const up=()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);};
-          window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
-        };
+        /* Pointer events with capture: the drag follows the pointer even when
+         * it leaves the little square, and it ends with the pointer wherever
+         * that happens -- including a touch or pen. */
+        const grip=el.querySelector('.grip');
+        grip.addEventListener('pointerdown',e=>{
+          if(e.button!==undefined && e.button!==0)return;
+          e.preventDefault();e.stopPropagation();
+          /* Drag sets THIS feed's own size. An opened-up feed is drawn at twice
+           * that, so the drag is measured against the size, not the drawing. */
+          const startX=e.clientX,scale=this.expanded===v.key?2:1,startW=el.offsetWidth/scale;
+          try{grip.setPointerCapture?.(e.pointerId);}catch{}
+          const move=ev=>{this.sizes.set(v.key,Math.max(96,Math.min(720,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
+          const up=()=>{
+            grip.removeEventListener('pointermove',move);
+            grip.removeEventListener('pointerup',up);
+            grip.removeEventListener('pointercancel',up);
+            try{grip.releasePointerCapture?.(e.pointerId);}catch{}
+          };
+          grip.addEventListener('pointermove',move);
+          grip.addEventListener('pointerup',up);
+          grip.addEventListener('pointercancel',up);
+        });
       }
       el.classList.toggle('big',this.expanded===v.key);
-      el.style.width=`${this.expanded===v.key?w*2:w}px`;
+      el.style.width=`${w}px`;
       el.querySelector('span').textContent=v.label;
       const video=el.querySelector('video');video.muted=true; // Audio belongs to the SFU's volume-controlled elements.
       if(video.srcObject!==v.stream){video.srcObject=v.stream;video.play().catch(()=>{});}
@@ -87,11 +126,19 @@ export class Rail {
     const host = room === COMMONS ? huddle?.host ?? null : hostOf(room);
     const people = room === COMMONS ? (huddle?.members ?? []) : occupantsOf(room);
     /* "connected" alone only meant we reached the call server; say so when
-     * nobody else is in the call with us. */
-    const status = rooms.error ?? (room!==COMMONS && rooms.waiting ? 'Connecting…' : room===COMMONS && !huddle ? 'No nearby call' :
-      rooms.voice === 'connected' && !rooms.others ? 'Waiting for others' : rooms.voice);
+     * nobody else is in the call with us. A call that has not connected says
+     * WHO it is waiting on rather than repeating "requesting". */
+    const waitingOn = { 'waiting-ship': 'Waiting on your ship…', 'waiting-host': "Host isn't answering" };
+    /* Being muted by an admin is the first thing about a call you need to
+     * know, so it takes the status line rather than hiding in a tooltip. */
+    const status = rooms.mutedByAdmin ? 'Muted by an admin' : rooms.bootedByAdmin ? 'Removed from this call'
+      : rooms.error ?? (room!==COMMONS && rooms.picker ? 'Choose which one…' :
+      room!==COMMONS && rooms.waiting ? 'Connecting…' : room===COMMONS && !huddle ? 'No nearby call' :
+      rooms.voice === 'connected' && !rooms.others ? 'Waiting for others' :
+      waitingOn[rooms.stage] ?? rooms.voice);
 
-    const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s)]),status,rooms.voice,rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen]);
+    const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s),roleFor(s),mutedShip(s)]),status,rooms.voice,
+      rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen,canModerate(),mayRecord(),rooms.recording?.by??null]);
     if(signature===this.signature)return;
     this.signature=signature;
     this.root.innerHTML = `
@@ -101,7 +148,7 @@ export class Rail {
         </div>
         <div class="rail-people">
           ${people.length
-            ? people.map((s) => `<div class="p">${displayName(s)}${s === our ? ' <span class="dim">(you)</span>' : ''}${s === host ? ' <span class="dim">host</span>' : ''}</div>`).join('')
+            ? people.map((s) => `<div class="p">${displayName(s)}${s === our ? ' <span class="dim">(you)</span>' : ''}${s === host ? ' <span class="dim">host</span>' : ''}${roleFor(s) === 'admin' ? ' <span class="dim">admin</span>' : ''}${mutedShip(s) ? ' <span class="muted-tag">muted</span>' : ''}</div>`).join('')
             : '<div class="dim">nobody else here</div>'}
         </div>
         <div class="rail-btns">
@@ -110,6 +157,10 @@ export class Rail {
           ${mediaButton('cam','Camera',rooms.camOn)}
           ${mediaButton('scr','Screen sharing',rooms.screenOn)}
           <button class="set${this.settingsOpen ? ' on' : ''}">&#9881;</button>
+        </div>
+        <div class="rail-btns mod-btns">
+          ${canModerate() ? '<button class="admin-call">ADMIN</button>' : ''}
+          ${mayRecord() || rooms.recording?.by === our ? `<button class="rec-call${rooms.recording ? ' on' : ''}">REC</button>` : ''}
         </div>
       </div>`;
     /* Re-attached, because the markup above replaced everything else. */
@@ -120,6 +171,12 @@ export class Rail {
     q('.cam').onclick = () => toggleCam().catch((e) => console.error('cam', e));
     q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
     q('.set').onclick = () => this.toggleSettings();
+    /* ADMIN and REC sit with the other call controls, but their PANELS are
+     * built once and live outside this markup -- the rail replaces all of it
+     * several times a second. The panels listen for these. */
+    const open=(which)=>window.dispatchEvent(new CustomEvent('glurff-call-panel',{detail:which}));
+    if(q('.admin-call'))q('.admin-call').onclick=()=>open('admin');
+    if(q('.rec-call'))q('.rec-call').onclick=()=>open('rec');
   }
 
   toggleSettings() {

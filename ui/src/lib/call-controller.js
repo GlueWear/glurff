@@ -1,5 +1,8 @@
 /* Calls progress independently of avatar movement. Retrying delivery keeps
  * the same operation ID; a new ID means a genuinely new join/renewal attempt. */
+/* How long each side gets before the readout names it. Our own ship taking a
+ * poke is usually instant; a host that has heard us answers within a beat. */
+const OWN_SHIP_MS = 5000, HOST_SILENT_MS = 9000;
 export class CallController {
   constructor({our, transport, sfu, accepts, changed, known=()=>true, trace=()=>{}, now=Date.now,
     later=(fn,ms)=>setTimeout(fn,ms), cancel=id=>clearTimeout(id), fresh=()=>Date.now()*1000+Math.floor(Math.random()*1000)}) {
@@ -22,7 +25,8 @@ export class CallController {
     this.sfu.close(null);
     if(!target){this.emit('idle');return;}
     for(const [place,r] of this.hosted)if(r.until<this.now())this.hosted.delete(place);
-    this.current={...target,attempt:this.fresh(),mode:'renew-access',tries:0,failures:0,capacityFailures:0,grant:null};
+    this.current={...target,attempt:this.fresh(),mode:'renew-access',tries:0,failures:0,capacityFailures:0,grant:null,
+                  began:this.now(),acceptedHere:false,heardHost:false};
     this.emit('requesting');this.request();
   }
   bounded(pending,key,send) {
@@ -39,7 +43,30 @@ export class CallController {
     catch{done();return false;}
     return true;
   }
-  send(who,event) {return this.bounded(this.pendingSends,`${who}/${event.kind}/${event.place}`,()=>this.transport.send(who,event));}
+  send(who,event) {
+    const c=this.current;
+    const sent=this.bounded(this.pendingSends,`${who}/${event.kind}/${event.place}`,()=>{
+      const p=this.transport.send(who,event);
+      /* Our own ship taking the poke is a separate thing from the host
+       * answering it, and telling them apart is the difference between
+       * "waiting on your ship" and "the host isn't answering". */
+      if(c && event.kind==='call-request')Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
+      return p;
+    });
+    return sent;
+  }
+  /* What the person is actually waiting on, for the readout. Phases say what
+   * the call is doing; this says who has not answered yet. */
+  stage() {
+    const c=this.current;
+    if(!c)return 'idle';
+    if(this.phase!=='requesting')return this.phase;
+    const waited=this.now()-(c.began??this.now());
+    if(c.host===this.our)return c.acceptedHere||waited<=OWN_SHIP_MS?'requesting':'waiting-ship';
+    if(!c.acceptedHere)return waited<=OWN_SHIP_MS?'requesting':'waiting-ship';
+    if(!c.heardHost)return waited<=HOST_SILENT_MS?'requesting':'waiting-host';
+    return 'requesting';
+  }
   request() {
     const c=this.current;if(!c || this.closed || this.phase==='connected' || this.phase==='connecting' || this.phase==='blocked')return;
     this.cancel(c.retry);c.tries++;
@@ -56,9 +83,14 @@ export class CallController {
     c.retry=this.later(()=>{if(this.current===c)this.request();},Math.min(30000,4000*2**Math.min(c.tries-1,3)));
   }
   operation(op,place,who,attempt) {
+    const c=this.current;
     // The slot survives call transitions: a slow local ACK must not let every
     // new join attempt add another operation for the same participant/room.
-    return this.bounded(this.pendingOperations,`${place}/${who}`,()=>this.transport.operation(op,place,who,attempt));
+    return this.bounded(this.pendingOperations,`${place}/${who}`,()=>{
+      const p=this.transport.operation(op,place,who,attempt);
+      if(c && who===this.our)Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
+      return p;
+    });
   }
   receive(who,event) {
     const c=this.current;
@@ -101,6 +133,8 @@ export class CallController {
       return;
     }
     if(!c || who!==c.host || event.place!==c.place || event.attempt!==c.attempt)return;
+    //  Anything at all from the host means it is there and has heard us.
+    c.heardHost=true;
     if(event.kind==='call-refused' && typeof event.reason==='string'){this.refusedBy(event.reason);return;}
     if(event.kind==='call-error' && typeof event.error==='string')this.fail(event.error);
     // Acknowledgement means the elected host is alive. Never elect another
@@ -215,7 +249,7 @@ export class CallController {
           // A lost response consumes a bounded probe too. Do not schedule from
           // an already-expired grant and accidentally renew every second.
           c.retry=this.later(()=>{if(this.current===c)this.fail(error);},30000);
-        }else{this.emit('requesting');this.request();}
+        }else{c.began=this.now();c.acceptedHere=false;c.heardHost=false;this.emit('requesting');this.request();}
       },[15000,30000,60000][c.capacityFailures-1]);
       return;
     }
@@ -233,6 +267,7 @@ export class CallController {
     c.retry=this.later(()=>{
       if(this.current!==c)return;
       c.reconnecting=false;c.attempt=this.fresh();c.tries=0;c.mode='renew-access';c.grant=null;
+      c.began=this.now();c.acceptedHere=false;c.heardHost=false;
       this.emit('requesting');this.request();
     },Math.min(30000,2000*2**(c.failures-1)));
   }

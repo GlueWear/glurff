@@ -23,17 +23,11 @@ export const GLURFF_APP = { desk: 'glurff', title: 'Glurff' };
 // New icon on a fresh note: previous commons notes and histories stay intact.
 export const COMMONS_NOTE = 'glurff-commons-v3';
 export const RUMORS_NOTE = 'ars-rumors';
-/* One note per room, mirroring the table in sur/glurff.hoon -- the agent is
- * what installs them and it reads the ids from there, so these two lists MUST
- * agree. Rumors is absent because it uses Noltbook's anonymous system note. */
-export const ROOM_NOTES = {
-  1: 'glurff-room-board',
-  2: 'glurff-room-meeting',
-  3: 'glurff-room-conference',
-  4: 'glurff-room-auditorium',
-  6: 'glurff-room-movie',
-  7: 'glurff-room-game',
-};
+/* Rooms have no notes of their own: their chat is session-only, in the browser
+ * (see lib/room-events.js and ui/hud.js). The commons is a gossip note, and the
+ * war room is Rumors, Noltbook's own anonymous note. */
+/* The war room is the Rumors room: anonymous, and Noltbook's own note. */
+export const RUMORS_ROOM = 13;
 /* Noltbook delivers BOTH our own and remote rumors as `rumor-message`, stored
  * under ars-rumors. An earlier reading of this traced remote rumors to the
  * `cover` note; that was wrong, and merging cover also pulled ordinary cover
@@ -179,6 +173,9 @@ export function applyFact(name, p) {
       if (!receiveMessages(noteId, [p.message ?? p])) return;
       field = 'messages'; break;
     case 'gossip-envelope': gossip.envelope(p.noteId, p.envelope ?? p.env, p.hops); return;
+    /* The author has answered that they no longer hold this message. Noltbook
+     * reports it rather than letting the request time out, so stop asking. */
+    case 'gossip-msg-unavailable': gossip.unavailable(p.noteId ?? 'cover', {eid: p.eid ?? null, msgId: p.msgId}); return;
     case 'envelope-list': gossip.snapshot(p.noteId, p.envelopes ?? []); return;
     case 'envelope-hops': gossip.hops(p.noteId, p.hops ?? []); return;
     case 'contact-list': nb.contacts = Object.fromEntries(p.map(s => [s, true])); field = 'contacts'; break;
@@ -234,6 +231,8 @@ export function applyFact(name, p) {
     default: return;
   }
   if (field === 'pals' || field === 'dial') { socialRevision++; gossip.socialChanged(); }
+  //  Keep this browser's copy of who to greet first up to date; see saveSocial.
+  if (field === 'pals' || field === 'dial' || (field === 'active' && noteId === COMMONS_NOTE)) saveSocial();
   changed(field, noteId, ship);
 }
 
@@ -281,9 +280,15 @@ export const knownShips = () => [...new Set([
  * graph edge; chat envelopes are deliberately not a presence directory. */
 /* A discovered peer is visible for as long as presence keeps it: nb.discovered
  * is rebuilt from presence's own list, so no clock is needed here. */
+/* Plus anyone a room lets us see (lib/roommates): somebody on the same room list,
+ * or on the list of a room somebody we can see is in. */
+let extraVisible = () => [];
+export const setExtraVisible = (fn) => { extraVisible = fn; };
+const roomVisible = () => { try { return extraVisible().filter((s) => nb.pals[s] !== 'blocked'); } catch { return []; } };
 export const visiblePeers = () =>
   [...new Set([...Object.keys(nb.pals).filter(s => ['mutual','requesting'].includes(nb.pals[s])),
-    ...Object.entries(nb.discovered).filter(([s,d]) => nb.dial > 0 && d.hops <= nb.dial + 1 && nb.pals[s] !== 'blocked').map(([s])=>s)])].filter(s=>s!==our);
+    ...Object.entries(nb.discovered).filter(([s,d]) => nb.dial > 0 && d.hops <= nb.dial + 1 && nb.pals[s] !== 'blocked').map(([s])=>s),
+    ...roomVisible()])].filter(s=>s!==our);
 
 /* Pals in Glurff right now. Noltbook announces it: each member's app sets
  * "active" on their copy of the commons, and Noltbook tells their pals when that
@@ -479,6 +484,47 @@ export async function subscribeNote(noteId) {
     updateWanted(); return api.unsubscribe(id).catch(() => {});
   };
 }
+
+/* LAST TIME'S LISTS, KEPT IN THIS BROWSER.
+ *
+ * Nobody can see anybody until Noltbook has said who our pals are and which of
+ * them are in Glurff. That is usually fast and sometimes seconds, and those are
+ * seconds of an empty world. The previous page's answer is a good guess for the
+ * gap: only the pals who were in Glurff within the last few minutes are kept,
+ * so the guess is small and recent, and Noltbook's real lists replace it
+ * outright as soon as they arrive.
+ *
+ * This browser only. Nothing is sent anywhere, and nothing here is trusted for
+ * anything but who to say hello to first. */
+const SOCIAL_MS=10*60*1000;
+const socialKey=()=>'glurff-social/'+our;
+let socialSavedAt=-Infinity;
+function saveSocial(force=false) {
+  if(typeof window==='undefined')return;
+  if(!force && Date.now()-socialSavedAt<30000)return;
+  socialSavedAt=Date.now();
+  try {
+    const here=[...inGlurff()];
+    const pals=Object.fromEntries(here.filter(s=>nb.pals[s]).map(s=>[s,nb.pals[s]]));
+    window.localStorage?.setItem(socialKey(),JSON.stringify({at:Date.now(),dial:nb.dial,inGlurff:here,pals}));
+  } catch {}
+}
+export function primeSocial() {
+  if(typeof window==='undefined' || nb.palsReady)return false;
+  let saved;
+  try {saved=JSON.parse(window.localStorage?.getItem(socialKey())??'null');} catch {return false;}
+  if(!saved || !Number.isFinite(saved.at) || Date.now()-saved.at>SOCIAL_MS)return false;
+  const here=(saved.inGlurff??[]).filter(s=>typeof s==='string' && /^~[a-z-]{3,70}$/.test(s) && s!==our).slice(0,64);
+  if(!here.length)return false;
+  nb.pals={...Object.fromEntries(here.filter(s=>['mutual','requesting'].includes(saved.pals?.[s])).map(s=>[s,saved.pals[s]]))};
+  nb.palsReady=true;
+  nb.dial=Math.max(0,Math.min(3,Number(saved.dial)||0));nb.dialReady=true;
+  nb.active[COMMONS_NOTE]=here.map(ship=>({desk:GLURFF_APP.desk,label:'In Glurff',setBy:ship}));
+  socialRevision++;gossip.socialChanged();
+  changed('pals');changed('dial');changed('active',COMMONS_NOTE);
+  return true;
+}
+if(typeof window!=='undefined')window.addEventListener('glurff-exit',()=>saveSocial(true));
 
 let activeAt=-Infinity, activeBusy=false;
 let activeLease=null, activeClosed=false, leaseAt=-Infinity;

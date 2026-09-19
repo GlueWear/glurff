@@ -7,21 +7,38 @@ import { versioned } from '../lib/build.js';
  * player for control and drags them a tile at a time.
  */
 import { MotionBuffer } from 'lib/motion';
-import { Application, Container, Sprite, Text, Texture, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
-import { TILE, CHAR_H, DIRS, SLOTS, flipped, partTexture, completeLook, facingAway, allTextures } from 'world/parts';
-import { buildWorld, regionAt, roomById, SPAWN, COMMONS, PROP_SIZE } from 'world/places';
+import { Application, Container, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
+import { TILE, FRAME, SCALE, FEET, HEAD, CHAR_H, SLOTS, frameOf, completeLook, allTextures } from 'world/parts';
+import { buildWorld, regionAt, roomById, SPAWN, COMMONS, solidAt as mapSolid, MAP_IMAGE, OVER_IMAGE } from 'world/places';
 
 BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
 
-const SPR = (n) => versioned(`/apps/glurff/sprites/${n}.png`);
+/* One texture per part frame, cut out of its slot's sheet and kept: a walking
+ * character asks for the same handful of frames over and over. */
+const frames = new Map();
+function frameTexture(f) {
+  const id = `${f.url}|${f.x},${f.y}`;
+  let t = frames.get(id);
+  if (!t) {
+    t = new Texture(Texture.from(f.url).baseTexture, new Rectangle(f.x, f.y, f.w, f.h));
+    frames.set(id, t);
+  }
+  return t;
+}
 const WALK_SPEED = 4.4;     //  tiles per second
 const RUN_MULT = 1.8;
 const DOUBLE_TAP_MS = 280;
 const FRAME_MS = 140;       //  walk cycle
+/* How far the world moves for a drag of the mouse. Above one, so crossing the
+ * building is one pull rather than several. */
+const PAN_SPEED = 2.5;
 /* Half steps are allowed at the bottom end so the whole world can be seen at
  * once. 0.5 still maps 2x2 source pixels to one, so it stays crisp; anything
  * non-power-of-two would not. */
 export const ZOOMS = [0.5, 1, 2, 3, 4];
+/* Frames a new room must hold before anything is told you are in it. Doorways
+ * are one step wide and a step lands on them. */
+const ROOM_SETTLE = 6;
 
 export class Game {
   constructor(mount, { onMove, onRoomChange } = {}) {
@@ -35,6 +52,7 @@ export class Game {
     this.peers = new Map();   //  ship -> {sprite, spot, look}
     this.world = null;
     this.room = COMMONS;
+    this.settling = null; this.settled = 0;
     this.self = { x: SPAWN.x, y: SPAWN.y, dir: 'down', moving: false, frame: 0, look: null };
     this.lastFrame = 0;
     /* Double-tapping a direction runs, the way it does in every game that has
@@ -42,6 +60,11 @@ export class Game {
     this.lastTap = { key: null, at: 0 };
     this.running = false;
     this.ourShip = null;
+    /* Looking around without walking: right-drag moves the view, and your next
+     * step brings it back to you. */
+    this.pan = { x: 0, y: 0 };
+    this.panning = null;
+    this.panned = false;
   }
 
   async start() {
@@ -58,7 +81,10 @@ export class Game {
     this.ground = new Container();
     this.actors = new Container();   //  depth-sorted, so people walk behind things
     this.actors.sortableChildren = true;
-    this.camera.addChild(this.ground, this.actors);
+    /* The obscure layer of the painting: doorways and anything else people pass
+     * behind, drawn over everybody. */
+    this.above = new Container();
+    this.camera.addChild(this.ground, this.actors, this.above);
     this.app.stage.addChild(this.camera);
 
     window.addEventListener('keydown', (e) => this.onKey(e, true));
@@ -69,6 +95,27 @@ export class Game {
         this.running = false;
       }
     });
+    /* Drag to look around: hold the left button and pull the world. It travels
+     * further than the cursor does, so a room away is a short drag rather than
+     * three. A click that does not move is not a drag, so double-clicking
+     * somebody still opens them. */
+    this.mount.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      this.panning = { x: e.clientX, y: e.clientY };
+      this.panned = false;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!this.panning) return;
+      const dx = e.clientX - this.panning.x, dy = e.clientY - this.panning.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) { this.panned = true; this.mount.style.cursor = 'grabbing'; }
+      this.panning = { x: e.clientX, y: e.clientY };
+      this.pan.x -= (dx * PAN_SPEED) / this.zoom;
+      this.pan.y -= (dy * PAN_SPEED) / this.zoom;
+      this.centreCamera();
+    });
+    const release = () => { this.panning = null; this.mount.style.cursor = ''; };
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
+    window.addEventListener('blur', release);
     /* Wheel to zoom, which is what everyone reaches for first. */
     this.mount.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -109,20 +156,11 @@ export class Game {
   /* ------------------------------------------------------------ textures */
 
   async load() {
-    const names = [
-      'grass', 'cobble', 'cobble-red', 'floor', 'floor-stone',
-      'table', 'stool', 'barrel', 'crate', 'crate-long', 'stone', 'stone-small',
-      'tree', 'shrub', 'flowers-red', 'sign', 'house', 'portal', 'gate-00',
-      'tunnel', 'tunnel-big',
-    ];
-    const urls = names.map(SPR);
-    urls.push(versioned('/apps/glurff/sprites/walls/wall-stone/wall-stone-00.png'));
-    urls.push(versioned('/apps/glurff/sprites/walls/wall-stone-small/wall-stone-small-00.png'));
-    /* Every character texture up front, so nothing pops in mid-walk. */
-    await Assets.load([...urls, ...allTextures()]);
-    this.tex = (n) => Texture.from(SPR(n));
-    this.wall = Texture.from(versioned('/apps/glurff/sprites/walls/wall-stone/wall-stone-00.png'));
-    this.wallSmall = Texture.from(versioned('/apps/glurff/sprites/walls/wall-stone-small/wall-stone-small-00.png'));
+    /* The world is one painting, with a second one drawn over people. Every
+     * character texture comes up front, so nothing pops in mid-walk. */
+    await Assets.load([versioned(MAP_IMAGE), versioned(OVER_IMAGE), ...allTextures()]);
+    this.mapTexture = Texture.from(versioned(MAP_IMAGE));
+    this.overTexture = Texture.from(versioned(OVER_IMAGE));
   }
 
   /* -------------------------------------------------------------- places */
@@ -132,36 +170,14 @@ export class Game {
     this.world = wd;
     this.ground.removeChildren();
     this.actors.removeChildren();
+    this.above.removeChildren();
 
-    for (let y = 0; y < wd.h; y++) {
-      for (let x = 0; x < wd.w; x++) {
-        const s = new Sprite(this.tex(wd.tiles[y][x]));
-        s.position.set(x * TILE, y * TILE);
-        s.tint = wd.tints[y][x];
-        this.ground.addChild(s);
-      }
-    }
-    for (const p of wd.props) {
-      const t = p.t === 'wall-stone' ? this.wall
-        : p.t === 'wall-stone-small' ? this.wallSmall
-        : this.tex(p.t);
-      const s = new Sprite(t);
-      const size = PROP_SIZE[p.t] ?? 1;
-      /* Anchor tall props at their base so they overlap the tile behind. */
-      s.position.set(p.x * TILE, (p.y - (size - 1)) * TILE);
-      s.tint = p.tint ?? 0xffffff;
-      s.zIndex = (p.y + 1) * TILE;
-      this.actors.addChild(s);
-    }
-    if (wd.screen) {
-      const s = new Sprite(Texture.WHITE);
-      s.width = wd.screen.w * TILE;
-      s.height = wd.screen.h * TILE;
-      s.position.set(wd.screen.x * TILE, wd.screen.y * TILE);
-      s.tint = 0x0a0a10;
-      s.zIndex = wd.screen.y * TILE;
-      this.actors.addChild(s);
-    }
+    const painting = new Sprite(this.mapTexture);
+    painting.position.set(0, 0);
+    this.ground.addChild(painting);
+    const over = new Sprite(this.overTexture);
+    over.position.set(0, 0);
+    this.above.addChild(over);
 
     this.selfSprite = this.makeCharacter(this.self.look);
     this.actors.addChild(this.selfSprite.node);
@@ -175,7 +191,10 @@ export class Game {
     const layers = {};
     for (const slot of SLOTS) {
       const s = new Sprite(Texture.EMPTY);
-      s.anchor.set(0.5, 1);
+      /* Anchored at the FEET, so a character stands on its position instead of
+       * floating above it, and drawn at four times. */
+      s.anchor.set(0.5, FEET / FRAME);
+      s.scale.set(SCALE);
       node.addChild(s);
       layers[slot] = s;
     }
@@ -190,7 +209,7 @@ export class Game {
       strokeThickness: 3,
     });
     label.anchor.set(0.5, 1);
-    label.position.set(0, -CHAR_H + 2);
+    label.position.set(0, -CHAR_H - 2);
     label.resolution = 2;
     node.addChild(label);
 
@@ -214,36 +233,38 @@ export class Game {
     for (const slot of SLOTS) {
       const piece = ch.look[slot];
       const layer = ch.layers[slot];
-      if (!piece) { layer.texture = Texture.EMPTY; continue; }
-      const url = partTexture(slot, piece.part, dir, frame);
-      if (!url) { layer.texture = Texture.EMPTY; continue; }
-      layer.texture = Texture.from(url);
+      const f = piece ? frameOf(slot, piece.part, dir, frame) : null;
+      if (!f) { layer.texture = Texture.EMPTY; continue; }
+      layer.texture = frameTexture(f);
       layer.tint = piece.tint ?? 0xffffff;
-      /* Left is the side sprite mirrored, so nothing is ever drawn facing
-       * left -- the art has no left-facing variation. */
-      layer.scale.x = flipped(dir) ? -1 : 1;
     }
   }
 
+  /* A character stands ON its position: x and y are where the feet are. */
   placeCharacter(ch, x, y) {
-    ch.node.position.set(x * TILE + TILE / 2, y * TILE + TILE);
-    ch.node.zIndex = (y + 1) * TILE + 1;
+    ch.node.position.set(x * TILE, y * TILE);
+    ch.node.zIndex = Math.round(y * TILE);
   }
 
   /* ------------------------------------------------------------- peers */
 
-  upsertPeer(ship, spot, look, name, stamp) {
+  /* `motion` is whatever the sender told us about how they are moving --
+   * velocity in tiles per second and whether they are walking at all. Absent
+   * from the slow path and from older builds, and then worked out from the
+   * positions themselves. */
+  upsertPeer(ship, spot, look, name, stamp, motion = {}) {
     let p = this.peers.get(ship);
     if (!p) {
       /* Build once and PATCH afterwards. Rebuilding a peer every update tears
        * down their sprites, and texture work never survives it. */
-      p = { ch: this.makeCharacter(look, name ?? ship), spot, render:{x:spot.x,y:spot.y}, motion:new MotionBuffer(spot,performance.now(),stamp) };
+      p = { ch: this.makeCharacter(look, name ?? ship), spot, render:{x:spot.x,y:spot.y},
+            motion:new MotionBuffer(spot,performance.now(),stamp,{solid:(x,y)=>this.solidAt(x,y)}) };
       this.actors.addChild(p.ch.node);
       this.peers.set(ship, p);
     }
     if (look && p.lastLook!==look) {this.dressCharacter(p.ch, look);p.lastLook=look;}
     if (name) this.nameCharacter(p.ch, name);
-    if(p.spot.x!==spot.x || p.spot.y!==spot.y || p.spot.dir!==spot.dir)p.motion.push(spot,performance.now(),stamp);
+    if(p.spot.x!==spot.x || p.spot.y!==spot.y || p.spot.dir!==spot.dir)p.motion.push(spot,performance.now(),stamp,motion);
     p.spot = spot;
     this.placeCharacter(p.ch,p.render.x,p.render.y);
   }
@@ -264,8 +285,8 @@ export class Game {
     const wx = (clientX - rect.left - this.camera.position.x) / z;
     const wy = (clientY - rect.top - this.camera.position.y) / z;
     const boxed = (spot) => {
-      const cx = spot.x * TILE + TILE / 2, base = spot.y * TILE + TILE;
-      return Math.abs(wx - cx) <= TILE / 2 && wy <= base && wy >= base - CHAR_H;
+      const cx = spot.x * TILE, base = spot.y * TILE;
+      return Math.abs(wx - cx) <= (FRAME * SCALE) / 6 && wy <= base && wy >= base - CHAR_H;
     };
     const hits = [];
     for (const [ship, p] of this.peers) if (p.spot && boxed(p.spot)) hits.push([ship, p.spot.y]);
@@ -311,12 +332,9 @@ export class Game {
 
   /* -------------------------------------------------------- walking */
 
+  /* The drawn walls, a quarter of a tile at a time; see world/places. */
   solidAt(x, y) {
-    const b = this.world;
-    if (!b) return true;
-    const tx = Math.round(x), ty = Math.round(y);
-    if (tx < 0 || ty < 0 || tx >= b.w || ty >= b.h) return true;
-    return b.solid[ty][tx];
+    return this.world ? mapSolid(x, y) : true;
   }
 
   tick() {
@@ -328,7 +346,11 @@ export class Game {
       const distance=Math.hypot(point.x-p.render.x,point.y-p.render.y);
       p.render={x:point.x,y:point.y};
       this.placeCharacter(p.ch,p.render.x,p.render.y);
-      this.poseCharacter(p.ch,point.dir??p.spot.dir,distance>.001?Math.floor(time/FRAME_MS)%3:0);
+      /* Walk the legs while they are walking, even during a lull between their
+       * messages -- standing still with a foot up is what a dropped packet used
+       * to look like. */
+      const walking=point.moving??(distance>.001);
+      this.poseCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001?Math.floor(time/FRAME_MS)%4:0);
     }
 
     let dx = 0, dy = 0;
@@ -353,13 +375,15 @@ export class Game {
         : (dy < 0 ? 'up' : 'down');
       const now = performance.now();
       if (now - this.lastFrame > FRAME_MS) {
-        this.self.frame = (this.self.frame + 1) % 3;
+        this.self.frame = (this.self.frame + 1) % 4;
         this.lastFrame = now;
       }
     } else if (this.self.frame !== 0) {
       this.self.frame = 0;
     }
     this.self.moving = moving;
+    /* Walking brings the view back to you. */
+    if (moving && (this.pan.x || this.pan.y)) this.pan = { x: 0, y: 0 };
 
     this.poseCharacter(this.selfSprite, this.self.dir, this.self.frame);
     this.placeCharacter(this.selfSprite, this.self.x, this.self.y);
@@ -368,11 +392,21 @@ export class Game {
     if (moving || wasMoving) this.onMove({ ...this.self });
 
     /* Rooms are regions of the same map, so entering one is just noticing that
-     * you are standing inside it. */
+     * you are standing inside it.
+     *
+     * A doorway is one step wide, and a step lands ON it: standing in one, a
+     * tremble of a pixel used to change room, change the chat under it and
+     * change it back -- the flash people saw walking into the amphitheatre. So
+     * a new room has to still be the room a few frames later before anything
+     * is told about it. Your own position is not being corrected here; only
+     * what the rest of the world is told is held back. */
     const room = regionAt(this.self.x, this.self.y);
-    if (room !== this.room) {
+    if (room !== this.room && room !== this.settling) { this.settling = room; this.settled = 0; }
+    if (room === this.room) { this.settling = null; this.settled = 0; }
+    else if (++this.settled >= ROOM_SETTLE) {
       const from = this.room;
       this.room = room;
+      this.settling = null; this.settled = 0;
       this.onRoomChange(room, from);
     }
   }
@@ -380,7 +414,7 @@ export class Game {
   centreCamera() {
     const vw = this.app.renderer.width, vh = this.app.renderer.height;
     const z = this.zoom;
-    let cx = this.self.x * TILE + TILE / 2, cy = this.self.y * TILE + TILE / 2;
+    let cx = this.self.x * TILE + this.pan.x, cy = this.self.y * TILE - CHAR_H / 2 + this.pan.y;
     /* Clamp so the camera never shows outside the world, unless the place is
      * smaller than the viewport, in which case centre it. */
     const halfW = vw / (2 * z), halfH = vh / (2 * z);
@@ -390,20 +424,4 @@ export class Game {
     this.camera.position.set(Math.round(vw / 2 - cx * z), Math.round(vh / 2 - cy * z));
   }
 
-  /* A short zoom punch when moving between places, so a door feels like going
-   * somewhere rather than a hard cut. */
-  async transition(fn) {
-    const from = this.zoom;
-    for (let i = 0; i < 6; i++) {
-      this.camera.alpha = 1 - i / 6;
-      await new Promise((r) => requestAnimationFrame(r));
-    }
-    fn();
-    for (let i = 0; i < 6; i++) {
-      this.camera.alpha = i / 6;
-      await new Promise((r) => requestAnimationFrame(r));
-    }
-    this.camera.alpha = 1;
-    this.setZoom(from);
-  }
 }

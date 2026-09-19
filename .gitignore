@@ -1,3 +1,15 @@
 node_modules/
 dist/
 .DS_Store
+
+# ART WE MAY USE BUT MAY NOT REDISTRIBUTE.
+# Minifantasy (Krishna Palacio): licensed for use in Glurff, not for
+# redistribution. A git repository is redistribution. See the README.
+lib/glurff/site/characters/
+lib/glurff/site/map/
+ui/public/characters/
+ui/public/map/
+ui/map/
+
+# Python leftovers from the asset tools
+__pycache__/

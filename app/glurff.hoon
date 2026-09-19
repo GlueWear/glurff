@@ -116,6 +116,34 @@
       %-  calls-poke:hc
       [%renew (call-req:hc place session %renew our.bowl) (room-key:hc place) ttl]
     ?~  who  ~
+    ::  MODERATION THE CALL SERVER ENFORCES.
+    ::
+    ::  A mute only the muted person's browser honours is a request. These make
+    ::  it true for every client: %noltbook-calls changes what that participant
+    ::  may publish and reissues their credentials, or removes them outright.
+    ::  Only a host can get here -- the room key is derived from the place, and
+    ::  the broker answers to the room's authority alone -- and never for
+    ::  ourselves, so a browser cannot mute its own way out of a moderated call.
+    ?:  ?=(?(%mute-access %unmute-access) op)
+      ?:  =(our.bowl i.who)  ~
+      :_  ~
+      %-  calls-poke:hc
+      ?:  ?=(%mute-access op)
+        :*  %mute-access
+            (call-req:hc place session %mute-access i.who)
+            (room-key:hc place)  i.who  %glurff
+            (call-ctx:hc place i.who session)
+        ==
+      :*  %unmute-access
+          (call-req:hc place session %unmute-access i.who)
+          (room-key:hc place)  i.who  %glurff
+          (call-ctx:hc place i.who session)
+      ==
+    ?:  ?=(%evict op)
+      ?:  =(our.bowl i.who)  ~
+      :_  ~
+      %-  calls-poke:hc
+      [%evict (call-req:hc place session %evict i.who) (room-key:hc place) i.who]
     ?:  ?=(%renew-access op)
       :_  ~
       %-  calls-poke:hc
@@ -161,7 +189,7 @@
     ::  The id comes from the table in /sur, never from the caller. A place we
     ::  have no note for -- Rumors, or anywhere that is not a room -- installs
     ::  nothing rather than inventing an id.
-    ?:  !=(place 0)  [~ this]
+    ?.  (lte place last-room:g)  [~ this]
     =/  spec  (note-for:g place)
     ?~  spec  [~ this]
     :_  this
@@ -448,7 +476,7 @@
     (spray peers.act [%presence-event body.act])
   ::
       %room-event
-    ?.  ?&((gth place.act 0) (lth place.act 8) !=(5 place.act) (lte (met 3 body.act) 8.192))
+    ?.  ?&((gth place.act 0) (lte place.act last-room:g) !=(rumors-room:g place.act) (lte (met 3 body.act) 8.192))
       `state
     :_  state
     (spray peers.act [%room-event place.act body.act])
@@ -482,7 +510,7 @@
     :_(state ~[(fact [%presence-event who body.rem])])
   ::
       %room-event
-    ?.  ?&((gth place.rem 0) (lth place.rem 8) !=(5 place.rem) (lte (met 3 body.rem) 8.192))
+    ?.  ?&((gth place.rem 0) (lte place.rem last-room:g) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
       `state
     :_(state ~[(fact [%room-event who place.rem body.rem])])
   ::

@@ -50,6 +50,12 @@ export const MAX_TERM = 49999;
  * a late race still converges, at the cost of one reconnect. */
 export const SETTLE_MS = 8000;
 
+/* If the app says somebody else is in Glurff, their session is worth waiting
+ * for a little longer than the plain settle window: claiming one of our own
+ * beside theirs costs everybody a reconnect. Bounded, because a listed person
+ * whose ship never answers must not hold the world up. */
+export const CLAIM_WAIT_MS = 15000;
+
 /* An announcement older than this says nothing about now. Presence beats every
  * ten seconds, so this spans several missed beats. */
 export const LIVE_WINDOW_MS = 40000;
@@ -92,7 +98,10 @@ export function compare(a, b) {
   return a.host < b.host ? -1 : a.host > b.host ? 1 : 0;
 }
 
-export function createMovementSession({ our, now = Date.now, onChange = () => {}, trace = () => {} } = {}) {
+export function createMovementSession({ our, now = Date.now, onChange = () => {}, trace = () => {},
+  /* Who the app believes is in here with us, whether or not they have answered
+   * yet. Empty by default, which is the old behaviour exactly. */
+  expected = () => [] } = {}) {
   let role = SEEKING;
   let current = null;              //  {host, term, place}
   let started = now();             //  local ms, start of the settle window
@@ -191,6 +200,13 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
       const best = candidates()[0];
       if (best) { adopt(best, 'adopted'); return; }
       if (t - started < SETTLE_MS) return;
+      /* Somebody the app says is in here has not told us their session yet.
+       * Give them a moment before starting a second one beside it. */
+      if (t - started < CLAIM_WAIT_MS) {
+        let waiting = false;
+        try { waiting = expected().some((s) => isShip(s) && s !== our && !heard.has(s)); } catch {}
+        if (waiting) return;
+      }
       adopt({ host: our, term: Math.min(MAX_TERM, maxTerm + 1) }, 'claimed');
       return;
     }

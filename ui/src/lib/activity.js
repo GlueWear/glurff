@@ -1,6 +1,9 @@
 // Noltbook keeps gossip refreshes local and enforces a 90-second minimum TTL.
+// Every refresh wakes Noltbook's whole state, so refresh at half the TTL rather
+// than at a quarter of it: one missed refresh still leaves a full minute of
+// margin before pals stop seeing us in the list.
 export const ACTIVE_TTL = 120;
-export const ACTIVE_REFRESH_MS = 30000;
+export const ACTIVE_REFRESH_MS = 60000;
 // Browser-only bookkeeping keeps its existing cadence; it sends no ship poke.
 export const TAB_REFRESH_MS = 5000;
 

@@ -59,6 +59,7 @@ export function createMovement({
   fresh = () => Date.now() % 1000000000,
   socket,
   trace = () => {},
+  expected = () => [],                       //  who the app says is in here with us
   makeSession = createMovementSession,
   makeRelay = createMovementRelay,
 } = {}) {
@@ -69,6 +70,7 @@ export function createMovement({
   let pump = null;
   let started = false;
   let last = null;                           //  our newest position, tiles
+  let lastAt = null;
   let dirty = false;
   let lastFallback = -Infinity;
   let heardShips = new Set();
@@ -83,7 +85,13 @@ export function createMovement({
 
   const quietly = (p) => { try { Promise.resolve(p).catch(() => {}); } catch {} };
 
-  const session = makeSession({ our, now, trace, onChange: changed });
+  /* Only somebody we have not heard from AT ALL is worth waiting for. Once
+   * presence has their answer we know whether they are on a session, and two
+   * ships that both just opened Glurff must not each wait for the other. */
+  const unheard = () => {
+    try { return expected().filter((s) => !heardShips.has(s)); } catch { return []; }
+  };
+  const session = makeSession({ our, now, trace, expected: unheard, onChange: changed });
   const relay = makeRelay({
     our, now, later, cancel, every, stopEvery,
     ...(socket ? { socket } : {}),
@@ -301,10 +309,20 @@ export function createMovement({
       relay.close(reason);
     },
     restored() { if (started && current && !relay.live()) requestAccess(); },
-    moved(p, force = false) {
-      last = { x: p.x, y: p.y, dir: p.dir, host: p.host ?? null };
+    /* Our own position. Velocity rides with it so the people drawing us can
+     * keep us walking through a late message instead of freezing us, and a
+     * start, a stop or a turn is sent at once rather than on the next tick. */
+    moved(p, force = false, urgent = false) {
+      const previous = last, at = now();
+      const seconds = lastAt === null ? 0 : (at - lastAt) / 1000;
+      const moving = p.moving ?? (!!previous && (previous.x !== p.x || previous.y !== p.y));
+      const speed = (from, to) => (previous && moving && seconds > 0 && seconds < 1 ? (to - from) / seconds : 0);
+      last = { x: p.x, y: p.y, dir: p.dir, host: p.host ?? null, moving,
+               vx: speed(previous?.x, p.x), vy: speed(previous?.y, p.y) };
+      lastAt = at;
       dirty = true;
-      relay.send(last);
+      const changed = !previous || previous.dir !== last.dir || previous.moving !== last.moving;
+      relay.send(last, urgent || changed || force);
       fallback(force);
     },
     /* Presence's member list: each visible peer's movement claim, with the

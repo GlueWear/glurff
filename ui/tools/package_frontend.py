@@ -10,8 +10,8 @@ root=Path(__file__).resolve().parents[1]
 dist=root/'dist';desk=a.desk.resolve()
 assert (dist/'index.html').is_file(), 'Run npm run build first'
 assert (desk/'app/glurff.hoon').is_file(), 'Target must already be a Glurff desk'
-content_types={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.ico':'image/x-icon','.mp3':'audio/mpeg','.webmanifest':'application/manifest+json'}
-files=sorted(p for p in dist.rglob('*') if p.is_file())
+content_types={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.ico':'image/x-icon','.mp3':'audio/mpeg','.webmanifest':'application/manifest+json'}
+files=sorted(p for p in dist.rglob('*') if p.is_file() and p.name!='.DS_Store')
 records=[]
 written=set()
 for f in files:

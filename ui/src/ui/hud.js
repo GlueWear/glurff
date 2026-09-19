@@ -1,19 +1,17 @@
 import { chatLines, thread, recentLines } from 'lib/timeline';
 import { createPending } from 'lib/pending';
 import { our } from 'lib/api';
-import { nb, COMMONS_NOTE, RUMORS_NOTE, messagesFor, postMessage,
+import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   displayName, watchNotes, setChatHistory, chatHistoryCount, onChange } from 'lib/noltbook';
 import { installNote } from 'lib/glurff';
-import { roomById } from 'world/places';
+import { roomById, GAME_ROOM } from 'world/places';
 
-const RUMORS_ROOM = 5;
 
 export class Hud {
-  constructor(root, { onGoBuilder, events } = {}) {
+  constructor(root, { events } = {}) {
     this.root = root;
     this.events = events;
     events?.onChange(() => { if (!this.noteFor(this.room)) this.invalidate(); });
-    this.onGoBuilder = onGoBuilder ?? (() => {});
     this.room = 0;
     /* Notes we have already asked for this session. Installing REPLACES a note
      * and clears its messages, so this is the belt to the note-list's braces:
@@ -31,6 +29,10 @@ export class Hud {
       (['messages', 'visibility'].includes(change.field) && change.noteId === this.noteFor(this.room)));
   }
 
+  /* ONLY THE COMMONS IS A NOTE, plus Rumors, which is Noltbook's own anonymous
+   * one. Every other room's chat lives in this browser for the session and is
+   * never written to Noltbook: a room is a place to talk, not a note. When
+   * rooms can be bound to a host's own note, that is what will fill this in. */
   noteFor(room) {
     if (room === 0) return COMMONS_NOTE;
     if (room === RUMORS_ROOM) return RUMORS_NOTE;
@@ -109,7 +111,6 @@ export class Hud {
         <div class="replying"></div>
         <form class="say"><input placeholder="say something" /></form>
         </div>
-        <button class="me">Character</button>
       </div>`;
     this.chatOpen=true;
     this.setOpen=open=>{this.chatOpen=open;setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();else this.paint();};
@@ -191,7 +192,6 @@ export class Hud {
       try { await this.events.roll(); } catch { this.root.querySelector('.error').textContent = 'Roll could not be shared. Try again.'; }
       finally { e.target.disabled = false; }
     };
-    this.root.querySelector('.me').onclick = () => this.onGoBuilder();
     this.paint();
   }
 
@@ -203,7 +203,7 @@ export class Hud {
     const kind = note === RUMORS_NOTE ? 'anonymous' : note ? 'saved' : 'temporary';
     const label = `${r?.name ?? ''} <span class="dim">${kind}</span>`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
-    this.root.querySelector('.game-controls').hidden = this.room !== 7;
+    this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
     const all = this.lines();
     const shown = recentLines(all, this.expanded ? this.historySize : 3);
     const recent = new Set(recentLines(all, 3).map(m => m.eid));

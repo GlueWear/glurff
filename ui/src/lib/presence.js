@@ -61,6 +61,28 @@ export function createPresence({our, session, social, snapshot, send, changed, t
   /* Targeted, with no list after the wait: behave as if everyone may be in. */
   const sweeping=()=>targeted && !listed && now()-startedAt>=LIST_WAIT_MS;
   const seenThrough=s=>{for(const m of members.values())if(!m.gone && m.path[1]===s)return true;return false;};
+  /* ONE LIVE SESSION PER SHIP. A reload, or a second tab, leaves the previous
+   * session's row behind; targeted, nothing expires it while that pal is still
+   * on the app's list, so it would stay as a ghost copy of them. The sender's
+   * own clock orders their own sessions, so a row stamped before the newest one
+   * we hold for them is over -- and a late packet from the dead session can
+   * never bring it back. Rows without a stamp are left alone: there is nothing
+   * to order them by. */
+  const stampOf=m=>Number.isFinite(m?.stamp)?m.stamp:null;
+  const outdated=(who,session,stamp)=>{
+    if(stamp===null)return false;
+    for(const [k,m] of members)if(m.who===who && k!==who+'/'+session && stampOf(m)>stamp)return true;
+    return false;
+  };
+  function supersede(who,keep,stamp) {
+    if(stamp===null)return;
+    for(const [k,m] of members) {
+      if(k===keep || m.who!==who)continue;
+      const s=stampOf(m);
+      if(s===null || s>stamp)continue;
+      members.delete(k);trace('presence-superseded',{who,reason:'newer-session'});
+    }
+  }
   /* Whom a discovery goes to, and whom a viewer's discovery is passed on to. */
   const targets=(all=false)=>(!targeted || all ? direct() : direct().filter(s=>present.has(s) || seenThrough(s))).slice(0,MAX_FANOUT);
   const reach=s=>!targeted || sweeping() || present.has(s);
@@ -241,8 +263,12 @@ export function createPresence({our, session, social, snapshot, send, changed, t
       const h=p.here;
       if(h?.stamp!==undefined && !Number.isFinite(h.stamp))return;
       if(!h || !h.spot || h.spot.place!==0 || !num(h.spot.x) || !num(h.spot.y) || h.spot.x>1024 || h.spot.y>736 || !['up','down','left','right'].includes(h.spot.dir) || !num(h.rev) || (h.host!==null && !ship(h.host)))return;
+      const stamp=stampOf(h);
+      if(outdated(who,p.session,stamp)){trace('presence-superseded',{who,reason:'older-session'});return;}
       if(!prev)trace('presence-first',{who,generation:p.generation});
-      members.set(mk,{who,...h,generation:p.generation,path:p.path,sequence:p.sequence,at:now()});notify();return;
+      members.set(mk,{who,...h,generation:p.generation,path:p.path,sequence:p.sequence,at:now()});
+      supersede(who,mk,stamp);
+      notify();return;
     }
     const current=routes.get(key);
     const r=current?.generation===p.generation?current:previousRoutes.get(key+'/'+p.generation);

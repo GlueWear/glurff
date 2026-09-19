@@ -14,11 +14,15 @@ import { processMicrophone } from 'lib/noise';
  */
 import * as G from 'lib/glurff';
 import { our } from 'lib/api';
-import { displayName, visiblePeers } from 'lib/noltbook';
+import { displayName, visiblePeers, palStatus } from 'lib/noltbook';
+import { createRoommates } from 'lib/roommates';
 import { SfuSession } from 'lib/sfu';
 import { regionAt, COMMONS } from 'world/places';
-import { clusterPeers, agreedMembers, electHost, huddleKey, huddlePlace } from 'lib/huddle';
+import { clusterPeers, agreedMembers, electHost, huddleKey, huddlePlace, HUDDLE_BASE } from 'lib/huddle';
 import { micConstraints, camConstraints, refreshDevices } from 'lib/devices';
+import { createModeration } from 'lib/moderation-session';
+import { roleOf, isMuted, isBooted, mayPlay, recordingOf } from 'lib/moderation';
+import { createRecorder, canRecord } from 'lib/recording';
 
 export const rooms = {
   /* room id -> { host, occupants:Set } , derived from presence every tick. */
@@ -36,15 +40,36 @@ export const rooms = {
   screenOn: false,
   /* A call is being held back until positions can be trusted. */
   waiting: false,
+  /* What a call that has not connected is waiting on: 'waiting-ship' is our own
+   * ship not having taken the request yet, 'waiting-host' is the host not
+   * answering. Everything else is the call's own phase. */
+  stage: 'idle',
   /* Hosting being handed over: the offer we made, and one made to us. */
   hostAsk: null,
   hostOffer: null,
   /* Other ships actually in the call with us, as the call server reports. */
   others: 0,
+  /* At the door of a room whose copies our pals are spread across: the copies
+   * to choose from, {place, options:[{host, count}]}. No call until one is chosen. */
+  picker: null,
+  /* MODERATION, as the call's host keeps it; see lib/moderation. `role` is
+   * ours in this call -- 'host', 'admin' or null -- and the two flags are what
+   * an admin has done TO US. `recording` is whoever is recording, for the
+   * notice everybody sees. */
+  mod: null,
+  role: null,
+  mutedByAdmin: false,
+  bootedByAdmin: false,
+  recording: null,
 };
 if (typeof window !== 'undefined') window.rooms = rooms;
 
 let sfu=null, controller=null, huddle=null, lastPeers=new Map();
+let moderation=null, recorder=null;
+/* The video tiles on screen, for the recorder's picture. The rail owns them;
+ * this keeps the recorder from reaching into the DOM on its own. */
+let callTiles=()=>[];
+export const setCallTiles=fn=>{callTiles=fn;};
 /* Movement-session grants arrive on the same /call-access path as call grants.
  * They belong to the movement relay, never to a call, so they are handed over
  * before the call controller can see them. */
@@ -54,21 +79,34 @@ export const setMovementResultHandler=fn=>{movementResult=fn;};
  * movement layer. The defaults keep this module usable on its own. */
 let positionGate={ready:()=>true,reliable:()=>true};
 export const setPositionGate=gate=>{positionGate={...positionGate,...gate};};
-/* Where each peer was last seen inside a room, for admission grace. */
-const recentRoom=new Map();
-const ROOM_GRACE_MS=5000;
-/* The host's view of a guest can lag the guest's own. Admit to a ROOM call if
- * we see them inside, saw them inside moments ago, or cannot yet trust our view
- * of where they are -- a visible pal claiming to be in a room they could simply
- * walk into is not something to refuse on stale data. Huddles stay strict:
- * their call is identified by membership, so a mismatch is a different call. */
-function inRoomForAdmission(who,place){
-  const p=lastPeers.get(who);
-  if(p && regionAt(p.spot.x,p.spot.y)===place)return true;
-  const r=recentRoom.get(who);
-  if(r && r.room===place && Date.now()-r.at<ROOM_GRACE_MS)return true;
-  return !positionGate.reliable(who);
+/* The room's guest list and who can see into it; see lib/roommates. Its view
+ * of us -- our state, and who already sees us through presence -- is supplied
+ * by main.js, which owns both. */
+let mates=null;
+let roomContext={here:()=>null,watchers:()=>new Set()};
+export const setRoomContext=context=>{roomContext={...roomContext,...context};};
+const mateListeners=new Set();
+export const onRoommates=fn=>{mateListeners.add(fn);return()=>mateListeners.delete(fn);};
+const isRoomPlace=place=>Number.isSafeInteger(place) && place>COMMONS && place<1000;
+/* Rooms and huddles both keep a guest list; see lib/roommates. */
+const isListPlace=place=>Number.isSafeInteger(place) && place>COMMONS && place<HUDDLE_BASE+900000;
+function createMates(){
+  return createRoommates({our,send:G.sendPresence,trace:diagnostic,
+    blocked:who=>palStatus(who)==='blocked',
+    pal:who=>['mutual','requesting'].includes(palStatus(who)),
+    here:()=>roomContext.here(),
+    watchers:()=>roomContext.watchers(),
+    changed:why=>{for(const fn of mateListeners){try{fn(why);}catch(e){console.error(e);}}},
+  });
 }
+export const roomPeers=()=>mates?.peers()??new Map();
+export const roomAudience=()=>mates?.audience()??new Set();
+export const roomSummary=()=>mates?.summary()??null;
+export const heardRooms=peers=>mates?.heard(peers);
+export const introduceRoom=viewers=>mates?.introduce(viewers);
+export const publishRoom=(only=null)=>mates?.publish(only);
+export const receiveRoomEvent=(who,event)=>mates?.receive(who,event);
+export const tickRoom=()=>mates?.tick();
 let listeners=new Set();
 export const onRooms=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
 const changed=()=>listeners.forEach(fn=>{try{fn();}catch(e){console.error(e);}});
@@ -82,6 +120,8 @@ function removeRemoteStream(id,ship) {
 }
 
 export function initRooms() {
+  mates=createMates();
+  if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),picker:rooms.picker});
   sfu=new SfuSession({our,
     onStream:(ship,stream,meta={})=>{if(ship && ship!==our && visiblePeers().includes(ship)){
       rooms.remoteStreams.set(meta.id??stream.id,{ship,stream,label:meta.label??'camera'});selectRemoteCamera(ship);changed();
@@ -89,18 +129,68 @@ export function initRooms() {
     onStreamRemoved:removeRemoteStream,
     onPeerLeft:ship=>{for(const [id,r] of rooms.remoteStreams)if(r.ship===ship)rooms.remoteStreams.delete(id);rooms.streams.delete(ship);changed();},
     onStatus:(status,why)=>controller?.status(status,why),
-    onUsers:()=>{const n=sfu?.others().size??0;if(n!==rooms.others){rooms.others=n;changed();}watchAlone();},
+    onUsers:()=>{const others=sfu?.others()??new Set();mates?.inCall(others);const n=others.size;if(n!==rooms.others){rooms.others=n;changed();}
+      /* A recording whose recorder has left the call is stopped by the host:
+       * nobody else can, and a REC notice for a recording that is not
+       * happening is worse than none. */
+      moderation?.membersChanged();watchAlone();},
+    onPermissions:(may)=>{
+      /* The call server withdrew the right to publish: a mute we may not have
+       * heard about yet. Our own capture is left alone until the record says
+       * so -- this only stops us offering into a refusal. */
+      diagnostic('call-permissions',{present:!!may,place:controller?.current?.place??0});
+      if(may && rooms.voice==='connected')restoreIntent();
+      changed();
+    },
+  });
+  moderation=createModeration({our,send:G.sendPresence,trace:diagnostic,
+    members:callMembers,
+    enforce:applyModeration,
+    changed:()=>{readModeration();changed();},
+  });
+  recorder=createRecorder({our,displayName,trace:diagnostic,
+    tiles:()=>callTiles(),
+    audioTracks:()=>recordableAudio(),
+    changed:()=>{readModeration();changed();},
   });
   controller=new CallController({our,sfu,trace:diagnostic,
     transport:{send:G.sendPresence,operation:G.callOperation},
     known:who=>visiblePeers().includes(who),
-    accepts:(who,place)=>visiblePeers().includes(who) && (place>=1000
-      ? huddle?.place===place && huddle.members.includes(who)
-      : rooms.here===place && inRoomForAdmission(who,place)),
+    /* Rooms and huddles admit by their guest list, not by where the host
+     * happens to see you standing: asking for the call is asking to be on the
+     * list, and the mode decides. Somebody the host cannot see yet is on the
+     * list the moment they ask, and seen as soon as their state arrives. */
+    accepts:(who,place)=>place>=HUDDLE_BASE
+      ? huddle?.place===place && huddle.host===our && !!mates?.admit(who,place)
+      : rooms.here===place && !!mates?.admit(who,place),
     changed:(phase,error)=>{
       rooms.voice=phase;rooms.error=error;watchAlone();
-      if(phase==='connected'){restoreIntent();rooms.timings={...rooms.timings,connected:performance.now()};}
-      changed();
+      if(phase==='connected'){
+        /* The call server's own generation is what tells two incarnations of
+         * the same room apart, so moderation is bound to it rather than to
+         * anything we could invent. */
+        const c=controller?.current;
+        if(c){
+          const incarnation={place:c.place,host:c.host,gen:c.grant?.gen??0};
+          /* Hosting just moved to us: take up the record that came with it,
+           * bound to the generation of the call we have actually joined. */
+          if(c.host===our && carriedMod){moderation?.assume(incarnation,carriedMod);carriedMod=null;}
+          else moderation?.enter(incarnation);
+        }
+        /* A reconnect throws away every publication the session held, so what
+         * we think we are sending can outlive what is actually going out.
+         * Forget those before restoring intent, or a reconnected call is
+         * silent with the microphone button lit. */
+        reconcilePublications();
+        restoreIntent();
+        rooms.timings={...rooms.timings,connected:performance.now()};
+      }
+      /* Going idle usually means the call is over and its moderation with it.
+       * NOT while we are removed from a call we are still standing in: the
+       * boot is what disconnected us, and dropping the record here would make
+       * "allowed back in" unhearable. */
+      if(phase==='idle' && !booted)moderation?.enter(null);
+      changed();refreshStage();
     },
   });
   if(typeof window!=='undefined')window.__grants=[];
@@ -115,19 +205,52 @@ export function initRooms() {
 }
 function selectCall(place,host) {
   if(controller?.current?.place===place && controller.current.host===host)return;
+  /* Removed from this call: standing in the room is not a way back in. The bar
+   * lifts when an admin allows us back, or when the call is a new one. */
+  if(barred(place,host)){releaseMedia();controller?.select(null);rooms.host=host;changed();return;}
   releaseMedia();rooms.host=host;
   rooms.timings={requested:performance.now(),role:host===our?'host':'guest'};
   controller?.select({place,host});
+  /* In a room or a huddle, we are on its host's list -- or keep the list, if the
+   * host is us. */
+  if(isListPlace(place) && host)mates?.follow(place,host);
+  else mates?.leave();
+  refreshStage();
+}
+/* Who a call is waiting on changes with TIME, not only with the call's phase:
+ * "still requesting" becomes "your ship has not taken this" and then "the host
+ * is not answering". Re-read it every second while a call is trying. */
+let stageTimer=null;
+const TRYING=new Set(['requesting','waiting-ship','waiting-host','retrying']);
+function refreshStage() {
+  const next=controller?.stage()??'idle';
+  if(next!==rooms.stage){rooms.stage=next;changed();}
+  clearTimeout(stageTimer);stageTimer=null;
+  if(TRYING.has(next))stageTimer=setTimeout(refreshStage,1000);
 }
 export function receiveCallEvent(who,event){
+  /* The ACTOR is the ship the agent says sent this, never a field in it. */
+  if(typeof event?.kind==='string' && event.kind.startsWith('call-mod-')){moderation?.receive(who,event);return;}
   if(HANDOFF.has(event?.kind)){receiveHandoff(who,event);return;}
+  if(event?.kind==='call-leave' && isListPlace(event.place))mates?.left(who,event.place);
   controller?.receive(who,event);
 }
 export function recoverCall(){controller?.restored();}
 export function retryCall(){controller?.retry();}
 export const currentHuddle=()=>huddle;
 
+/* A huddle forms or ends only once the people in it have been in or out of
+ * range for a moment. Walking up to somebody along the two-tile edge used to
+ * form and end one three times in fifteen seconds, each of which is a call
+ * being set up and torn down. */
+export const HUDDLE_SETTLE_MS=1500;
+let huddlePending=null, huddleTimer=null, huddleSelf=null;
+function recheckHuddle(ms) {
+  clearTimeout(huddleTimer);
+  huddleTimer=setTimeout(()=>{huddleTimer=null;if(huddleSelf)updateHuddle(huddleSelf,lastPeers);},Math.max(50,ms));
+}
 export function updateHuddle(self,peers) {
+  huddleSelf={x:self.x,y:self.y};
   if(rooms.here!==COMMONS)return;
   /* Never START a call from positions we cannot trust. Right after startup the
    * movement relay is not carrying positions yet and each browser's picture of
@@ -141,23 +264,62 @@ export function updateHuddle(self,peers) {
    * agreedMembers in lib/huddle. */
   const together=agreedMembers(our,near,hosts,huddle?.members??[],huddle?.host??null);
   const mine=clusterPeers(near,together).find(c=>c.includes(our));
-  if(!mine){if(huddle){diagnostic('huddle',{reason:'ended',place:huddle.place,host:huddle.host,count:0});huddle=null;rooms.host=null;releaseMedia();controller?.select(null);changed();}return;}
-  const key=huddleKey(mine);
-  if(huddle?.key===key)return;
+  const key=mine?huddleKey(mine):null;
+  if((huddle?.key??null)===key){huddlePending=null;return;}
+  /* Something changed. Wait for it to hold still before acting on it. */
+  const now=Date.now();
+  if(huddlePending?.key!==key)huddlePending={key,since:now};
+  const held=now-huddlePending.since;
+  if(held<HUDDLE_SETTLE_MS){recheckHuddle(HUDDLE_SETTLE_MS-held);return;}
+  huddlePending=null;
+  if(!mine){if(huddle){diagnostic('huddle',{reason:'ended',place:huddle.place,host:huddle.host,count:0});huddle=null;rooms.host=null;booted=null;releaseMedia();controller?.select(null);mates?.leave();changed();}return;}
   // Presence determines the same elected host on both ships. Timeouts never
   // create a competing host while that participant remains in the huddle.
   const before=huddle;
-  huddle={key,members:mine,host:electHost(mine),place:huddlePlace(mine)};
+  /* The call is the host's (see huddlePlace): somebody joining or leaving
+   * changes who is in it, not which call it is, so nobody reconnects. */
+  /* A huddle handed to somebody stays theirs while they are in it. Without
+   * this the lowest @p wins the election straight back and the handoff undoes
+   * itself in the same beat. */
+  if(huddleHandoff && !mine.includes(huddleHandoff.host))huddleHandoff=null;
+  const host=electHost(mine,huddleHandoff?.host??huddle?.host??null);
+  huddle={key,members:mine,host,place:huddlePlace(host)};
   diagnostic('huddle',{reason:before?'changed':'formed',place:huddle.place,host:huddle.host,count:mine.length,
     detail:together.size>(before?.members.length??0)?'agreed':'distance'});
   selectCall(huddle.place,huddle.host);changed();
 }
+const occupantsIn=room=>[our,...[...lastPeers].filter(([,p])=>regionAt(p.spot.x,p.spot.y)===room).map(([s])=>s)].sort();
+/* THE DOOR. The copies of a room that people we can see are in, where a copy
+ * counts only once it has somebody besides its host: a host alone in a room is
+ * somebody who just walked in, not a party to choose. Hosts we cannot see
+ * standing in the room are not offered. */
+const chosen=new Map();   //  room -> the host picked at its door, this visit
+function doorOptions(room){
+  if(!mates)return [];
+  const occupants=new Set(occupantsIn(room));
+  return [...mates.instances(room)].filter(([host,count])=>count>=2 && host!==our && occupants.has(host))
+    .map(([host,count])=>({host,count})).sort((a,b)=>b.count-a.count || (a.host<b.host?-1:1));
+}
+export function chooseRoomHost(host){
+  const picker=rooms.picker;
+  if(!picker || rooms.here!==picker.place || !picker.options.some(o=>o.host===host))return false;
+  chosen.set(picker.place,host);rooms.picker=null;
+  diagnostic('room-door',{place:picker.place,host,count:picker.options.length,reason:'chosen'});
+  if(positionGate.ready())selectCall(picker.place,host);
+  else rooms.waiting=true;
+  changed();
+  return true;
+}
 function roomHost(room) {
-  const occupants=[our,...[...lastPeers].filter(([,p])=>regionAt(p.spot.x,p.spot.y)===room).map(([s])=>s)].sort();
+  const occupants=occupantsIn(room);
   /* A room handed to someone stays theirs while they are in it. */
   const handed=handoffs.get(room);
   if(handed && occupants.includes(handed))return handed;
   if(handed)handoffs.delete(room);
+  /* So does a copy chosen at the door. */
+  const picked=chosen.get(room);
+  if(picked && occupants.includes(picked))return picked;
+  if(picked)chosen.delete(room);
   const announced=[...lastPeers.values()].filter(p=>regionAt(p.spot.x,p.spot.y)===room).map(p=>p.host).filter(h=>occupants.includes(h));
   if(rooms.here===room && occupants.includes(rooms.host))announced.push(rooms.host);
   return announced.sort()[0]??occupants[0];
@@ -165,15 +327,19 @@ function roomHost(room) {
 export function refresh(peers) {
   lastPeers=peers;
   const live=new Map();
-  const t=Date.now();
-  for(const [s,r] of recentRoom)if(t-r.at>60000)recentRoom.delete(s);
   for(const [who,p] of peers){const room=regionAt(p.spot.x,p.spot.y);if(room===COMMONS)continue;
-    recentRoom.set(who,{room,at:t});
     const r=live.get(room)??{host:null,occupants:new Set()};r.occupants.add(who);if(p.host)r.host=p.host;live.set(room,r);}
   if(rooms.here!==COMMONS){const host=roomHost(rooms.here),r=live.get(rooms.here)??{host,occupants:new Set()};r.occupants.add(our);r.host=host;live.set(rooms.here,r);
     /* The room's host is only chosen once positions are trustworthy; see
      * updateHuddle for why. main.js re-runs this when that changes. */
-    if(host!==rooms.host && positionGate.ready())selectCall(rooms.here,host);}
+    /* Standing at the door of a room split between copies: nothing until one
+     * is chosen. If the split goes away meanwhile, so does the question. */
+    if(rooms.picker){
+      const options=doorOptions(rooms.here);
+      if(options.length<2){rooms.picker=null;changed();}
+      else if(JSON.stringify(options)!==JSON.stringify(rooms.picker.options)){rooms.picker={place:rooms.here,options};changed();}
+    }
+    if(!rooms.picker && host!==rooms.host && positionGate.ready())selectCall(rooms.here,host);}
   const waiting=rooms.here!==COMMONS && rooms.host===null && !positionGate.ready();
   if(waiting!==rooms.waiting){rooms.waiting=waiting;changed();}
   const same=live.size===rooms.live.size && [...live].every(([id,r])=>{const old=rooms.live.get(id);return old && old.host===r.host && old.occupants.size===r.occupants.size && [...r.occupants].every(s=>old.occupants.has(s));});
@@ -183,7 +349,16 @@ export function enterRoom(room) {
   if(room===rooms.here)return;
   if(room===COMMONS){leaveRoom();return;}
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
-  huddle=null;rooms.here=room;rooms.host=null;clearHandoff();
+  mates?.leave();chosen.clear();booted=null;
+  huddle=null;huddlePending=null;rooms.here=room;rooms.host=null;rooms.picker=null;clearHandoff();
+  /* People we can see are in more than one copy of this room: ask which. */
+  const options=doorOptions(room);
+  if(options.length>=2){
+    releaseMedia();controller?.select(null);
+    rooms.picker={place:room,options};
+    diagnostic('room-door',{place:room,count:options.length,reason:'asked'});
+    changed();return;
+  }
   const host=roomHost(room);if(host===our)G.claimRoom(room).catch(()=>{});
   if(positionGate.ready())selectCall(room,host);
   else {releaseMedia();controller?.select(null);rooms.waiting=true;}   //  never stay in the call we walked out of
@@ -191,8 +366,8 @@ export function enterRoom(room) {
 }
 export function leaveRoom() {
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
-  clearHandoff();
-  rooms.here=COMMONS;rooms.host=null;rooms.waiting=false;releaseMedia();controller?.select(null);changed();
+  clearHandoff();mates?.leave();chosen.clear();booted=null;
+  rooms.here=COMMONS;rooms.host=null;rooms.waiting=false;rooms.picker=null;huddlePending=null;releaseMedia();controller?.select(null);changed();
 }
 // Legacy room claims update the display; admission uses correlated call-request.
 export function noteHost(who,room){if(rooms.here===room && lastPeers.has(who))refresh(lastPeers);}
@@ -213,10 +388,18 @@ export function answerKnock(){}
  * back. Anyone arriving later hears the new host announced by those inside.
  * Commons huddles are not handed over: their host follows from who is in them. */
 const HANDOFF=new Set(['call-host-offer','call-host-accept','call-host-decline','call-host-moved']);
+/* A huddle handed over: the host chosen, kept while they are still in it. A
+ * huddle's call is its HOST's (see huddlePlace), so moving hosting moves
+ * everybody to a different place -- which is why the move is announced to the
+ * members rather than derived, and why a late arrival hears it from them. */
+let huddleHandoff=null;
 const HANDOFF_MS=30000;
 const handoffs=new Map();   //  room -> the host it was handed to
 const isRoom=place=>Number.isSafeInteger(place) && place>COMMONS && place<1000;
-function clearHandoff(){handoffs.clear();rooms.hostAsk=null;rooms.hostOffer=null;}
+function clearHandoff(){handoffs.clear();huddleHandoff=null;rooms.hostAsk=null;rooms.hostOffer=null;}
+/* The huddle we are in, as a place a handoff can name. */
+const huddleNow=()=>huddle&&rooms.here===COMMONS?huddle:null;
+const inHuddle=(ship)=>!!huddleNow()?.members.includes(ship);
 function expireHandoffLater(){
   setTimeout(()=>{
     const t=Date.now();let moved=false;
@@ -226,20 +409,37 @@ function expireHandoffLater(){
   },HANDOFF_MS+100);
 }
 const tellHandoff=(who,kind,place,id,extra={})=>Promise.resolve(G.sendPresence(who,{kind,place,attempt:id,...extra})).catch(()=>{});
-export const canHandOff=()=>isRoom(rooms.here) && rooms.host===our && positionGate.ready();
+/* Hosting can be handed on in an authored room, and in a proximity huddle --
+ * where the members are the people actually in it, never everyone standing
+ * about in the commons. */
+export const canHandOff=()=>positionGate.ready() &&
+  ((isRoom(rooms.here) && rooms.host===our) || (!!huddleNow() && huddleNow().host===our));
+/* Who this host may hand to: a member of THIS call, not a bystander. */
+export function mayHandTo(ship){
+  if(!canHandOff() || ship===our || !visiblePeers().includes(ship))return false;
+  const h=huddleNow();
+  return h && h.host===our ? h.members.includes(ship) : occupantsOf(rooms.here).includes(ship);
+}
 export function offerHost(ship){
-  const place=rooms.here;
-  if(!canHandOff() || ship===our || !occupantsOf(place).includes(ship) || !visiblePeers().includes(ship))return false;
+  if(!mayHandTo(ship))return false;
+  const h=huddleNow();
+  const place=h&&h.host===our?h.place:rooms.here;
   const id=Date.now()*1000+Math.floor(Math.random()*1000);
-  rooms.hostAsk={to:ship,place,id,until:Date.now()+HANDOFF_MS};
-  tellHandoff(ship,'call-host-offer',place,id);
+  rooms.hostAsk={to:ship,place,id,until:Date.now()+HANDOFF_MS,huddle:!!h};
+  tellHandoff(ship,'call-host-offer',place,id,h?{members:h.members}:{});
   expireHandoffLater();changed();
   return true;
 }
 export function answerHostOffer(accept){
   const offer=rooms.hostOffer;
   if(!offer || offer.accepted)return;
-  const current=Date.now()<offer.until && rooms.here===offer.place && rooms.host===offer.from;
+  /* Still the same offer, about a call we are still in, from the host of it.
+   * A huddle's place is not where we are standing -- the commons is -- so it
+   * is the huddle's own place and host that have to match. */
+  const h=huddleNow();
+  const current=Date.now()<offer.until && (offer.huddle
+    ? !!h && h.place===offer.place && h.host===offer.from
+    : rooms.here===offer.place && rooms.host===offer.from);
   if(!accept || !current){
     rooms.hostOffer=null;tellHandoff(offer.from,'call-host-decline',offer.place,offer.id);changed();return;
   }
@@ -247,12 +447,29 @@ export function answerHostOffer(accept){
   rooms.hostOffer={...offer,accepted:true};
   tellHandoff(offer.from,'call-host-accept',offer.place,offer.id);changed();
 }
+/* Where a handoff event is about: an authored room, or the huddle whose place
+ * the sender named. A huddle's place is a function of its HOST, so the place
+ * in the event identifies the call being moved, not where it is going. */
+const handoffPlace=(place)=>isRoom(place)?'room':(huddleNow()?.place===place?'huddle':null);
+
+/* The moderation record handed over with hosting, held until our own call
+ * connects and we know the generation it belongs to. */
+let carriedMod=null;
+
 function receiveHandoff(who,event){
   const {kind,place,attempt:id}=event;
-  if(!isRoom(place) || !Number.isSafeInteger(id) || who===our)return;
+  const scope=handoffPlace(place);
+  if(!scope || !Number.isSafeInteger(id) || who===our)return;
+  const h=scope==='huddle'?huddleNow():null;
+  const hostNow=h?h.host:rooms.host;
+  const membersNow=()=>h?h.members:occupantsOf(place);
+
   if(kind==='call-host-offer'){
-    if(rooms.here!==place || rooms.host!==who || !visiblePeers().includes(who)){tellHandoff(who,'call-host-decline',place,id);return;}
-    rooms.hostOffer={from:who,place,id,until:Date.now()+HANDOFF_MS};
+    /* Only the host of the call we are actually in may offer it, and only to
+     * somebody who is in it -- us. */
+    const ours=scope==='huddle'?h.members.includes(our):rooms.here===place;
+    if(!ours || hostNow!==who || !visiblePeers().includes(who)){tellHandoff(who,'call-host-decline',place,id);return;}
+    rooms.hostOffer={from:who,place,id,until:Date.now()+HANDOFF_MS,huddle:scope==='huddle'};
     expireHandoffLater();changed();return;
   }
   if(kind==='call-host-decline'){
@@ -263,26 +480,52 @@ function receiveHandoff(who,event){
     const ask=rooms.hostAsk;
     if(!ask || ask.to!==who || ask.id!==id || ask.place!==place)return;
     rooms.hostAsk=null;
-    if(Date.now()>=ask.until || rooms.here!==place || rooms.host!==our || !occupantsOf(place).includes(who)){
+    if(Date.now()>=ask.until || hostNow!==our || !membersNow().includes(who)){
       tellHandoff(who,'call-host-decline',place,id);changed();return;
     }
+    /* A recording is the outgoing host's to finish: it must not be left
+     * running against a call that is about to become somebody else's. */
+    if(rooms.recording)stopRecording();
+    /* Promotions, mutes and boots go with hosting, so a transfer does not
+     * quietly un-mute somebody. */
+    const carry=moderation?.carry()??null;
+    for(const s2 of membersNow())if(s2!==our)
+      tellHandoff(s2,'call-host-moved',place,id,{host:who,...(s2===who&&carry?{mod:carry}:{})});
+    if(scope==='huddle'){
+      huddleHandoff={host:who,at:Date.now()};
+      moderation?.enter(null);
+      huddle={...huddle,host:who,place:huddlePlace(who)};
+      controller?.hosted.delete(place);
+      selectCall(huddle.place,who);changed();return;
+    }
     handoffs.set(place,who);
-    for(const s of occupantsOf(place))if(s!==our)tellHandoff(s,'call-host-moved',place,id,{host:who});
     G.releaseRoom(place).catch(()=>{});
     controller?.hosted.delete(place);   //  our broker's room is no longer the call
+    moderation?.enter(null);
     selectCall(place,who);changed();return;
   }
   if(kind==='call-host-moved'){
     const host=event.host;
     /* Only the host we follow can say hosting moved, and never to itself. */
-    if(typeof host!=='string' || rooms.here!==place || rooms.host!==who || host===who)return;
+    if(typeof host!=='string' || hostNow!==who || host===who)return;
+    if(scope==='huddle' && !h.members.includes(host))return;   //  never to a non-member
     if(host===our){
       const offer=rooms.hostOffer;
       if(!offer?.accepted || offer.from!==who || offer.id!==id || offer.place!==place)return;   //  we never agreed
       rooms.hostOffer=null;
-      G.claimRoom(place).catch(()=>{});
-    } else if(!occupantsOf(place).includes(host)) return;   //  a host we cannot see is not one we can join
+      /* Carried moderation is applied once our own call connects and its
+       * generation is known; see the controller's `connected`. */
+      carriedMod=event.mod&&typeof event.mod==='object'?{...event.mod,rev:Number(event.mod.rev)||0}:null;
+      if(scope==='room')G.claimRoom(place).catch(()=>{});
+    } else if(scope==='room' && !occupantsOf(place).includes(host)) return;   //  a host we cannot see is not one we can join
+    if(scope==='huddle'){
+      huddleHandoff={host,at:Date.now()};
+      moderation?.enter(null);
+      huddle={...huddle,host,place:huddlePlace(host)};
+      selectCall(huddle.place,host);changed();return;
+    }
     handoffs.set(place,host);
+    moderation?.enter(null);
     selectCall(place,host);changed();
   }
 }
@@ -310,13 +553,15 @@ function releaseMedia() {
     const p=published[kind];if(!p)continue;
     try{sfu?.unpublish(p.id);}catch{}
     p.cleanup?.();
-    // The camera preview is not the call's to stop: leaving a call keeps it on.
-    if(p.stream!==preview?.stream)for(const t of p.stream.getTracks())t.stop();
+    /* Neither the camera preview nor the shared screen is the call's to stop:
+     * leaving a call keeps both running, and only the CLONE published into the
+     * call is dropped. */
+    if(p.stream!==preview?.stream && p.stream!==display?.stream)for(const t of p.stream.getTracks())t.stop();
     published[kind]=null;
   }
-  rooms.micOn=intent.mic;rooms.camOn=intent.cam;rooms.screenOn=false;
+  rooms.micOn=intent.mic;rooms.camOn=intent.cam;rooms.screenOn=intent.screen;
   rooms.streams.clear();rooms.remoteStreams.clear();
-  for(const k of [...rooms.localStreams.keys()])if(!(k==='cam' && preview))rooms.localStreams.delete(k);
+  for(const k of [...rooms.localStreams.keys()])if(!(k==='cam' && preview) && !(k==='screen' && display))rooms.localStreams.delete(k);
 }
 export async function reopenCapture(kind){
   if(kind==='cam'){
@@ -333,7 +578,7 @@ export async function reopenCapture(kind){
   await publish('mic',()=>navigator.mediaDevices.getUserMedia(micConstraints()),'camera');
 }
 export const outputChanged=()=>sfu?.refreshOutput();
-export function closeTab(){controller?.close();clearHandoff();huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=false;releaseMedia();stopPreview();}
+export function closeTab(){mates?.leave();controller?.close();clearHandoff();clearTimeout(huddleTimer);huddleTimer=null;huddlePending=null;clearTimeout(stageTimer);stageTimer=null;huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=intent.screen=false;releaseMedia();stopPreview();stopDisplay();}
 
 /* The world never opens a microphone or camera on its own: each of these is an
  * explicit act, and each can be undone without leaving the room. */
@@ -341,9 +586,12 @@ const published = { mic: null, cam: null, screen: null };
 const acquiring = {};
 let captureEpoch = 0;
 
-/* User intent survives every room/huddle transition. Screen sharing still
- * requires its own explicit browser gesture. No preferences survive a reload. */
-const intent = {mic:false,cam:false};
+/* User intent survives every room/huddle transition -- SCREEN SHARING TOO.
+ * Walking from a room into a huddle used to end a share and make the browser
+ * ask for the window again, because leaving a call stopped the display
+ * capture. The capture is owned here now, like the camera preview, and only
+ * the things that really end a share end it. No preferences survive a reload. */
+const intent = {mic:false,cam:false,screen:false};
 
 /* Your own camera, shown to you whenever it is on -- in a call or not.
  *
@@ -384,11 +632,71 @@ function stopPreview(){
 }
 const cameraForCall=()=>startPreview().then(p=>{if(!p)throw new Error('Camera is off');return cloneStream(p.stream);});
 
-function restoreIntent() {
-  for(const kind of ['mic','cam'])if(intent[kind] && !published[kind]) {
-    const get=kind==='mic'?()=>navigator.mediaDevices.getUserMedia(micConstraints()):cameraForCall;
-    publish(kind,get,'camera').catch(e=>{rooms.error=String(e.message??e);changed();});
+/* THE SHARED SCREEN, owned the same way as the camera preview.
+ *
+ * One display capture, taken once, with its own "Your screen" tile. Each call
+ * publishes a CLONE of it, because unpublishing stops whatever was published
+ * -- and stopping the capture is what made the browser ask for the window
+ * again every time you walked through a door. Leaving a call drops the clone;
+ * the capture keeps running and the next call publishes a fresh one.
+ *
+ * It ends when it should: you turn it off, the browser's own "stop sharing"
+ * ends it, an admin mutes you, the track fails, or the tab closes. */
+let display=null, displaying=null;
+function startDisplay(){
+  if(display)return Promise.resolve(display);
+  if(displaying)return displaying;
+  const task=navigator.mediaDevices.getDisplayMedia({video:true}).then(stream=>{
+    /* Asked again while this one was in flight, or switched off while the
+     * browser was still asking: do not leave a capture running unwatched. */
+    if(displaying!==task || !intent.screen){stream.getTracks().forEach(t=>t.stop());return null;}
+    displaying=null;
+    display={stream};
+    rooms.localStreams.set('screen',stream);
+    for(const t of stream.getTracks())t.addEventListener?.('ended',()=>{
+      /* The browser's own "stop sharing", or the window going away. */
+      if(display?.stream!==stream)return;
+      intent.screen=false;unpublish('screen');stopDisplay();rooms.screenOn=false;changed();
+    },{once:true});
+    changed();
+    return display;
+  },e=>{
+    if(displaying===task){displaying=null;intent.screen=false;rooms.screenOn=false;rooms.error=String(e.message??e);changed();}
+    throw e;
+  });
+  displaying=task;
+  return task;
+}
+function stopDisplay(){
+  displaying=null;
+  if(!display)return;
+  const {stream}=display;display=null;
+  rooms.localStreams.delete('screen');
+  stream.getTracks().forEach(t=>t.stop());
+}
+const screenForCall=()=>startDisplay().then(d=>{if(!d)throw new Error('Screen sharing is off');return cloneStream(d.stream);});
+export const screenSource=()=>display?.stream??null;
+
+/* Drop any publication the SFU no longer holds -- a reconnect clears them all
+ * -- so intent can be restored into the new connection. The capture itself is
+ * kept: only the call's own copy is dropped. */
+function reconcilePublications(){
+  for(const kind of ['mic','cam','screen']){
+    const p=published[kind];
+    if(!p || sfu?.hasPublication?.(p.id)!==false)continue;
+    p.cleanup?.();
+    if(p.stream!==preview?.stream && p.stream!==display?.stream)for(const t of p.stream.getTracks())t.stop();
+    published[kind]=null;
   }
+}
+const GET={mic:()=>navigator.mediaDevices.getUserMedia(micConstraints()),cam:cameraForCall,screen:screenForCall};
+const LABEL={mic:'camera',cam:'camera',screen:'screen'};
+function restoreIntent() {
+  /* A forced mute is the one thing that outranks intent: it turns everything
+   * off and holds it off until an admin lifts it. */
+  if(rooms.mutedByAdmin)return;
+  for(const kind of ['mic','cam','screen'])if(intent[kind] && !published[kind])
+    publish(kind,GET[kind],LABEL[kind]).catch(e=>{rooms.error=String(e.message??e);changed();});
 }
 
 function publish(kind,get,label) {
@@ -406,15 +714,21 @@ function publish(kind,get,label) {
 async function capture(kind, get, label) {
   const epoch = captureEpoch;
   const raw = await get();
-  const media = kind === 'mic' ? await processMicrophone(raw) : {stream:raw,cleanup:()=>{if(raw!==preview?.stream)raw.getTracks().forEach(t=>t.stop());}};
+  const owned = (s) => s !== preview?.stream && s !== display?.stream;
+  const media = kind === 'mic' ? await processMicrophone(raw) : {stream:raw,cleanup:()=>{if(owned(raw))raw.getTracks().forEach(t=>t.stop());}};
   const stream = media.stream;
-  if(epoch !== captureEpoch || (kind!=="screen" && !intent[kind])) {media.cleanup();return;}
+  if(epoch !== captureEpoch || !intent[kind]) {media.cleanup();return;}
   let id;
   try { id = await sfu.publish(stream, label); } catch(e) {media.cleanup();throw e;}
-  if(epoch !== captureEpoch || (kind!=="screen" && !intent[kind])) {sfu.unpublish(id);media.cleanup();return;}
+  if(epoch !== captureEpoch || !intent[kind]) {sfu.unpublish(id);media.cleanup();return;}
   published[kind] = { id, stream, cleanup:media.cleanup };
-  if(kind==='screen')for(const track of stream.getTracks())track.addEventListener?.('ended',()=>{if(published.screen?.id===id)unpublish('screen');},{once:true});
-  if (kind === 'screen') rooms.localStreams.set(kind, stream);   //  the camera's own view is the preview
+  /* The call's own copy dying -- a renegotiation gone wrong -- is not the end
+   * of the share: drop the publication and let restoreIntent make another. */
+  if(kind==='screen')for(const track of stream.getTracks())track.addEventListener?.('ended',()=>{
+    if(published.screen?.id!==id)return;
+    unpublish('screen');
+    if(intent.screen && display && rooms.voice==='connected')restoreIntent();
+  },{once:true});
   rooms[`${kind}On`] = true;
   /* Device LABELS only exist once a capture has been allowed, so this is the
    * first moment the settings picker can show real names. */
@@ -428,27 +742,184 @@ function unpublish(kind) {
   sfu.unpublish(p.id);
   p.cleanup?.();
   published[kind] = null;
-  if (!(kind === 'cam' && preview)) rooms.localStreams.delete(kind);
-  rooms[`${kind}On`] = kind==='screen'?false:intent[kind];
+  if (!(kind === 'cam' && preview) && !(kind === 'screen' && display)) rooms.localStreams.delete(kind);
+  rooms[`${kind}On`] = intent[kind];
   changed();
 }
 
 async function toggleMedia(kind) {
+  /* An admin's mute locks all three until it is lifted. */
+  if(rooms.mutedByAdmin && !intent[kind])return;
   intent[kind]=!intent[kind];
   rooms[`${kind}On`]=intent[kind];
-  if(!intent[kind]){unpublish(kind);if(kind==='cam')stopPreview();}
+  if(!intent[kind]){unpublish(kind);if(kind==='cam')stopPreview();if(kind==='screen')stopDisplay();}
   else{
-    if(kind==='cam')startPreview().catch(()=>{});   //  seen at once, call or not
+    /* Seen at once, call or not. The screen's picker is a user gesture, so it
+     * has to be asked for here rather than from a later callback. */
+    if(kind==='cam')startPreview().catch(()=>{});
+    if(kind==='screen')startDisplay().catch(()=>{});
     if(rooms.voice==='connected')restoreIntent();
   }
   changed();
 }
 export const toggleMic = () => toggleMedia('mic');
 export const toggleCam = () => toggleMedia('cam');
+export const toggleScreen = () => toggleMedia('screen');
 
-export const toggleScreen = async () => rooms.screenOn
-  ? unpublish('screen')
-  : publish('screen', () => navigator.mediaDevices.getDisplayMedia({ video: true }), 'screen');
+/* ------------------------------------------------------------ moderation */
+
+/* Who is in this call, as far as we can tell. Membership decides who may be
+ * promoted, who a snapshot goes to, and whether a recorder is still here. */
+export function callMembers(){
+  const place=controller?.current?.place??null;
+  if(place===null)return [];
+  const others=sfu?.others?.()??new Set();
+  const here=huddle&&huddle.place===place?huddle.members:occupantsOf(rooms.here);
+  /* The room's own guest list as well. Somebody the call server has not
+   * reported yet, or who is standing somewhere our copy of the world has not
+   * caught up with, is still in this call -- and a snapshot that never reaches
+   * them is a mute or a removal that never happens. */
+  const guests=mates?.summary()?.guests??[];
+  return [...new Set([our,...others,...here,...guests])];
+}
+
+/* The call we are in, for the moderation rules. */
+const callNow=()=>{const c=controller?.current;return c?{place:c.place,host:c.host,gen:c.grant?.gen??0}:null;};
+
+/* Copy the record into the shape the UI reads, and keep the recorder pointed
+ * at it. Nothing here decides anything: the record does. */
+function readModeration(){
+  const call=moderation?.call()??null;
+  const record=moderation?.record()??null;
+  rooms.mod=record;
+  rooms.role=roleOf(record,call,our);
+  rooms.recording=recordingOf(record,call);
+  rooms.recordingMine=!!recorder?.active();
+  recorder?.follow(record,call,rooms.recording);
+}
+
+/* What the record does TO US.
+ *
+ * A mute turns mic, camera and screen off and locks all three until it is
+ * lifted -- and it genuinely ends the share rather than pausing it, because a
+ * muted participant nobody can see must not be left holding a live capture.
+ * Unmuting only unlocks: it never turns anything back on by itself, least of
+ * all a screen share.
+ *
+ * A boot disconnects us and keeps us disconnected while we are still standing
+ * in the room, which is the only way "removed from this call" can mean
+ * anything when the room is a place you can walk back into. */
+let booted=null;   //  the call incarnation we were removed from
+function applyModeration(record,call){
+  const muted=isMuted(record,call,our);
+  const wasMuted=rooms.mutedByAdmin;
+  rooms.mutedByAdmin=muted;
+  if(muted && !wasMuted){
+    intent.mic=intent.cam=intent.screen=false;
+    for(const kind of ['mic','cam','screen'])unpublish(kind);
+    stopPreview();stopDisplay();
+    rooms.micOn=rooms.camOn=rooms.screenOn=false;
+    diagnostic('call-mod-applied',{place:call?.place??0,reason:'muted'});
+  }
+  const bootedNow=isBooted(record,call,our);
+  rooms.bootedByAdmin=bootedNow;
+  if(bootedNow && call){
+    if(!booted || booted.place!==call.place || booted.host!==call.host || booted.gen!==call.gen){
+      booted={...call};
+      diagnostic('call-mod-applied',{place:call.place,reason:'booted'});
+      releaseMedia();controller?.select(null);
+    }
+  } else if(booted && call && booted.place===call.place && booted.host===call.host && booted.gen===call.gen){
+    /* Allowed back in, without having to walk out and in again. */
+    booted=null;
+    diagnostic('call-mod-applied',{place:call.place,reason:'unbooted'});
+    selectCall(call.place,call.host);
+  }
+  /* A muted participant is not played and not shown by anybody. */
+  applyPlayable(record,call);
+}
+const barred=(place,host)=>!!booted && booted.place===place && booted.host===host;
+
+/* Stop playing and showing anyone the record mutes. */
+function applyPlayable(record,call){
+  if(!sfu)return;
+  const blocked=new Set();
+  for(const {ship} of rooms.remoteStreams.values())if(ship && !mayPlay(record,call,ship))blocked.add(ship);
+  sfu.setSilenced?.(blocked);
+  for(const [id,r] of [...rooms.remoteStreams])if(blocked.has(r.ship))rooms.remoteStreams.delete(id);
+  for(const ship of blocked)rooms.streams.delete(ship);
+  rooms.blocked=[...blocked];
+}
+
+/* Ask for something. The host does it; everyone else asks the host, and the
+ * host's answer is the snapshot everybody takes. */
+export function moderate(target,op){
+  const call=moderation?.call();
+  if(!call)return false;
+  const before=moderation.record();
+  const ok=moderation.request(target,op);
+  /* Server-side enforcement, from the host only: Galene is told to stop
+   * accepting that participant's media, or to drop them. Our own copy of the
+   * record is what the button reads; this is what makes it true for everyone,
+   * including a client that ignores us. */
+  if(ok && call.host===our)enforceOnServer(before,moderation.record(),call);
+  return ok;
+}
+function enforceOnServer(before,after,call){
+  if(!after || before===after)return;
+  const was=(k)=>new Set(before?.[k]??[]);
+  const now=(k)=>new Set(after[k]??[]);
+  for(const who of now('muted'))if(!was('muted').has(who))G.muteInCall(call.place,who).catch(()=>{});
+  for(const who of was('muted'))if(!now('muted').has(who))G.unmuteInCall(call.place,who).catch(()=>{});
+  for(const who of now('booted'))if(!was('booted').has(who))G.evictFromCall(call.place,who).catch(()=>{});
+}
+export const modRecord=()=>moderation?.record()??null;
+export const modCall=()=>moderation?.call()??null;
+export const myRole=()=>rooms.role;
+export const canModerate=()=>!!rooms.role;
+/* Admins may act on anyone in the call but the host and themselves; an
+ * ordinary admin may not act on another admin. */
+export function mayActOn(ship){
+  const call=moderation?.call();
+  if(!call || !rooms.role || ship===our || ship===call.host)return false;
+  const theirs=roleOf(moderation.record(),call,ship);
+  return !(theirs && rooms.role!=='host');
+}
+export const roleFor=(ship)=>roleOf(moderation?.record()??null,moderation?.call()??null,ship);
+export const mutedShip=(ship)=>isMuted(moderation?.record()??null,moderation?.call()??null,ship);
+export const bootedShip=(ship)=>isBooted(moderation?.record()??null,moderation?.call()??null,ship);
+
+/* ------------------------------------------------------------- recording */
+
+export const mayRecord=()=>canRecord() && !!rooms.role && rooms.voice==='connected';
+export function startRecording(audioOnly){
+  const call=moderation?.call();
+  if(!call || !mayRecord() || rooms.recording)return false;
+  recorder.ask(call,audioOnly);
+  moderate(our,'record-start');
+  return true;
+}
+export function stopRecording(){
+  const rec=rooms.recording;
+  if(!rec)return false;
+  if(rec.by===our)recorder.stop();
+  moderate(rec.by,'record-stop');
+  return true;
+}
+export const recordingElapsed=()=>recorder?.elapsed()??0;
+/* What the recorder may mix: our own outgoing audio, and everyone an admin has
+ * not muted. */
+function recordableAudio(){
+  const out=[];
+  const mine=published.mic?.stream?.getAudioTracks?.()??[];
+  for(const t of mine)out.push({key:'self:'+t.id,track:t});
+  const record=moderation?.record()??null,call=moderation?.call()??null;
+  for(const {ship,stream} of rooms.remoteStreams.values()){
+    if(!ship || ship===our || !mayPlay(record,call,ship))continue;
+    for(const t of stream.getAudioTracks?.()??[])out.push({key:ship+':'+t.id,track:t});
+  }
+  return out;
+}
 
 /* Proximity volume, applied per stream from how far away someone is standing. */
 export function setPositions(self, peers) {

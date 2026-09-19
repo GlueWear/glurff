@@ -45,6 +45,11 @@
       ?:  ?|(=('admit' p.op-nd) =('access' p.op-nd))  %admit
       ?:  =('renew-access' p.op-nd)  %renew-access
       ?:  =('renew-room' p.op-nd)  %renew-room
+      ::  Moderation the call server enforces: a host silencing or removing a
+      ::  participant of a room it holds. Nothing else may reach these.
+      ?:  =('mute-access' p.op-nd)  %mute-access
+      ?:  =('unmute-access' p.op-nd)  %unmute-access
+      ?:  =('evict' p.op-nd)  %evict
       %close
     [op (num 'place' 0) (num 'ttl' 3.600) (num 'session' 0) who]
   --

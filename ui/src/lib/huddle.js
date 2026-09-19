@@ -93,12 +93,14 @@ export function electHost(members, sitting = null) {
 
 export const huddleKey = (members) => [...members].sort().join(',');
 
-/* A stable numeric place id for a membership set, so both ships derive the same
- * Galene room. Deliberately NOT a function of the generation: generations are
- * counted per client, and folding one in would give two ships different rooms
- * for the same huddle. */
-export function huddlePlace(members) {
-  const key = huddleKey(members);
+/* A huddle's call is its HOST's: a stable place id for the host, not for the
+ * membership. Everyone who follows the same host joins the same call however
+ * much of the huddle each of them can see -- a membership-derived id gave two
+ * browsers that saw different people two different calls -- and somebody
+ * joining or leaving no longer moves everybody to a new call. Deliberately NOT
+ * a function of a generation: generations are counted per client. */
+export function huddlePlace(host) {
+  const key = String(host);
   let h = 0x811c9dc5;
   for (let i = 0; i < key.length; i++) {
     h ^= key.charCodeAt(i);

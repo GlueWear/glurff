@@ -1,0 +1,142 @@
+[
+  {
+    "url": "/apps/glurff/",
+    "spur": "/lib/glurff/site/index/html",
+    "size": 595,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "c181eba4258e74c4d55bd72b2180b390fad845995e3b5941e612beb6f6eabd40"
+  },
+  {
+    "url": "/apps/glurff/assets/index-3ee42a77.js",
+    "spur": "/lib/glurff/site/assets/index-3ee42a77/js",
+    "size": 771260,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "8939fb32992d94454826a205549e9d7d56b4f2e59e981c5d8b707dd5dd136cb8"
+  },
+  {
+    "url": "/apps/glurff/characters/beard.png",
+    "spur": "/lib/glurff/site/characters/beard/png",
+    "size": 15745,
+    "mime": "image/png",
+    "sha256": "d669d05c682ded0f3c2e650ac887e885d35b593bfad7f0ef985a6db30b51963a"
+  },
+  {
+    "url": "/apps/glurff/characters/body.png",
+    "spur": "/lib/glurff/site/characters/body/png",
+    "size": 7111,
+    "mime": "image/png",
+    "sha256": "8f6ea9c483c27d1633616bb553c7faa593fa2bc653cc3c52585d876df917e113"
+  },
+  {
+    "url": "/apps/glurff/characters/bottom.png",
+    "spur": "/lib/glurff/site/characters/bottom/png",
+    "size": 4948,
+    "mime": "image/png",
+    "sha256": "160333816f0c0cbb14e8520dd244f3e435b5a925a192fb1e8d741ddbbf625c8d"
+  },
+  {
+    "url": "/apps/glurff/characters/gloves.png",
+    "spur": "/lib/glurff/site/characters/gloves/png",
+    "size": 3767,
+    "mime": "image/png",
+    "sha256": "4982433432ecc32c2d9879694d4c18c0ef9e3e6662ecbaf5dceab6cc09040d24"
+  },
+  {
+    "url": "/apps/glurff/characters/hair.png",
+    "spur": "/lib/glurff/site/characters/hair/png",
+    "size": 41242,
+    "mime": "image/png",
+    "sha256": "08328e0c1e79ad43c474c04addd83e8dc2b9630461ee119896520faee16bc604"
+  },
+  {
+    "url": "/apps/glurff/characters/hat.png",
+    "spur": "/lib/glurff/site/characters/hat/png",
+    "size": 58390,
+    "mime": "image/png",
+    "sha256": "34bc068dfbfc2a10da4eb8e632d9d530897d2f8aab68178ad82d8c1028aded19"
+  },
+  {
+    "url": "/apps/glurff/characters/shoes.png",
+    "spur": "/lib/glurff/site/characters/shoes/png",
+    "size": 4319,
+    "mime": "image/png",
+    "sha256": "f0c1b812ec50b6c4c2c0f8532a622391ce5d2bb01a8d7694ba569700b158cd32"
+  },
+  {
+    "url": "/apps/glurff/characters/shoulders.png",
+    "spur": "/lib/glurff/site/characters/shoulders/png",
+    "size": 4567,
+    "mime": "image/png",
+    "sha256": "ba1a70a48dc0529493259406f7d71508066f69ce64b0b70bfe9dbdb7ab19cdd7"
+  },
+  {
+    "url": "/apps/glurff/characters/top.png",
+    "spur": "/lib/glurff/site/characters/top/png",
+    "size": 29959,
+    "mime": "image/png",
+    "sha256": "7a5645cf1a8d9f1e0af4ae97e3fd753eca6d6e4d4e84d4dd79d0df4eef7f960a"
+  },
+  {
+    "url": "/apps/glurff/denoise-worklet.js",
+    "spur": "/lib/glurff/site/denoise-worklet/js",
+    "size": 1949419,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "2b113bfcf4f43a614cf06eef75b05fd70f16540de52cbb027ae41ffb69911380"
+  },
+  {
+    "url": "/apps/glurff/favicon.png",
+    "spur": "/lib/glurff/site/favicon/png",
+    "size": 2784,
+    "mime": "image/png",
+    "sha256": "79bdba1a9b82583b9b4515903ab0da46e7cbc3d2d7301965886361cc0fff4472"
+  },
+  {
+    "url": "/apps/glurff/glurff-icon.png",
+    "spur": "/lib/glurff/site/glurff-icon/png",
+    "size": 26830,
+    "mime": "image/png",
+    "sha256": "e16b240e2b4ade156db6b1edf0dda497ef642056b3c5122c2e2e0f7aab0ea356"
+  },
+  {
+    "url": "/apps/glurff/index.html",
+    "spur": "/lib/glurff/site/index/html",
+    "size": 595,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "c181eba4258e74c4d55bd72b2180b390fad845995e3b5941e612beb6f6eabd40"
+  },
+  {
+    "url": "/apps/glurff/licenses/jitsi-license.html",
+    "spur": "/lib/glurff/site/licenses/jitsi-license/html",
+    "size": 12599,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "ab1de9d87c972ba8821ab22436c7903894094fb476c322e64bbaa059b2c8766c"
+  },
+  {
+    "url": "/apps/glurff/licenses/rnnoise-license.html",
+    "spur": "/lib/glurff/site/licenses/rnnoise-license/html",
+    "size": 1623,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "f9f93294c6504ca130a73b7d1f8cd4d4b749048c6850f469c56acf5fc3bb6d7b"
+  },
+  {
+    "url": "/apps/glurff/map/over.png",
+    "spur": "/lib/glurff/site/map/over/png",
+    "size": 53223,
+    "mime": "image/png",
+    "sha256": "91c894ddcc30c8d5fbfd8179dfd05f93b8a0aa390acd8a3f5a6a28f21364717f"
+  },
+  {
+    "url": "/apps/glurff/map/world.jpg",
+    "spur": "/lib/glurff/site/map/world/jpg",
+    "size": 478785,
+    "mime": "image/jpeg",
+    "sha256": "58df7c2c5f1bcd0c81a026e73af8307681fb5a5c4b3289359a1c37ee2d704477"
+  },
+  {
+    "url": "/apps/glurff/style.css",
+    "spur": "/lib/glurff/site/style/css",
+    "size": 21398,
+    "mime": "text/css; charset=utf-8",
+    "sha256": "a71214598dc0fc6cf8149d6c899fdef4bb3efcd99c1e29ffe49935bc3b3e480d"
+  }
+]

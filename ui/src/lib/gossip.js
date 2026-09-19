@@ -12,12 +12,15 @@ export function createGossip({our, social, messages, fetch, changed = () => {}, 
   const metrics={liveStarted:0,historyStarted:0,timeouts:0,maxLiveQueueMs:0,maxContentMs:0};
   let wanted = new Set(), scheduled = false, wake = null, closed = false;
   const note = id => {
-    if (!notes.has(id)) notes.set(id, {refs: new Map(), snapshot: [], tombstones: new Set()});
+    if (!notes.has(id)) notes.set(id, {refs: new Map(), snapshot: [], tombstones: new Set(), missing: new Set()});
     return notes.get(id);
   };
   const keyOf = (id, env) => `${id}/${messageKey(env)}`;
   const valid = env => env && typeof env.author === 'string' && Number.isFinite(env.id);
   const isDeleted = (n, env) => n.tombstones.has(messageKey(env)) || n.tombstones.has(`id:${env.id}`);
+  /* The author answered that they no longer hold this body. Unlike a deletion
+   * the envelope stays; there is simply nothing left to fetch. */
+  const isMissing = (n, env) => (!!env.meta?.eid && n.missing.has(env.meta.eid)) || n.missing.has(`id:${env.id}`);
   function find(n, m) {
     return n?.refs.get(messageKey(m)) ?? n?.refs.get(`${m.author}:${m.id}`);
   }
@@ -93,7 +96,7 @@ export function createGossip({our, social, messages, fetch, changed = () => {}, 
       const resolvedLegacy = new Set(messages(id).map(m => `${m.author}:${m.id}`));
       for (const key of selected(id)) {
         const ref = n.refs.get(key);
-        if (!ref || resolved.has(key) || (!ref.env.meta?.eid && resolvedLegacy.has(`${ref.env.author}:${ref.env.id}`))) continue;
+        if (!ref || resolved.has(key) || isMissing(n, ref.env) || (!ref.env.meta?.eid && resolvedLegacy.has(`${ref.env.author}:${ref.env.id}`))) continue;
         const jobKey = keyOf(id, ref.env); desired.add(jobKey);
         let job = jobs.get(jobKey);
         if (!job) { job = {key: jobKey, noteId: id, env: ref.env, arrived:ref.at, tries: 0, due: 0, active: false}; jobs.set(jobKey, job); }
@@ -180,6 +183,23 @@ export function createGossip({our, social, messages, fetch, changed = () => {}, 
       for (const [key, job] of jobs) if (job.noteId === id && (ids.has(messageKey(job.env)) || (!job.env.meta?.eid && legacy.has(`${job.env.author}:${job.env.id}`)))) {
         if(job.started!==undefined)metrics.maxContentMs=Math.max(metrics.maxContentMs,now()-job.started);
         stop(job); jobs.delete(key); authors.delete(job.env.author);
+      }
+      requestPlan();
+    },
+    /* Noltbook's answer that the author no longer holds this body. Stop asking:
+     * the fetch cannot succeed, so the three retries and the author cooldown
+     * that followed them only held up that author's other messages. Remembered
+     * for this session, so a later snapshot does not start the job again. */
+    unavailable(id, {eid, msgId}) {
+      const n = note(id);
+      n.missing.add(eid ?? `id:${msgId}`);
+      for (const [key, job] of jobs) {
+        if (job.noteId !== id) continue;
+        if (eid ? job.env.meta?.eid === eid : job.env.id === msgId) {
+          stop(job); jobs.delete(key);
+          //  Not the author's failure, so never their backoff.
+          authors.delete(job.env.author);
+        }
       }
       requestPlan();
     },

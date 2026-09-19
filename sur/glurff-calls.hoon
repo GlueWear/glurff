@@ -107,6 +107,13 @@
       [%renew req=@ud room=@tas ttl=@ud]
       [%room-status req=@ud room=@tas]
       [%evict req=@ud room=@tas who=@p]
+      ::  Mute or unmute ONE participant on the call server (Galene "present":
+      ::  the right to publish), then issue that participant fresh access,
+      ::  strictly after the change -- the change itself revokes the
+      ::  credentials they held. Added to Noltbook's published interface after
+      ::  this copy was first made; the two are identical again.
+      [%mute-access req=@ud room=@tas who=@p return=@tas context=ctx]
+      [%unmute-access req=@ud room=@tas who=@p return=@tas context=ctx]
       [%end req=@ud room=@tas]
       [%access req=@ud room=@tas who=@p return=@tas context=ctx]
       [%renew-access req=@ud room=@tas who=@p return=@tas context=ctx]

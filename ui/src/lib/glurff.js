@@ -27,6 +27,8 @@ const classify = (event) => {
   if (k === 'state') return event.here === null ? 'presence-departure' : 'presence-snapshot';
   if (k === 'query' || k === 'cut' || k === 'cancel') return 'presence-discovery';
   if (typeof k === 'string' && k.startsWith('call-')) return 'call-control';
+  if (k === 'room-state') return 'room-state';
+  if (typeof k === 'string' && k.startsWith('room-')) return 'room-list';
   if (k === 'shot') return 'world-event';
   return 'presence-other';
 };
@@ -42,10 +44,11 @@ export function asFallback(fn) {
 const act = (op, extra = {}) =>
   tracked(ACTION_CLASS[op] ?? 'action-other', poke('glurff', 'glurff-action', { op, peers: glurffAudience(), ...extra }));
 
-/* Position rate while moving. Every claim is a fanned-out Ames poke per peer,
- * so this is a real cost and the client is what throttles -- the agent does
- * not. */
-export const MOVE_HZ = 4;
+/* Position rate while moving. Positions travel over the relay now, where ten a
+ * second is cheap and is what makes somebody else's walk look continuous. The
+ * SLOW path is rate-limited separately, in lib/movement.js: nothing here fans a
+ * position out to ships at this rate. */
+export const MOVE_HZ = 10;
 export const BEAT_MS = 10000;
 export const PEER_TTL_MS = 30000;
 export const SUB = 16; //  wire positions are scaled, so tiles keep sub-tile precision without floats
@@ -84,6 +87,20 @@ export const admitToRoom = (place, who, session) =>
   tracked('call-operation', poke('glurff', 'glurff-room', { op: 'admit', place, ttl: 3600, session, who }));
 
 export const callOperation=(op,place,who,session)=>tracked('call-operation',poke('glurff','glurff-room',{op,place,who:[who],session,ttl:180}));
+
+/* Moderation the CALL SERVER enforces, not just our own browser.
+ *
+ * A mute that only the muted person's app honours is a request; these make it
+ * true for every client. %noltbook-calls already publishes all three -- mute
+ * and unmute reissue that participant's credentials after changing what they
+ * may publish, and evict removes them from the room. Only the host of the call
+ * can ask: the agent mints against the room key it derives from the place, and
+ * the broker answers to the room's authority alone. */
+const modOperation=(op,place,who)=>tracked('call-operation',
+  poke('glurff','glurff-room',{op,place,who:[who],session:Date.now()*1000+Math.floor(Math.random()*1000),ttl:180}));
+export const muteInCall=(place,who)=>modOperation('mute-access',place,who);
+export const unmuteInCall=(place,who)=>modOperation('unmute-access',place,who);
+export const evictFromCall=(place,who)=>modOperation('evict',place,who);
 
 /* Movement sessions. `peers` is empty on purpose: a movement room is found
  * through presence announcements, so the agent broadcasts nothing. A knock on a
@@ -126,6 +143,8 @@ export const sendPresence=(who,event)=>{
   const kind=event?.kind==='state' && event.here && fallbackMark ? 'movement-fallback' : classify(event);
   const key=who+'/'+event.origin+'/'+event.viewer;
   if(event.kind==='state' && event.here){snapshots.put(key,who,event,kind);return Promise.resolve();}
+  /* A room-mate's state, like a snapshot: only the newest one per recipient matters. */
+  if(event.kind==='room-state'){snapshots.put(who+'/room-state',who,event,kind);return Promise.resolve();}
   if(event.kind==='state')snapshots.cancel(key);
   return sendPresenceNow(who,event,kind);
 };

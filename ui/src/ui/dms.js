@@ -6,10 +6,11 @@
  * keeps no copy and adds no store -- close the world and the conversation is
  * still there in Noltbook, with the same history.
  *
- * Three pieces: a button in the top right that carries the dot, a panel that
- * lists conversations and searches the way Noltbook's sidebar does, and a
- * small window for the conversation you are in. A note that is not a DM opens
- * in Noltbook itself -- Glurff shows a chat column, not a whole note.
+ * Three pieces: a button in the top left that carries the dot, a panel that
+ * lists conversations and searches the way Noltbook's sidebar does -- people
+ * first -- and a small window for the conversation you are in. A note that is
+ * not a DM opens in Noltbook itself: Glurff shows a chat column, not a whole
+ * note.
  */
 import {
   nb, dmList, dmWith, counterparty, anyUnreadDm, unread, displayName, avatarUrl,
@@ -45,6 +46,13 @@ export class Dms {
     this.panel = this.root.querySelector('.dm-panel');
     this.win = this.root.querySelector('.dm-window');
     this.btn.onclick = () => this.togglePanel();
+    /* Clicking away closes the panel, the way every other menu here does --
+     * having to find the button again to put it away was a trap. The open
+     * conversation is left alone: that is a window, not a menu. */
+    document.addEventListener('pointerdown', (e) => {
+      if (this.panelOpen && !this.root.contains(e.target)) this.togglePanel();
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.panelOpen) this.togglePanel(); });
     /* The list, the dot, search results and the open conversation all follow
      * the store. */
     onChange(() => {
@@ -57,9 +65,6 @@ export class Dms {
         (!c.noteId || nb.notes[c.noteId]?.type === 'dm')));
     this.paint();
   }
-
-  /* Controls that sit beside the button, such as the dial. */
-  addTool(el) { this.root.insertBefore(el, this.btn); }
 
   togglePanel() {
     this.panelOpen = !this.panelOpen;
@@ -123,6 +128,24 @@ export class Dms {
       return '<div class="dim pad">no matches</div>';
     const group = (title) => `<div class="dm-group">${title}</div>`;
     let html = '';
+    /* PEOPLE FIRST. Searching in a world full of people is nearly always
+     * searching for one of them; notes and message bodies are what you fall
+     * through to. Noltbook separates the three the same way. */
+    if (r.people.length || r.unknownShip) {
+      html += group('people') + r.people.map((s2) => {
+        const tag = nb.pals[s2] === 'blocked' ? 'blocked' : dmWith(s2) ? 'DM' : nb.pals[s2] === 'mutual' ? 'pals' : '';
+        return `<div class="dm-row" data-act="person" data-ship="${esc(s2)}">
+          ${avatar(s2)}
+          <span class="who">${esc(displayName(s2))}</span><span class="prev dim">${esc(s2)}</span>
+          ${tag ? `<span class="tag">${tag}</span>` : ''}
+        </div>`;
+      }).join('');
+      if (r.unknownShip) html += `
+        <div class="dm-row new" data-act="lookup" data-ship="${esc(r.unknownShip)}">
+          ${avatar(r.unknownShip)}
+          <span class="who">${esc(r.unknownShip)}</span><span class="prev dim">${esc(this.lookupText(r.unknownShip))}</span>
+        </div>`;
+    }
     if (r.notes.length) html += group('notes') + r.notes.map((n) => `
       <div class="dm-row" data-act="note" data-note="${esc(n.id)}">
         <span class="who">${esc(n.name)}</span><span class="prev dim">${esc(NOTE_TYPE[n.type] ?? '')}</span>
@@ -142,21 +165,6 @@ export class Dms {
         </div>`;
       }).join('');
       if (r.capped) html += '<div class="dim pad">showing first 50 — refine your search</div>';
-    }
-    if (r.people.length || r.unknownShip) {
-      html += group('people') + r.people.map((s) => {
-        const tag = nb.pals[s] === 'blocked' ? 'blocked' : dmWith(s) ? 'DM' : nb.pals[s] === 'mutual' ? 'pals' : '';
-        return `<div class="dm-row" data-act="person" data-ship="${esc(s)}">
-          ${avatar(s)}
-          <span class="who">${esc(displayName(s))}</span><span class="prev dim">${esc(s)}</span>
-          ${tag ? `<span class="tag">${tag}</span>` : ''}
-        </div>`;
-      }).join('');
-      if (r.unknownShip) html += `
-        <div class="dm-row new" data-act="lookup" data-ship="${esc(r.unknownShip)}">
-          ${avatar(r.unknownShip)}
-          <span class="who">${esc(r.unknownShip)}</span><span class="prev dim">${esc(this.lookupText(r.unknownShip))}</span>
-        </div>`;
     }
     return html;
   }
@@ -229,15 +237,21 @@ export class Dms {
       this.built = noteId;
       this.win.innerHTML = `
         <div class="dm-head">
-          <span class="who">${esc(displayName(ship))}</span>
-          <button class="dm-prof" title="Profile">i</button>
-          <button class="dm-close" title="Close">&times;</button>
+          ${avatar(ship)}
+          <button class="who" title="Their profile">${esc(displayName(ship))}</button>
+          <button class="dm-close" title="Back to search">&times;</button>
         </div>
         <div class="dm-body"></div>
         <form class="dm-send"><input placeholder="Message ${esc(displayName(ship))}" autocomplete="off"></form>`;
       this.body = this.win.querySelector('.dm-body');
-      this.win.querySelector('.dm-close').onclick = () => { this.closeWindow().then(() => this.paint()); };
-      this.win.querySelector('.dm-prof').onclick = () => this.onShowProfile(ship);
+      /* The cross goes BACK to the search you came through, rather than
+       * closing everything and leaving you looking at the world again. */
+      this.win.querySelector('.dm-close').onclick = () => {
+        this.closeWindow().then(() => { this.panelOpen = true; this.paint(); this.panel.querySelector('input')?.focus(); });
+      };
+      /* Their name is how you get to who they are -- the same click as
+       * everywhere else, rather than a lone "i" beside it. */
+      this.win.querySelector('.who').onclick = () => this.onShowProfile(ship);
       const form = this.win.querySelector('form');
       const input = form.querySelector('input');
       form.onsubmit = (e) => {
