@@ -48,37 +48,20 @@
 ::  Rumors is absent on purpose: it uses Noltbook's own anonymous system note.
 ::
 ::  CHANGING AN ID HERE ABANDONS THAT ROOM'S HISTORY.
-++  room-notes
-  ^-  (map @ud [id=@ta name=@t headline=@t])
-  %-  malt
-  ^-  (list [@ud [id=@ta name=@t headline=@t]])
-  ::  The ids are the rooms of the painted map; see ui/src/world/map-data.js,
-  ::  and lib/noltbook.js, which MUST agree with this table.
-  :~  [1 ['glurff-room-bar' 'Bar' 'the glurff bar']]
-      [2 ['glurff-room-auditorium' 'Amphitheatre' 'the glurff amphitheatre']]
-      [3 ['glurff-room-movie' 'Movie Theater' 'the glurff movie theater']]
-      [4 ['glurff-room-office-1' 'Office 1' 'glurff office 1']]
-      [5 ['glurff-room-office-2' 'Office 2' 'glurff office 2']]
-      [6 ['glurff-room-office-3' 'Office 3' 'glurff office 3']]
-      [7 ['glurff-room-office-4' 'Office 4' 'glurff office 4']]
-      [8 ['glurff-room-office-5' 'Office 5' 'glurff office 5']]
-      [9 ['glurff-room-office-6' 'Office 6' 'glurff office 6']]
-      [10 ['glurff-room-office-7' 'Office 7' 'glurff office 7']]
-      [11 ['glurff-room-office-8' 'Office 8' 'glurff office 8']]
-      [12 ['glurff-room-board' 'Board Room' 'the glurff board room']]
-      [14 ['glurff-room-library' 'Library' 'the glurff library']]
-      [15 ['glurff-room-game' 'Game Room' 'the glurff game room']]
-  ==
 ::  How many rooms the painted map has, and which of them is Rumors.
 ++  last-room  `@ud`15
 ++  rumors-room  `@ud`13
 ::  The note for a place, the commons included. `~` means "none of ours": the
 ::  Rumors room, and anywhere that is not a room.
+::  The note a place's chat is, for the ONE place that has a fixed one: the
+::  commons. Every other room's note is a LEASE its holder took on one of their
+::  own Noltbook notes, with Noltbook's own id -- there is no table of ours to
+::  look it up in, and there should not be.
 ++  note-for
   |=  p=@ud
   ^-  (unit [id=@ta name=@t headline=@t])
   ?:  =(0 p)  `[commons-note-id commons-name commons-headline]
-  (~(get by room-notes) p)
+  ~
 ::
 ::  ------------------------------------------------------------- the world
 ::
@@ -162,10 +145,25 @@
       [%roll peers=(list @p) =place stage=roll-stage]
       [%room-event peers=(list @p) =place body=@t]
       [%presence-event peers=(list @p) body=@t]
+      ::  take a room for one of our own notes, or give it back. One at a time.
+      [%lease peers=(list @p) =place note=@ta]
+      [%unlease peers=(list @p) ~]
   ==
 ::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
 ::  confers only "the ship that mints tokens" -- no kick, no mute.
 +$  lock-mode  ?(%open %pals %ask %locked)
+::  A LEASE on a room of the communal map.
+::
+::  Somebody walks into a room and says "this is my note for this call". While
+::  they hold it, the room's chat IS that note's chat, saved in Noltbook, and
+::  the note's own settings -- public, private, secret, its members, its admins
+::  -- decide who may take part. It is a lease and not a deed: one per ship,
+::  released by hand, and never taken by a clock.
+::
+::  Only the note's own creator may bind it, which is what keeps this simple:
+::  the ship that would have to mint for the call is the ship that took the
+::  lease. The note id is Noltbook's own, not one of ours.
++$  lease  [=place note=@ta]
 ::  Cee-lo without a server. Each client publishes a hash, then the secret; the
 ::  seed is every secret combined, so no player can bias the result unless all
 ::  of them collude, and a lie is caught because the reveal must match.
@@ -208,5 +206,7 @@
       [%rolled who=@p =place stage=roll-stage]
       [%room-event who=@p =place body=@t]
       [%presence-event who=@p body=@t]
+      ::  the lease we hold, on startup and whenever it changes. `~` is none.
+      [%our-lease lease=(unit lease)]
   ==
 --

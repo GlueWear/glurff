@@ -60,6 +60,22 @@ export const poke = (app, mark, json) => {
 
 /* Facts arrive as single-key objects: {'peer-here': {...}}. Handlers get
  * (name, payload) so callers switch without unwrapping. */
+/* A fact that is NOT fronded, handed over whole.
+ *
+ * Most agents publish `{'peer-here': {...}}` and +subscribe below splits that
+ * into a name and a payload. Noltbook's private call-access path does not: the
+ * credential is one flat object, and splitting it by key would deliver its
+ * fields one at a time as if each were a fact of its own. */
+export function subscribeRaw(app, path, onFact, label = path) {
+  return api.subscribe({
+    app,
+    path,
+    event: (fact) => { if (fact && typeof fact === 'object') onFact(fact); },
+    err: (e) => console.error(`subscription ${app}${label} failed`, e),
+    quit: () => console.warn(`subscription ${app}${label} quit`),
+  });
+}
+
 export function subscribe(app, path, onFact, label = path) {
   return api.subscribe({
     app,

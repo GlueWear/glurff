@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "node --test src/world/*.test.js"
   },
   "dependencies": {
     "pixi.js": "^7.4.3",

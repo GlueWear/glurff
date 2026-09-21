@@ -315,13 +315,15 @@ export function createMovement({
     moved(p, force = false, urgent = false) {
       const previous = last, at = now();
       const seconds = lastAt === null ? 0 : (at - lastAt) / 1000;
-      const moving = p.moving ?? (!!previous && (previous.x !== p.x || previous.y !== p.y));
-      const speed = (from, to) => (previous && moving && seconds > 0 && seconds < 1 ? (to - from) / seconds : 0);
-      last = { x: p.x, y: p.y, dir: p.dir, host: p.host ?? null, moving,
+      const scene = p.scene === 'vatican' ? 'vatican' : 'main';
+      const sameScene = previous?.scene === scene;
+      const moving = p.moving ?? (!!previous && sameScene && (previous.x !== p.x || previous.y !== p.y));
+      const speed = (from, to) => (previous && sameScene && moving && seconds > 0 && seconds < 1 ? (to - from) / seconds : 0);
+      last = { x: p.x, y: p.y, dir: p.dir, scene, host: p.host ?? null, moving,
                vx: speed(previous?.x, p.x), vy: speed(previous?.y, p.y) };
       lastAt = at;
       dirty = true;
-      const changed = !previous || previous.dir !== last.dir || previous.moving !== last.moving;
+      const changed = !previous || previous.dir !== last.dir || previous.moving !== last.moving || previous.scene !== last.scene;
       relay.send(last, urgent || changed || force);
       fallback(force);
     },

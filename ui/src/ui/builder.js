@@ -24,8 +24,10 @@ export class Builder {
     this.look = completeLook(null);
     this.open = false;
     this.dir = 'down';
+    /* THE PREVIEW STANDS STILL. It used to walk on the spot so the clothes
+     * animated; a figure marching while you are trying to look at a hat is
+     * movement with nothing to say. */
     this.frame = 0;
-    this.timer = null;
     /* Which style each slot is showing colours for; the one being worn, or the
      * first, so the panel opens on something. */
     this.group = {};
@@ -43,16 +45,6 @@ export class Builder {
   toggle() {
     this.open = !this.open;
     this.render();
-    /* The walk runs only while the panel is up. Clothes animate over four
-     * frames and standing still hides half of what you just chose. */
-    clearInterval(this.timer);
-    this.timer = null;
-    if (this.open) {
-      this.timer = setInterval(() => {
-        this.frame = (this.frame + 1) % 4;
-        this.paint();
-      }, 160);
-    }
   }
 
   face(dir) { this.dir = dir; this.render(); }

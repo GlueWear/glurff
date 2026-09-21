@@ -235,6 +235,28 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .dm-row .hit-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .dm-row .hit-text .prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---- asking something, in Glurff's voice rather than the browser's ------ */
+.ask-overlay { position: fixed; inset: 0; z-index: 40; display: flex;
+  align-items: center; justify-content: center; background: rgba(6,8,12,.84); }
+.ask { width: min(360px, 92vw); background: #202938; border: 1px solid #718096;
+  border-radius: 8px; padding: 1rem; box-shadow: 0 12px 60px #000a;
+  display: flex; flex-direction: column; gap: .6rem; }
+.ask-q { font-weight: 600; line-height: 1.35; }
+.ask-detail { line-height: 1.4; font-size: 12px; }
+.ask-row { display: flex; gap: .4rem; justify-content: flex-end; }
+.ask-row .ask-yes { border-color: #7fd6c3; color: #7fd6c3; }
+
+/* ---- the lease: a room bound to one of your notes ---------------------- */
+/* Inside the room's own menu, above the people in it. */
+.lease { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  padding: .35rem .5rem; border-bottom: 1px solid rgba(42,50,68,.5); }
+.lease-note { padding: 0 .5rem .35rem; font-size: 11px; line-height: 1.3; }
+.members-panel .lease-ask { margin: 0 .5rem .35rem; }
+.lease .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lease.held .who { color: #7fd6c3; }
+.lease select { width: 100%; background: rgba(15,19,29,.9); border: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .2rem; border-radius: 3px; }
+
 /* ---- call moderation and recording ------------------------------------- */
 /* Outside the rail's markup: the rail replaces its innerHTML several times a
    second, and a panel rendered in there is rebuilt between click and eye. */

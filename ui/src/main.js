@@ -9,7 +9,7 @@ import { createMovement } from 'lib/movement';
  */
 import { initApi, our, closeChannel } from 'lib/api';
 import { createTabGuard } from 'lib/tab';
-import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, setDial, updateActiveCount, holdHistory, releaseHistory, inGlurff, primeSocial, setExtraVisible } from 'lib/noltbook';
+import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, setDial, updateActiveCount, holdHistory, releaseHistory, inGlurff, primeSocial, setExtraVisible, setLeasedNotes, askToJoinNote, joinAsked, joinRequests, answerJoinRequest } from 'lib/noltbook';
 import * as G from 'lib/glurff';
 import { Game } from 'world/game';
 import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
@@ -21,6 +21,7 @@ import { ProfileCard } from 'ui/profile';
 import { Dms } from 'ui/dms';
 import { Me } from 'ui/me';
 import { Members } from 'ui/members';
+import { ask } from 'ui/ask';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS } from 'world/parts';
 
@@ -87,14 +88,125 @@ holdHistory();
 setTimeout(releaseHistory, 10000);
 
 const sendPosition = throttle(reportPosition, 1000 / G.MOVE_HZ);
-let reported = { dir: null, moving: null };
+let reported = { dir: null, moving: null, scene: null };
+let doorPrompt = null;
+
+/* Give Noltbook's remote-note answer a brief chance to supply the group's name
+ * and description. Admission remains blocked while this is happening; if the
+ * answer is slow, the question still appears with a plain fallback. */
+function waitForDoorFacts(place, ms = 1500, freshHost = null) {
+  const present = R.roomGate(place);
+  if (present.facts && !freshHost) return Promise.resolve(present);
+  return new Promise((resolve) => {
+    let off = () => {};
+    const finish = () => { clearTimeout(timer); off(); resolve(R.roomGate(place)); };
+    const timer = setTimeout(finish, ms);
+    off = onChange((change) => {
+      const gate = R.roomGate(place);
+      const refreshed = change.field === 'remoteNotes' &&
+        (!freshHost || change.ship === freshHost);
+      if (!gate.blocked || gate.visibility === 'secret' ||
+          (gate.facts && (!freshHost || refreshed)) || refreshed) finish();
+    }, (c) => c.field === 'notes' || c.field === 'remoteNotes');
+  });
+}
+
+async function offerRoomDoor(place) {
+  let gate = R.roomGate(place);
+  if (!gate.blocked || gate.visibility === 'secret' || !gate.note || joinAsked(gate.note)) return;
+  const key = `${place}/${gate.note}`;
+  if (doorPrompt === key) return;
+  doorPrompt = key;
+  try {
+    /* Refresh even when an earlier profile lookup left partial facts behind:
+     * the current answer is what carries the group's description. Start the
+     * listener first so a fast same-ship answer cannot pass between the two. */
+    const freshHost = gate.host ?? null;
+    const facts = waitForDoorFacts(place, 1500, freshHost);
+    void R.learnLease(place, freshHost, true);
+    gate = await facts;
+    /* We may have walked away, been admitted, or watched the note turn secret
+     * while its description was arriving. */
+    if (game.doorRoom !== place || !gate.blocked || gate.visibility === 'secret' ||
+        !gate.note || joinAsked(gate.note)) return;
+    const publicNote = gate.visibility === 'public';
+    const title = gate.facts?.name ?? 'this group';
+    const room = roomById(place)?.name ?? 'This room';
+    const detail = gate.facts?.headline ??
+      `${room} is linked to a ${publicNote ? 'public' : 'private'} Noltbook group.`;
+    const yes = publicNote ? 'JOIN' : 'REQUEST JOIN';
+    const go = await ask(publicNote ? `Join ${title}?` : `Request to join ${title}?`, {
+      yes, no: 'NOT NOW', detail,
+    });
+    if (!go) return;
+    /* Recheck at the click: access may have changed while the question sat on
+     * screen. Noltbook remains the authority and confirms membership before
+     * the collision gate opens. */
+    gate = R.roomGate(place);
+    if (!gate.blocked || !gate.note || gate.visibility === 'secret') return;
+    await askToJoinNote(gate.note, gate.host ?? gate.facts?.creator);
+  } catch (error) {
+    console.warn('could not ask to join leased room', error);
+  } finally {
+    doorPrompt = null;
+  }
+}
+
+/* PRIVATE NOTE ADMISSION. Noltbook sends these facts to the note's host and
+ * admins. When that note is actually attached to a Glurff room, surface the
+ * same decision here; the approve/deny action still goes back to Noltbook. */
+let joinPrompt = null, joinPromptRetry = null;
+const dismissedJoinRequests = new Set();
+function joinRequestRoom(noteId) {
+  if (R.rooms.lease?.note === noteId) return R.rooms.lease.place;
+  if (R.leaseNote(R.rooms.here) === noteId) return R.rooms.here;
+  return null;
+}
+async function offerJoinRequest() {
+  const requests = joinRequests();
+  const live = new Set(requests.map((r) => `${r.noteId}/${r.ship}`));
+  for (const key of dismissedJoinRequests) if (!live.has(key)) dismissedJoinRequests.delete(key);
+  if (joinPrompt) return;
+  if (document.querySelector('.ask-overlay')) {
+    if (!joinPromptRetry) joinPromptRetry = setTimeout(() => {
+      joinPromptRetry = null; void offerJoinRequest();
+    }, 250);
+    return;
+  }
+  const request = requests.find((r) => r?.ship !== our && joinRequestRoom(r.noteId) != null &&
+    !dismissedJoinRequests.has(`${r.noteId}/${r.ship}`));
+  if (!request) return;
+  const key = `${request.noteId}/${request.ship}`;
+  const place = joinRequestRoom(request.noteId);
+  const note = nb.notes[request.noteId];
+  const title = note?.name ?? request.noteName ?? request.noteId;
+  const room = roomById(place)?.name ?? 'this room';
+  joinPrompt = key;
+  try {
+    const answer = await ask(`${displayName(request.ship)} wants to join ${title}.`, {
+      yes: 'LET IN', no: 'DECLINE', dismiss: null,
+      detail: note?.headline ?? `${title} is linked to ${room}.`,
+    });
+    if (answer === null) dismissedJoinRequests.add(key);
+    else await answerJoinRequest(request.noteId, request.ship, answer);
+  } catch (error) {
+    dismissedJoinRequests.add(key);
+    console.warn('could not answer Noltbook join request', error);
+  } finally {
+    joinPrompt = null;
+    queueMicrotask(() => void offerJoinRequest());
+  }
+}
+onChange(() => void offerJoinRequest(), (c) => c.field === 'joinRequests' || c.field === 'notes');
+R.onRooms(() => void offerJoinRequest());
+
 const game = new Game(document.getElementById('stage'), {
   onMove: (self) => {
     /* Starting, stopping and turning go out at once. Everything between them is
      * the ordinary rate: a stop that waits for the next tick is seen as sliding
      * past where you stopped. */
-    const change = self.dir !== reported.dir || self.moving !== reported.moving;
-    reported = { dir: self.dir, moving: self.moving };
+    const change = self.dir !== reported.dir || self.moving !== reported.moving || self.scene !== reported.scene;
+    reported = { dir: self.dir, moving: self.moving, scene: self.scene };
     if (change) reportPosition(self, false, true); else sendPosition(self);
   },
   /* Rooms are regions of the one world, so this is a change of context rather
@@ -109,9 +221,34 @@ const game = new Game(document.getElementById('stage'), {
     hud.setRoom(room);
     reportPosition(game.self, true);
   },
+  /* A room leased to somebody's secret note is shut: the one place in the
+   * world where you cannot simply walk in. */
+  isClosed: (room) => R.roomClosed(room),
+  isBlocked: (room) => R.roomBlocked(room),
+  onRoomDoor: (room) => offerRoomDoor(room),
+  onSceneChange: (scene, from) => {
+    diagnostic('scene-enter', { scene, from, hidden: document.hidden });
+    /* A scene doorway changes the social room too. This leaves the old call,
+     * joins the new room's call and swaps its temporary chat at the same moment
+     * as the painting changes. */
+    if (state.room !== game.room) {
+      diagnostic('room-enter', { place: game.room, hidden: document.hidden });
+      state.room = game.room;
+      events.clear();
+      R.enterRoom(game.room);
+      hud.setRoom(game.room);
+    }
+    /* Force the new scene out at once so peers hide us on the old painting and
+     * draw us on the new one without waiting for the next walking update. */
+    reported = { dir: game.self.dir, moving: false, scene };
+    reportPosition(game.self, true, true);
+    presence.publish();
+    members.paint();
+  },
 });
 
-const events = createRoomEvents({our,room:()=>state.room,peers:()=>[...state.peers].filter(([,p])=>regionAt(p.spot.x,p.spot.y)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
+const events = createRoomEvents({our,room:()=>state.room,peers:()=>[...state.peers].filter(([ship,p])=>
+  R.roomOf(ship,p.spot)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
   rooms:isChattyRoom,gameRoom:GAME_ROOM});
 const hudRoot = document.getElementById('hud');
 const hud = new Hud(hudRoot, { events });
@@ -131,6 +268,8 @@ document.body.appendChild(panelRoot);
 new CallPanels(panelRoot, { members: () => R.callMembers() });
 /* The recorder draws the call's own tiles; the rail owns them. */
 R.setCallTiles(() => rail.recordableTiles());
+/* Members of a note a room is leased to see each other in the world. */
+setLeasedNotes(() => R.leasedNotes());
 
 /* THE TOP OF THE SCREEN, in three places. Left: search, and who is here with
  * you. Middle: how far your reach goes. Right: you -- your picture and your
@@ -169,7 +308,14 @@ const membersRoot = document.createElement('div');
 topLeft.appendChild(membersRoot);
 const members = new Members(membersRoot, {
   here: () => state.room,
-  people: () => [our, ...[...state.peers].filter(([, p]) => regionAt(p.spot.x, p.spot.y) === state.room).map(([ship]) => ship)],
+  /* IN A ROOM, the list is the call's list: you are on it if you are in the
+   * call, and not if you are not. In the COMMONS there is no room call, so it
+   * stays what it has always been -- the people standing around you, who are
+   * exactly who a proximity huddle would form from. */
+  people: () => (state.room === COMMONS
+    ? [our, ...[...state.peers].filter(([ship, p]) =>
+        R.roomOf(ship, p.spot) === COMMONS).map(([ship]) => ship)]
+    : [our, ...R.callPeers()]),
   onShowProfile: (ship) => card.open(ship),
 });
 
@@ -203,8 +349,14 @@ function reportPosition(self, force = false, urgent = false) {
    * carries only the slow fallback for viewers not on the relay yet -- never the
    * full movement stream. `force` marks a state change, such as walking into
    * a room, that fallback viewers should hear about at once. */
+  /* WHICH PAINTING WE ARE ON travels with the position, because the position
+   * means nothing without it: the same x,y is a different place on each map.
+   * Left out, every relayed position said `main`, so two people standing
+   * together in Vatican City were each drawn onto the other's Game Room --
+   * hidden by the scene filter, put in a main-map region rather than the
+   * Vatican's, and so never in the same room or the same call. */
   movement?.moved({ x: self.x, y: self.y, dir: self.dir, moving: !!self.moving,
-                    host: R.rooms.host ?? null }, force, urgent);
+                    scene: self.scene, host: R.rooms.host ?? null }, force, urgent);
   /* Proximity: who is close enough to talk to, and how loud they are. Four
    * times a second is plenty for volume and huddles; positions themselves go
    * out more often than this. */
@@ -245,14 +397,14 @@ function applyPresence() {
   for(const ship of appliedPresence.keys())if(!peers.has(ship))appliedPresence.delete(ship);
   for(const [ship,p] of peers) {
     const old=appliedPresence.get(ship);
-    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir)
+    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
   reconcilePeers();
 }
 /* What we are right now, as presence and rooms both send it. */
-const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir},rev:state.rev,host:R.rooms.host??null,mv:movement?.announce()??null});
+const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,mv:movement?.announce()??null});
 const presence = createPresence({
   our, session:crypto.randomUUID(),
   social:()=>({pals:nb.pals,dial:nb.dial}),
@@ -323,7 +475,7 @@ function applyRelayPosition(ship, spot, meta) {
    * relay position, and a late relay packet cannot undo a newer snapshot. */
   if (!(meta.t > (peer.motionT ?? -Infinity))) return;
   peer.motionT = meta.t;
-  peer.spot = { place: COMMONS, x: spot.x, y: spot.y, dir: spot.dir };
+  peer.spot = { place: COMMONS, x: spot.x, y: spot.y, dir: spot.dir, scene: spot.scene };
   peer.host = meta.host;
   game.upsertPeer(ship, peer.spot, peer.look, displayName(ship), meta.t,
                   { vx: meta.vx, vy: meta.vy, moving: meta.moving });
@@ -345,7 +497,8 @@ function scheduleWorld() {
 function dropPeer(ship,reason='visibility') {
   diagnostic('peer-removed',{who:ship,reason,hidden:document.hidden});
   const p=state.peers.get(ship);
-  if(p)R.clearHost(ship,regionAt(p.spot.x,p.spot.y));
+  if(p)R.clearHost(ship,R.roomOf(ship,p.spot));
+  R.forgetPeerRoom(ship);
   state.peers.delete(ship);game.dropPeer(ship);R.rooms.streams.delete(ship);
 }
 function reconcilePeers() {
@@ -428,7 +581,8 @@ function onWorldFact(name, p, fromPresence=false) {
       try { events.receive(p.who,p.place,JSON.parse(p.body)); } catch {}
       break;
     case 'peer-here': {
-      const reported = { place: p.spot.place, x: p.spot.x / G.SUB, y: p.spot.y / G.SUB, dir: p.spot.dir };
+      const reported = { place: p.spot.place, x: p.spot.x / G.SUB, y: p.spot.y / G.SUB,
+                         dir: p.spot.dir, scene: p.spot.scene ?? 'main' };
       const prev = state.peers.get(p.who);
       /* Presence is the slow path now. If the relay already delivered a newer
        * position from this sender, keep it -- both carry the sender's own clock.
@@ -472,6 +626,12 @@ function onWorldFact(name, p, fromPresence=false) {
         presence.publish();
         R.publishRoom();
       }
+      break;
+    /* The room we hold for one of our notes. It outlives the tab, so this
+     * arrives at startup as well as when it changes. */
+    case 'our-lease':
+      R.setLease(p ?? null);
+      hud.setRoom(state.room);
       break;
     case 'peer-hosting':
       /* Somebody is holding a room. Without this both people walking into an

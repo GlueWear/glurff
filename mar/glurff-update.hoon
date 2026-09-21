@@ -54,6 +54,15 @@
       %+  frond  'our-look'
       (pairs ~[['look' (look-j look.upd)] ['rev' (numb rev.upd)]])
     ::
+    ::  The room we hold for one of our notes, or null for none.
+        %our-lease
+      %+  frond  'our-lease'
+      ?~  lease.upd  ~
+      %-  pairs
+      :~  ['place' (numb place.u.lease.upd)]
+          ['note' s+(crip (trip note.u.lease.upd))]
+      ==
+    ::
         %peer-hosting
       %+  frond  'peer-hosting'
       %-  pairs

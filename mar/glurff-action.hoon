@@ -113,6 +113,11 @@
       [%presence-event peers (need (str 'body'))]
     ?:  =('room-event' op)
       [%room-event peers (num 'place' 0) (need (str 'body'))]
+    ::  Taking a room for one of our own notes, and giving it back.
+    ?:  =('lease' op)
+      [%lease peers (num 'place' 0) `@ta`(need (str 'note'))]
+    ?:  =('unlease' op)
+      [%unlease peers ~]
     ?:  =('roll' op)
       =/  st=roll-stage:g
         =/  h  (str 'hash')

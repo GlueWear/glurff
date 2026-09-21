@@ -1,4 +1,20 @@
 export const messageKey = m => m.meta?.eid || (m.msgIdRaw ? `${m.author}:${m.msgIdRaw}` : `${m.author}:${m.id}`);
+
+/* CALL CONTROL MARKERS are stored in a note's transcript and shown by nobody.
+ * Noltbook writes them (\x01SYS:call-started and friends) so every ship's copy
+ * of the conversation agrees about what happened, and filters them out of the
+ * view -- see isCallControl() in its frontend. A leased room's chat IS a
+ * Noltbook note, so the same markers arrive here and are hidden the same way.
+ * Deliberately narrow: SYS:host-delete and SYS:art-delete are real system
+ * messages and are left alone. */
+const CALL_MARKERS = new Set(['call-started', 'call-joined', 'call-left', 'call-ended']);
+export function isCallControl(text) {
+  if (typeof text !== 'string' || text.charCodeAt(0) !== 1) return false;
+  const parts = text.slice(1).split(':');
+  return parts[0] === 'SYS' && CALL_MARKERS.has(parts[1]);
+}
+export const visibleMessages = (msgs) =>
+  Array.isArray(msgs) ? msgs.filter((m) => !isCallControl(m?.text)) : [];
 export const messageOrder = (a, b) => (a.id ?? a.at ?? 0) - (b.id ?? b.at ?? 0) || messageKey(a).localeCompare(messageKey(b));
 const equal = (a, b) => a === b || (a != null && b != null && typeof a === 'object' && typeof b === 'object' &&
   Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k => Object.hasOwn(b, k) && equal(a[k], b[k])));
@@ -48,6 +64,8 @@ export function mergeMessages(previous, incoming, retained = null) {
 }
 
 export function chatLines(messages, name, anonymous = false) {
+  /* Call markers never reach a reader, here or in Noltbook. */
+  messages = visibleMessages(messages);
   const byId = new Map(messages.map(m => [String(m.id), messageKey(m)]));
   return messages.map(m => ({eid: messageKey(m), sendEid: m.meta?.eid ?? null,
     parent: m.meta?.replyToEid ?? (m.replyTo != null ? byId.get(String(m.replyTo)) : null),

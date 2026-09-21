@@ -41,12 +41,25 @@ export const CALL_GONE_MS = 20000;
 /* Introductions are repeated this often, and lapse if they stop. */
 export const INTRO_RENEW_MS = 120000;
 export const INTRO_LEASE_MS = 300000;
+/* How often a leased room repeats its list to the note's members. It is their
+ * only route to a secret note's id, so it has to arrive without them having
+ * been present when anything changed. */
+export const MEMBER_REFRESH_MS = 20000;
 /* How long something not yet vouched for is held. */
 export const HOLD_MS = 30000;
 const MODES = new Set(['open', 'pals', 'ask', 'locked']);
 const MAX_INTRODUCED = 512, MAX_HELD = 64;
 
 const isShip = (s) => typeof s === 'string' && /^~[a-z-]{3,70}$/.test(s);
+/* A Noltbook note id, as it travels. Theirs, not ours: only the shape is
+ * checked here, and an unknown id simply finds no note. */
+const isNote = (s) => typeof s === 'string' && s.length > 0 && s.length <= 128 && /^[a-z0-9~_.-]+$/i.test(s);
+/* Noltbook's three, as they travel. A room leased to a SECRET note says only
+ * that -- never the note's id, which is the one thing a stranger must not
+ * learn. Public and private carry the id so a stranger can look the note up
+ * the ordinary way and ask to join. */
+const VIS = new Set(['public', 'private', 'secret']);
+const isVis = (v) => VIS.has(v);
 /* Rooms are places 1-999 and huddles 1000-900999; both keep lists. Movement
  * sessions, from 950001, never do. */
 export const MAX_PLACE = 901000;
@@ -58,7 +71,8 @@ export function validHere(h) {
   if (!h || typeof h !== 'object' || !h.spot) return false;
   const s = h.spot;
   return s.place === 0 && num(s.x) && num(s.y) && s.x <= 1024 && s.y <= 736 &&
-    ['up', 'down', 'left', 'right'].includes(s.dir) && num(h.rev) &&
+    ['up', 'down', 'left', 'right'].includes(s.dir) &&
+    (s.scene === undefined || s.scene === 'main' || s.scene === 'vatican') && num(h.rev) &&
     (h.host === null || h.host === undefined || isShip(h.host)) &&
     (h.stamp === undefined || Number.isFinite(h.stamp));
 }
@@ -70,11 +84,17 @@ function readList(m) {
   const guests = new Set(m.guests);
   if (!guests.has(m.host)) return null;          //  the host is always on its own list
   return { place: m.place, host: m.host, rev: m.rev,
-           mode: MODES.has(m.mode) ? m.mode : 'open', share: m.share !== false, guests };
+           mode: MODES.has(m.mode) ? m.mode : 'open', share: m.share !== false, guests,
+           /* The note this room is leased to, and how open it is. A secret
+            * note sends its visibility and nothing else. */
+           note: isNote(m.note) ? m.note : null,
+           vis: isVis(m.vis) ? m.vis : null };
 }
 
 export function createRoommates({ our, send, now = Date.now, trace = () => {}, changed = () => {},
   blocked = () => false, pal = () => false, here = () => null,
+  /* The room we are standing in. A list for anywhere else is not ours to take. */
+  standing = () => null,
   /* Who already sees us through presence. They get nothing from a room that
    * presence is not already giving them. */
   watchers = () => new Set() } = {}) {
@@ -86,7 +106,15 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   const introduced = new Map();    //  `${mate}/${viewer}` -> ms we last introduced them
   const states = new Map();        //  ship -> {place, host, here, sequence, at}
   const held = new Map();          //  ship -> a state or introduction not yet vouched for
+  /* Rooms we have been told we may walk into: place -> {host, note, vis, at}.
+   * A SECRET room is covered over and solid to everybody who cannot name the
+   * note it is leased to, and a secret note's id never rides presence -- so
+   * without this a member of the note could not get through their own door.
+   * Being invited is not being in the room: this decides nothing but the
+   * door. */
+  const invites = new Map();
   let sequence = 0;
+  let saidMembers = 0;
 
   const emit = (to, message) => {
     if (to === our || blocked(to)) return;
@@ -153,9 +181,20 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   /* ---------------------------------------------------------- the host */
 
   const hostedList = () => ({ place: hosted.place, host: our, rev: hosted.rev, mode: hosted.mode,
-    share: hosted.share, guests: new Set(hosted.guests.keys()) });
+    share: hosted.share, guests: new Set(hosted.guests.keys()),
+    note: hosted.note ?? null, vis: hosted.vis ?? null });
+  /* THE LIST GOES TO THE PEOPLE ON IT, and for a leased room that is the
+   * note's own members -- so it carries the note's id whatever the note's
+   * visibility. Withholding it from members too is what left two people
+   * standing in the same secret room unable to see each other: neither could
+   * tell which note the room was, so neither could tell they were both in it.
+   *
+   * The SUMMARY below is the one that must stay quiet: it rides presence to
+   * anybody who can see us, members or not. */
   const listMessage = (l) => ({ kind: 'room-roster', place: l.place, host: l.host, rev: l.rev,
-    mode: l.mode, share: l.share, guests: [...l.guests].sort() });
+    mode: l.mode, share: l.share, guests: [...l.guests].sort(),
+    ...(l.note ? { note: l.note } : {}),
+    ...(l.vis ? { vis: l.vis } : {}) });
 
   /* The list changed: everyone on it hears the new one, and only newcomers get
    * our state -- everyone else already has it. */
@@ -170,10 +209,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   }
 
   /* We host this room. We are the first guest on our own list. */
-  function host(place, { mode = 'open', share = true } = {}) {
+  function host(place, { mode = 'open', share = true, note = null } = {}) {
     if (!isRoom(place) || hosted?.place === place) return;
     leave();
     hosted = { place, rev: 1, mode: MODES.has(mode) ? mode : 'open', share,
+               note: isNote(note) ? note : null, vis: null,
                guests: new Map([[our, { at: now(), seen: true, missing: null }]]) };
     following = { place, host: our };
     list = hostedList();
@@ -227,6 +267,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     if (!hosted && following?.place === place && following.host === hostShip) return;
     leave();
     following = { place, host: hostShip };
+    /* ASK FOR THE LIST. Joining an ordinary room's call is itself the request
+     * to be on its list, and the host answers with one. A LEASED room's call
+     * is Noltbook's and Glurff asks it for nothing, so without this the host
+     * has no idea we have walked in and we wait for their next broadcast. */
+    emit(hostShip, { kind: 'room-hello', place, host: hostShip });
     notify('following');
   }
 
@@ -319,7 +364,25 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     switch (m.kind) {
       case 'room-roster': {
         const r = readList(m);
-        if (!r || hosted || r.host !== from || !following || following.place !== r.place || following.host !== from) return;
+        if (!r || hosted || r.host !== from) return;
+        /* AN INVITATION TO THE ROOM WE ARE STANDING IN.
+         *
+         * Normally we only take a list from a host we are already following,
+         * because following is what asking to join their call made us. A
+         * LEASED room has no call of ours to ask for -- it is the note's --
+         * so nothing ever made us follow anybody, and two members of the same
+         * secret note stood in the same room unable to see each other.
+         *
+         * A list that names the room we are standing in and has us on it is
+         * that room reaching us. Nothing else is accepted: not a list for
+         * somewhere else, and not one we are not on. */
+        if (r.guests.has(our)) invites.set(r.place, { host: from, note: r.note ?? null, vis: r.vis ?? null, at: now() });
+        else if (invites.get(r.place)?.host === from) invites.delete(r.place);
+        if (!following || following.place !== r.place || following.host !== from) {
+          if (!r.guests.has(our) || standing() !== r.place) return;
+          leave();
+          following = { place: r.place, host: from };
+        }
         if (list && list.host === r.host && list.place === r.place && r.rev <= list.rev) return;
         const before = list?.guests ?? new Set();
         list = r;
@@ -327,6 +390,13 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         reconcile();
         notify('list');
         if (r.guests.has(our)) publish(new Set([...r.guests].filter((s) => !before.has(s))));
+        return;
+      }
+      /* Somebody on the list has walked in and wants it. Only somebody on it:
+       * this answers no questions about a room you do not belong to. */
+      case 'room-hello': {
+        if (!hosted || hosted.place !== m.place || !hosted.guests.has(from)) return;
+        emit(from, listMessage(hostedList()));
         return;
       }
       case 'room-intro': {
@@ -346,6 +416,13 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         if (!isRoom(m.place) || !isShip(m.host) || !num(m.sequence) || !validHere(m.here)) return;
         if (!allowed(from, m.place, m.host)) { hold('state', from, m); return; }
         acceptState(from, m);
+        return;
+      }
+      /* The host has taken us off this room's list. */
+      case 'room-drop': {
+        if (!isRoom(m.place) || m.host !== from) return;
+        if (invites.get(m.place)?.host === from) invites.delete(m.place);
+        if (following?.place === m.place && following.host === from) { leave(); notify('dropped'); }
         return;
       }
       case 'room-cut': {
@@ -374,6 +451,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         dropped = true;
       }
       if (dropped) { hosted.rev++; publishList(); }
+      /* A LEASED ROOM SAYS ITS LIST AGAIN EVERY SO OFTEN. The list is what
+       * carries a secret note's id to its members, and it is what gets them
+       * through the room's door -- so somebody who opened Glurff after the
+       * last change would otherwise stand outside a room that is theirs. */
+      else if (hosted.note && t - saidMembers >= MEMBER_REFRESH_MS) { saidMembers = t; publishList(); }
     }
     const before = viewers.size;
     reconcile();
@@ -390,16 +472,112 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     },
     /* What rides our presence answer: the list we are on, if it may be shared. */
     summary: () => (list && list.share
-      ? { place: list.place, host: list.host, rev: list.rev, mode: list.mode, guests: [...list.guests].sort() }
+      ? { place: list.place, host: list.host, rev: list.rev, mode: list.mode,
+          guests: [...list.guests].sort(),
+          ...(list.note && list.vis !== 'secret' ? { note: list.note } : {}),
+          ...(list.vis ? { vis: list.vis } : {}) }
       : null),
-    /* The copies of a room the people we can see are in: host -> how many are in it. */
+    /* The copies of a room the people we can see are in: host -> how many are
+     * in it, and the note it is leased to. A copy we cannot see is not here --
+     * which is the whole point: a room can be genuinely empty from where you
+     * are standing while somebody else is holding it. */
     instances(place) {
       const out = new Map();
-      for (const r of reports.values()) if (r.share && r.place === place) out.set(r.host, Math.max(out.get(r.host) ?? 0, r.guests.size));
-      if (list?.place === place) out.set(list.host, Math.max(out.get(list.host) ?? 0, list.guests.size));
+      const put = (host, count, note, vis) => {
+        const had = out.get(host);
+        out.set(host, { count: Math.max(had?.count ?? 0, count),
+          note: note ?? had?.note ?? null, vis: vis ?? had?.vis ?? null });
+      };
+      for (const r of reports.values()) if (r.share && r.place === place) put(r.host, r.guests.size, r.note, r.vis);
+      if (list?.place === place) put(list.host, list.guests.size, list.note, list.vis);
       return out;
     },
-    current: () => (list ? { place: list.place, host: list.host, rev: list.rev, guests: [...list.guests].sort() } : null),
+    /* Bind or unbind the room we are hosting. The list's revision moves, so
+     * everybody on it learns about it the same way they learn about a guest. */
+    /* THE ROOM'S PEOPLE ARE THE NOTE'S PEOPLE. A leased room's call is
+     * Noltbook's, so nobody asks Glurff to join it and nothing else would ever
+     * put them on this list -- which is how two members of a secret note ended
+     * up in the same room, invisible to one another. The host sets the list
+     * from the note itself. */
+    setMembers(ships) {
+      if (!hosted) return false;
+      const want = new Set([our, ...(ships ?? []).filter(isShip)]);
+      const same = want.size === hosted.guests.size && [...want].every((s) => hosted.guests.has(s));
+      for (const who of [...hosted.guests.keys()]) if (!want.has(who)) {
+        hosted.guests.delete(who);
+        /* SAY SO TO THEIR FACE. The new list goes only to the people on it, so
+         * somebody taken out of the note would never hear that they are out of
+         * the room: they would keep the last list they were sent, and with it
+         * the note's id and sight of everybody in it. */
+        emit(who, { kind: 'room-drop', place: hosted.place, host: our });
+      }
+      /* Membership is the lease here: an ordinary guest renews by asking for
+       * the call again, and nobody asks a leased room for anything. */
+      for (const who of want) {
+        const g = hosted.guests.get(who);
+        if (g) g.at = now();
+        else hosted.guests.set(who, { at: now(), seen: false, missing: null });
+      }
+      if (!same) hosted.rev++;
+      trace('room-list', { place: hosted.place, host: our, reason: 'note-members', count: hosted.guests.size });
+      /* Sent every time, not only when the list changes: a member who has just
+       * walked in, or come back from a reload, has no other way to hear it. */
+      publishList();
+      return true;
+    },
+    /* Drop anybody the room will no longer have. Taking a lease on a room
+     * with people already standing in it, or a member being removed from the
+     * note, must take them off the list too -- admission is checked when
+     * somebody asks, and that is not the only moment it can change. */
+    keepOnly(allow) {
+      if (!hosted) return false;
+      let dropped = false;
+      for (const who of [...hosted.guests.keys()]) {
+        if (who === our || allow(who)) continue;
+        hosted.guests.delete(who);
+        dropped = true;
+        trace('room-list', { place: hosted.place, host: our, who, reason: 'not-a-member',
+          count: hosted.guests.size });
+      }
+      if (!dropped) return false;
+      hosted.rev++;
+      publishList();
+      return true;
+    },
+    setNote(note, vis = null) {
+      if (!hosted) return false;
+      const next = isNote(note) ? note : null;
+      const how = next && isVis(vis) ? vis : null;
+      if ((hosted.note ?? null) === next && (hosted.vis ?? null) === how) return false;
+      hosted.note = next;
+      hosted.vis = how;
+      hosted.rev++;
+      trace('room-list', { place: hosted.place, host: our, reason: next ? 'leased' : 'unleased',
+        count: hosted.guests.size });
+      publishList();
+      return true;
+    },
+    /* The note a copy of a room is leased to, as far as we can see, and how
+     * open it is. A secret room answers `{note: null, vis: 'secret'}`: closed,
+     * and nothing else. */
+    leaseOf(place, host) {
+      if (list?.place === place && list.host === host) return { note: list.note ?? null, vis: list.vis ?? null };
+      /* BEFORE THE PRESENCE SUMMARY, not after it. Both describe the same
+       * lease, but a SECRET room's summary carries no note -- it cannot, it
+       * rides presence -- so letting it answer first buries the one thing we
+       * were sent the list for. */
+      const asked = invites.get(place);
+      if (asked && asked.host === host && asked.note) return { note: asked.note, vis: asked.vis };
+      for (const r of reports.values()) if (r.share && r.place === place && r.host === host)
+        return { note: r.note ?? null, vis: r.vis ?? null };
+      if (asked && asked.host === host) return { note: asked.note, vis: asked.vis };
+      return { note: null, vis: null };
+    },
+    /* Whoever invited us into this room, for finding its host from outside. */
+    invitedTo(place) { return invites.get(place)?.host ?? null; },
+    noteOf(place, host) { return this.leaseOf(place, host).note; },
+    current: () => (list ? { place: list.place, host: list.host, rev: list.rev, guests: [...list.guests].sort(),
+      note: list.note ?? null } : null),
     guests: () => (hosted ? hosted.guests.size : list?.guests.size ?? 0),
     stats: () => ({ hosting: hosted?.place ?? null, following: following ? `${following.place}/${following.host}` : null,
       guests: list?.guests.size ?? 0, reports: reports.size, viewers: viewers.size,

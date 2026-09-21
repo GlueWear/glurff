@@ -262,7 +262,7 @@ export function createPresence({our, session, social, snapshot, send, changed, t
       }
       const h=p.here;
       if(h?.stamp!==undefined && !Number.isFinite(h.stamp))return;
-      if(!h || !h.spot || h.spot.place!==0 || !num(h.spot.x) || !num(h.spot.y) || h.spot.x>1024 || h.spot.y>736 || !['up','down','left','right'].includes(h.spot.dir) || !num(h.rev) || (h.host!==null && !ship(h.host)))return;
+      if(!h || !h.spot || h.spot.place!==0 || !num(h.spot.x) || !num(h.spot.y) || h.spot.x>1024 || h.spot.y>736 || !['up','down','left','right'].includes(h.spot.dir) || ![undefined,'main','vatican'].includes(h.spot.scene) || !num(h.rev) || (h.host!==null && !ship(h.host)))return;
       const stamp=stampOf(h);
       if(outdated(who,p.session,stamp)){trace('presence-superseded',{who,reason:'older-session'});return;}
       if(!prev)trace('presence-first',{who,generation:p.generation});

@@ -270,6 +270,7 @@ export function createMovementRelay({
         !Number.isSafeInteger(v.x) || !Number.isSafeInteger(v.y) ||
         v.x < 0 || v.y < 0 || v.x > MAX_X || v.y > MAX_Y || !DIRS.has(v.d) ||
         (v.h != null && !isShip(v.h)) ||
+        (v.z != null && v.z !== 0 && v.z !== 1) ||
         //  Velocity and the walking flag are optional: an older sender has neither.
         (v.vx != null && !(Number.isSafeInteger(v.vx) && Math.abs(v.vx) <= MAX_V)) ||
         (v.vy != null && !(Number.isSafeInteger(v.vy) && Math.abs(v.vy) <= MAX_V)) ||
@@ -297,7 +298,8 @@ export function createMovementRelay({
     lag.set(who, l);
     if (lag.size > MAX_TRACKED) lag.delete(lag.keys().next().value);
 
-    const accepted=onPosition(who, { x: v.x / SUB, y: v.y / SUB, dir: v.d },
+    const accepted=onPosition(who, { x: v.x / SUB, y: v.y / SUB, dir: v.d,
+                                      scene: v.z === 1 ? 'vatican' : 'main' },
                { t: v.t, seq: v.s, host: v.h ?? null, client: from,
                  //  Undefined, not false, from a sender that does not send them:
                  //  the receiver then works movement out from the positions.
@@ -340,6 +342,7 @@ export function createMovementRelay({
     if (!targets.length) { counts.unrouted++; return; }
     if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; return; }
     const value = { s: ++seq, t: pending.t, x: pending.x, y: pending.y, d: pending.dir,
+                    ...(pending.scene === 'vatican' ? { z: 1 } : {}),
                     ...(pending.host ? { h: pending.host } : {}),
                     ...(pending.vx || pending.vy ? { vx: pending.vx, vy: pending.vy } : {}),
                     m: pending.moving ? 1 : 0 };
@@ -396,6 +399,7 @@ export function createMovementRelay({
       if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !DIRS.has(p.dir)) return;
       const wire = (v) => Number.isFinite(v) ? Math.max(-MAX_V, Math.min(MAX_V, Math.round(v * SUB))) : 0;
       pending = latest = { x: Math.round(p.x * SUB), y: Math.round(p.y * SUB), dir: p.dir, t: now(),
+                  scene: p.scene === 'vatican' ? 'vatican' : 'main',
                   host: isShip(p.host) ? p.host : null,
                   vx: wire(p.vx), vy: wire(p.vy), moving: !!p.moving };
       if (urgent && now() - lastUrgent >= URGENT_MS) { lastUrgent = now(); flush(); }

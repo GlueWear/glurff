@@ -2,9 +2,10 @@ import { chatLines, thread, recentLines } from 'lib/timeline';
 import { createPending } from 'lib/pending';
 import { our } from 'lib/api';
 import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
-  displayName, watchNotes, setChatHistory, chatHistoryCount, onChange } from 'lib/noltbook';
+  displayName, noteName, watchNotes, setChatHistory, chatHistoryCount, onChange } from 'lib/noltbook';
 import { installNote } from 'lib/glurff';
 import { roomById, GAME_ROOM } from 'world/places';
+import { leaseNote } from 'lib/rooms';
 
 
 export class Hud {
@@ -29,14 +30,17 @@ export class Hud {
       (['messages', 'visibility'].includes(change.field) && change.noteId === this.noteFor(this.room)));
   }
 
-  /* ONLY THE COMMONS IS A NOTE, plus Rumors, which is Noltbook's own anonymous
+  /* WHICH NOTE THIS ROOM'S CHAT IS, if any.
+   *
+   * The commons is a note, and so is Rumors, which is Noltbook's own anonymous
    * one. Every other room's chat lives in this browser for the session and is
-   * never written to Noltbook: a room is a place to talk, not a note. When
-   * rooms can be bound to a host's own note, that is what will fill this in. */
+   * never written to Noltbook -- UNLESS somebody has leased it to one of their
+   * own notes, in which case the chat is that note's chat, saved, with its
+     * history and its rules. The room label says plainly whether chat is saved. */
   noteFor(room) {
     if (room === 0) return COMMONS_NOTE;
     if (room === RUMORS_ROOM) return RUMORS_NOTE;
-    return null;
+    return leaseNote(room) ?? null;
   }
 
   async setRoom(room) {
@@ -102,8 +106,8 @@ export class Hud {
   build() {
     this.root.innerHTML = `
       <div class="chat">
-        <button class="chat-toggle" aria-expanded="true">Close chat</button>
-        <div class="chat-content">
+        <button class="chat-toggle" aria-expanded="false">Open chat</button>
+        <div class="chat-content" hidden>
         <div class="where"></div>
         <div class="game-controls"><button type="button">Roll 3 dice</button></div>
         <div class="error" role="status"></div>
@@ -112,7 +116,8 @@ export class Hud {
         <form class="say"><input placeholder="say something" /></form>
         </div>
       </div>`;
-    this.chatOpen=true;
+    this.chatOpen=false;
+    setChatHistory(0);
     this.setOpen=open=>{this.chatOpen=open;setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();else this.paint();};
     this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
     this.stream = this.root.querySelector('.stream');
@@ -196,14 +201,19 @@ export class Hud {
   }
 
   paint() {
-    if (!this.stream || !this.chatOpen) return;
+    if (!this.stream) return;
     const r = this.room === 0 ? {name: 'The Commons'} : roomById(this.room);
     const note = this.noteFor(this.room);
     this.maybeInstall(note, this.room);
-    const kind = note === RUMORS_NOTE ? 'anonymous' : note ? 'saved' : 'temporary';
-    const label = `${r?.name ?? ''} <span class="dim">${kind}</span>`;
+    const leased = this.room !== 0 && note !== RUMORS_NOTE && !!note;
+    const title = leased ? noteName(note) ?? r?.name ?? '' : r?.name ?? '';
+    const kind = note === RUMORS_NOTE ? 'anonymous'
+      : leased ? 'chat saved to noltbook'
+      : note ? 'saved' : 'chat is not saved';
+    const label = `${title} <span class="dim">${kind}</span>`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
     this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
+    if (!this.chatOpen) return;
     const all = this.lines();
     const shown = recentLines(all, this.expanded ? this.historySize : 3);
     const recent = new Set(recentLines(all, 3).map(m => m.eid));

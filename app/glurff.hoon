@@ -27,7 +27,7 @@
 /$  c2  %json  %glurff-room
 /$  c3  %json  %glurff-commons
 |%
-+$  versioned-state  $%(state-0)
++$  versioned-state  $%(state-0 state-1)
 +$  state-0
   $:  %0
       ::  our own character, as a spec. Peers refetch when `rev` moves.
@@ -35,6 +35,18 @@
       rev=look-rev:g
       ::  rooms WE are holding, and how each answers a knock.
       hosting=(map place:g lock-mode:g)
+  ==
+::  state-1 adds the LEASE: the one room we hold for one of our own Noltbook
+::  notes. It is a real upgrade rather than a reset, because state-0 carries
+::  everybody's character and throwing that away to add a field would be
+::  charging them for our change.
++$  state-1
+  $:  %1
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      ::  one at a time, by rule. `~` is holding none.
+      lease=(unit lease:g)
   ==
 +$  card  card:agent:gall
 ::
@@ -52,7 +64,7 @@
   ==
 --
 ::
-=|  state-0
+=|  state-1
 =*  state  -
 ^-  agent:gall
 =<
@@ -63,7 +75,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -72,10 +84,19 @@
   ^-  (quip card _this)
   ::  Anything we do not recognise -- including every shape the previous,
   ::  Turf-derived Glurff saved -- is discarded for a clean start rather than
-  ::  crashing the agent. Nothing here is worth a migration.
-  =/  parsed=(unit state-0)
-    =/  res  (mule |.(!<(state-0 old)))
+  ::  crashing the agent.
+  ::
+  ::  state-0 IS recognised and upgraded: it holds the character somebody built,
+  ::  and adding a field is our business, not theirs.
+  =/  now-state=(unit state-1)
+    =/  res  (mule |.(!<(state-1 old)))
     ?:(?=(%| -.res) ~ `p.res)
+  =/  parsed=(unit state-1)
+    ?^  now-state  now-state
+    =/  res  (mule |.(!<(state-0 old)))
+    ?:  ?=(%| -.res)  ~
+    =/  was=state-0  p.res
+    `[%1 look.was rev.was hosting.was ~]
   ?~  parsed  on-init
   :_  this(state u.parsed)
   [(bind:glurff-site) calls-watch:hc]
@@ -252,7 +273,11 @@
     ::  people as soon as they next move, which is within a beat.
     ?>  =(our.bowl src.bowl)
     :_  this
-    ~[[%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev])]]
+    :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev])]
+        ::  The lease outlives the tab, so a fresh page is told about it at
+        ::  once rather than finding out when somebody walks in.
+        [%give %fact ~ %glurff-update !>(`update:g`[%our-lease lease])]
+    ==
   ::
       [%call-access ~]
     ::  Credential delivery. Owner-local only: this path carries a Galene join
@@ -313,7 +338,7 @@
 ::
 ::  Everything except the ten Gall arms lives here. An agent door must have
 ::  exactly those arms, so the helpers take the bowl and the state as arguments
-::  and hand back (quip card state-0), which the door threads with =^.
+::  and hand back (quip card state-1), which the door threads with =^.
 |%
 ++  hc
 |_  =bowl:gall
@@ -424,7 +449,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-0)
+  ^-  (quip card state-1)
   ?-    -.act
       %move
     :_  state
@@ -452,6 +477,21 @@
       %release
     :_  state(hosting (~(del by hosting) place.act))
     (spray peers.act [%unhosting place.act])
+  ::
+    ::  TAKE A ROOM for one of our own notes. One lease at a time, by rule:
+    ::  taking a second replaces the first, and the client asks before it does.
+    ::  The note id is Noltbook's own and is stored as given -- we cannot check
+    ::  it from here, and the client only ever offers notes this ship created.
+      %lease
+    ?.  ?&((gth place.act 0) (lte place.act last-room:g))  `state
+    ?:  =(0 (met 3 note.act))  `state
+    =/  held=(unit lease:g)  `[place.act note.act]
+    :_  state(lease held)
+    ~[(fact [%our-lease held])]
+  ::
+      %unlease
+    :_  state(lease ~)
+    ~[(fact [%our-lease ~])]
   ::
       %lock
     ?.  (~(has by hosting) place.act)  `state
@@ -490,7 +530,7 @@
 ::
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-0)
+  ^-  (quip card state-1)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])

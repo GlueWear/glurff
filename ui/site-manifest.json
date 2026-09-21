@@ -4,14 +4,14 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 595,
     "mime": "text/html; charset=utf-8",
-    "sha256": "c181eba4258e74c4d55bd72b2180b390fad845995e3b5941e612beb6f6eabd40"
+    "sha256": "d8f321205050032f866ec9ca4f2a7cff0458c5587726af2505be3291160fb095"
   },
   {
-    "url": "/apps/glurff/assets/index-3ee42a77.js",
-    "spur": "/lib/glurff/site/assets/index-3ee42a77/js",
-    "size": 771260,
+    "url": "/apps/glurff/assets/index-25d52b2c.js",
+    "spur": "/lib/glurff/site/assets/index-25d52b2c/js",
+    "size": 858222,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "8939fb32992d94454826a205549e9d7d56b4f2e59e981c5d8b707dd5dd136cb8"
+    "sha256": "5846d160c09b540bc61785c1af2f47c6d5d45eb1222987e13b6963c62ae0baf2"
   },
   {
     "url": "/apps/glurff/characters/beard.png",
@@ -102,7 +102,7 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 595,
     "mime": "text/html; charset=utf-8",
-    "sha256": "c181eba4258e74c4d55bd72b2180b390fad845995e3b5941e612beb6f6eabd40"
+    "sha256": "d8f321205050032f866ec9ca4f2a7cff0458c5587726af2505be3291160fb095"
   },
   {
     "url": "/apps/glurff/licenses/jitsi-license.html",
@@ -126,6 +126,20 @@
     "sha256": "91c894ddcc30c8d5fbfd8179dfd05f93b8a0aa390acd8a3f5a6a28f21364717f"
   },
   {
+    "url": "/apps/glurff/map/vatican-over.png",
+    "spur": "/lib/glurff/site/map/vatican-over/png",
+    "size": 11062,
+    "mime": "image/png",
+    "sha256": "dee70a61b4d685d7bf0078cad995c0a6908c641d1f8b13a6477062793b22131b"
+  },
+  {
+    "url": "/apps/glurff/map/vatican.jpg",
+    "spur": "/lib/glurff/site/map/vatican/jpg",
+    "size": 308256,
+    "mime": "image/jpeg",
+    "sha256": "1884f8a680a7e35825e27b2a37ef49aa51c8a1b449ee2f3746152348fca943e8"
+  },
+  {
     "url": "/apps/glurff/map/world.jpg",
     "spur": "/lib/glurff/site/map/world/jpg",
     "size": 478785,
@@ -135,8 +149,8 @@
   {
     "url": "/apps/glurff/style.css",
     "spur": "/lib/glurff/site/style/css",
-    "size": 21398,
+    "size": 22770,
     "mime": "text/css; charset=utf-8",
-    "sha256": "a71214598dc0fc6cf8149d6c899fdef4bb3efcd99c1e29ffe49935bc3b3e480d"
+    "sha256": "fce9a0e6e5301e90b686c878746438d91f0d7f6f9697968a34f09c445251c803"
   }
 ]

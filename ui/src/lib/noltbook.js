@@ -35,6 +35,9 @@ export const RUMORS_ROOM = 13;
 
 export const nb = {
   ready: false,
+  /* Noltbook's own note calls, by note id. A leased room's call is one of
+   * these: see lib/notecall. */
+  calls: {},
   dial: 0,
   palsReady: false,
   dialReady: false,
@@ -44,6 +47,8 @@ export const nb = {
   pals: {},       //  ship -> status
   profiles: {},   //  ship -> profile
   contacts: {},   //  ship -> true
+  callMods: {},   //  noteId -> {noteId, rev, mod}  moderation of that note's call
+  noteAdmins: {}, //  noteId -> [ship]
   /* Durable unread, straight from Noltbook: a note is unread when its unread
    * activity is later than the last time it was marked read. Both survive a
    * reload and both arrive on the global /notes watch, so the DM dot is right
@@ -52,6 +57,10 @@ export const nb = {
   unreadAt: {},   //  noteId -> @da-as-ms
   activity: {},   //  noteId -> @da-as-ms, for ordering
   remoteNotes: {},//  ship -> [note], their public notes for the profile card
+  /* Private-note admission requests delivered to this note's host/admins.
+   * Noltbook remains the authority; Glurff only gives the same request a
+   * second place to be answered while the room is in use. */
+  joinRequests: {}, //  `${noteId}/${ship}` -> {noteId, ship, noteName}
   lookups: {},    //  ship -> 'looking' | 'reachable' | 'ok' | 'unreachable' | 'noltbook-unavailable'
   search: null,   //  newest message-search answer: {reqId, query, hits, capped}
   active: {},     //  gossip note id -> rows of members active on it, from Noltbook
@@ -137,14 +146,61 @@ function settle(r) {
 /* ------------------------------------------------------------ state feed */
 
 export function applyFact(name, p) {
-  let field, noteId = null, ship = p?.ship ?? null;
+  let field, noteId = null, ship = p?.ship ?? null, joinsChanged = false;
   switch (name) {
     case 'note-list': {
       nb.notes = Object.fromEntries((p.notes ?? p).map(n => [n.id, n]));
       nb.ready = true; field = 'notes'; break;
     }
-    case 'note-created': nb.notes[p.id] = p; field = 'notes'; noteId = p.id; break;
+    case 'note-created':
+      nb.notes[p.id] = p; field = 'notes'; noteId = p.id;
+      pendingJoins.delete(p.id);   //  we are in it now
+      break;
+    /* A note's call: who is in it, and which incarnation it is. */
+    case 'call-snap':
+      if (!p?.noteId) return;
+      nb.calls[p.noteId] = p; field = 'calls'; noteId = p.noteId; break;
+    case 'call-list':
+      nb.calls = Object.fromEntries((Array.isArray(p) ? p : []).filter(c => c?.noteId).map(c => [c.noteId, c]));
+      field = 'calls'; break;
+    /* Moderation of a note's call, which is Noltbook's own; a leased room
+     * inherits it rather than keeping a second set of rules. */
+    case 'call-mod-snap':
+      if (!p?.noteId) return;
+      nb.callMods[p.noteId] = p; field = 'callMods'; noteId = p.noteId; break;
+    case 'call-mod-list':
+      nb.callMods = Object.fromEntries((Array.isArray(p) ? p : []).filter(m => m?.noteId).map(m => [m.noteId, m]));
+      field = 'callMods'; break;
+    case 'admins-updated':
+      if (!p?.id) return;
+      nb.noteAdmins[p.id] = p.admins ?? []; field = 'noteAdmins'; noteId = p.id; break;
     case 'note-deleted': delete nb.notes[p.id]; field = 'notes'; noteId = p.id; break;
+    /* A note's SETTINGS changed -- public, private, secret, read-only. Without
+     * this a note that was opened up an hour ago still reads closed, and
+     * anybody standing in the room it is leased to is still locked out of it. */
+    case 'note-meta-updated': {
+      const n = nb.notes[p.id];
+      if (!n) return;
+      nb.notes[p.id] = { ...n, visibility: p.visibility ?? n.visibility,
+        iconUrl: p.iconUrl ?? n.iconUrl, writable: p.writable !== false };
+      field = 'notes'; noteId = p.id; break;
+    }
+    /* Who is in it. A join approved in Noltbook opens the room here. */
+    case 'note-users-updated': {
+      const n = nb.notes[p.id];
+      if (!n) return;
+      const users = p.users ?? n.users;
+      nb.notes[p.id] = { ...n, users, removed: p.removed ?? n.removed };
+      pendingJoins.delete(p.id);
+      /* Approval removes the host-side request even if its explicit removal
+       * fact and the membership update cross on the wire. */
+      for (const [key, request] of Object.entries(nb.joinRequests)) {
+        if (request.noteId === p.id && users.includes(request.ship)) {
+          delete nb.joinRequests[key]; joinsChanged = true;
+        }
+      }
+      field = 'notes'; noteId = p.id; break;
+    }
     case 'message-list':
       noteId = p.noteId;
       if (!receiveMessages(noteId, p.messages ?? [])) return;
@@ -200,6 +256,24 @@ export function applyFact(name, p) {
       if (p.author !== our) nb.unreadAt[p.noteId] = Date.now();
       field = 'activity'; noteId = p.noteId; break;
     case 'remote-note-list': nb.remoteNotes[p.ship] = p.notes ?? []; field = 'remoteNotes'; break;
+    case 'join-request-list': {
+      const requests = Array.isArray(p) ? p : p?.requests ?? [];
+      nb.joinRequests = Object.fromEntries(requests
+        .filter((r) => r?.noteId && r?.ship)
+        .map((r) => [`${r.noteId}/${r.ship}`, r]));
+      field = 'joinRequests'; break;
+    }
+    case 'join-request-received':
+      if (!p?.noteId || !p?.ship) return;
+      nb.joinRequests[`${p.noteId}/${p.ship}`] = p;
+      field = 'joinRequests'; noteId = p.noteId; break;
+    case 'join-requested':
+      if (!p?.noteId) return;
+      pendingJoins.add(p.noteId); field = 'joinStatus'; noteId = p.noteId; break;
+    case 'join-denied':
+    case 'join-removed':
+      if (!p?.noteId) return;
+      pendingJoins.delete(p.noteId); field = 'joinStatus'; noteId = p.noteId; break;
     case 'profile-lookup-result': {
       /* Only the answer to the lookup we have out; a late one changes nothing. */
       const out = inFlight.get(p.ship);
@@ -234,6 +308,7 @@ export function applyFact(name, p) {
   //  Keep this browser's copy of who to greet first up to date; see saveSocial.
   if (field === 'pals' || field === 'dial' || (field === 'active' && noteId === COMMONS_NOTE)) saveSocial();
   changed(field, noteId, ship);
+  if (joinsChanged) changed('joinRequests', noteId);
 }
 
 /* ------------------------------------------------------------- selectors */
@@ -247,6 +322,88 @@ export const isContact = (ship) => !!nb.contacts[ship];
 
 /* A DM is an ordinary note of type %dm whose `users` are the two ends. There
  * is no DM store here: the note list Noltbook already sends IS the list. */
+/* The group notes THIS ship made. Only these can be leased to a room: the
+ * note's own creator is the only person who may bind it, which is also the
+ * ship that has to mint for the room's call. */
+export const myGroupNotes = () => Object.values(nb.notes)
+  .filter((n) => n?.type === 'group' && n.creator === our)
+  .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')));
+export const noteName = (id) => nb.notes[id]?.name ?? null;
+export const noteVisibility = (id) => nb.notes[id]?.visibility ?? null;
+export const noteCreator = (id) => nb.notes[id]?.creator ?? null;
+export const noteMembers = (id) => nb.notes[id]?.users ?? [];
+/* A note's call, as Noltbook reports it, and its moderation record. */
+export const noteCall = (id) => nb.calls[id] ?? null;
+export const noteCallMod = (id) => {
+  const snap = nb.callMods[id], call = nb.calls[id]?.call;
+  if (!snap?.mod || !call || snap.mod.callId !== call.callId) return null;
+  return snap.mod;
+};
+/* Who may moderate that call: the note's creator, its admins, and anybody the
+ * call itself promoted. Noltbook's rule, not a second one of ours. */
+export const noteCallRole = (id, ship) => {
+  const n = nb.notes[id], call = nb.calls[id]?.call;
+  if (!n || !call || !ship) return null;
+  if (ship === n.creator) return 'host';
+  if ((nb.noteAdmins[id] ?? []).includes(ship)) return 'admin';
+  const mod = noteCallMod(id);
+  if (mod ? (mod.admins ?? []).includes(ship) : (call.startedBy === ship && call.startedBy !== n.creator)) return 'admin';
+  return null;
+};
+export const noteCallMuted = (id, ship) => (noteCallMod(id)?.muted ?? []).includes(ship);
+export const noteCallBooted = (id, ship) => (noteCallMod(id)?.booted ?? []).includes(ship);
+export const noteCallRecording = (id) => noteCallMod(id)?.recording ?? null;
+/* Ask for something. The host's ship decides; this only asks. */
+export const noteModerate = (noteId, ship, op) => nbAction('call-mod', { noteId, ship, op });
+
+/* Are we in this note? Membership is Noltbook's, and it is what decides
+ * whether a leased room will talk to us at all. */
+export const inNote = (id) => (nb.notes[id]?.users ?? []).includes(our);
+/* A note we are NOT in, as its host's ship described it. This is Noltbook's
+ * own discovery: `request-remote-notes` answers with a ship's public and
+ * private group notes, which is what its profile card lists. A secret note is
+ * never in that answer, and never should be. */
+export const remoteNote = (host, id) =>
+  (nb.remoteNotes[host] ?? []).find((n) => n?.id === id) ?? null;
+/* What we can say about a note whether or not we are in it. */
+export const noteFacts = (host, id) => {
+  const n = nb.notes[id] ?? remoteNote(host, id);
+  if (!n) return null;
+  return { id, name: n.name ?? id, headline: n.headline ?? null,
+    visibility: n.visibility ?? null, creator: n.creator ?? host,
+    users: n.users ?? [], member: (n.users ?? []).includes(our),
+    removed: (n.removed ?? []).includes(our) };
+};
+/* Asked to join and waiting. Noltbook shows REQUESTED; so do we. */
+export const joinAsked = (id) => pendingJoins.has(id);
+const pendingJoins = new Set();
+/* Ask to be let in. What happens next is the note's business: a public note
+ * takes anybody, a private one asks its host, a secret one was never offered. */
+export const askToJoinNote = (id, host) => {
+  /* One action for both: Noltbook's own host auto-approves a PUBLIC note and
+   * queues a PRIVATE one for its host or an admin. A secret note drops it,
+   * which is why we never offer it. */
+  pendingJoins.add(id);
+  return nbAction('request-join', { noteId: id, host });
+};
+
+export const joinRequests = () => Object.values(nb.joinRequests);
+export async function answerJoinRequest(noteId, ship, accept) {
+  const key = `${noteId}/${ship}`;
+  const request = nb.joinRequests[key];
+  if (!request) return false;
+  delete nb.joinRequests[key];
+  changed('joinRequests', noteId, ship);
+  try {
+    await nbAction(accept ? 'approve-join' : 'deny-join', { noteId, ship });
+    return true;
+  } catch (error) {
+    nb.joinRequests[key] = request;
+    changed('joinRequests', noteId, ship);
+    throw error;
+  }
+}
+
 export const isDm = (n) => n?.type === 'dm';
 export const counterparty = (n) =>
   (n?.users ?? []).find((s) => s !== our) ?? n?.creator ?? null;
@@ -285,10 +442,34 @@ export const knownShips = () => [...new Set([
 let extraVisible = () => [];
 export const setExtraVisible = (fn) => { extraVisible = fn; };
 const roomVisible = () => { try { return extraVisible().filter((s) => nb.pals[s] !== 'blocked'); } catch { return []; } };
+
+/* MEMBERS OF A LEASED ROOM'S NOTE SEE EACH OTHER.
+ *
+ * Being in somebody's note is a relationship, and the world should show it: if
+ * you are a member of the note a room is leased to, you see the people in that
+ * room whether or not any of you are pals. The other side of it is real and
+ * deliberate -- joining a note means the other members can see where you are
+ * standing while you are in that room.
+ *
+ * Only the notes a room is actually leased to. Being in somebody's note does
+ * not put them in your world; leasing a room to it does. */
+let leasedNotes = () => [];
+export const setLeasedNotes = (fn) => { leasedNotes = fn; };
+const noteVisible = () => {
+  try {
+    const out = [];
+    for (const id of leasedNotes()) {
+      const n = nb.notes[id];
+      if (!n || !(n.users ?? []).includes(our)) continue;   //  only notes we are in
+      for (const s of n.users ?? []) if (s !== our && nb.pals[s] !== 'blocked') out.push(s);
+    }
+    return out;
+  } catch { return []; }
+};
 export const visiblePeers = () =>
   [...new Set([...Object.keys(nb.pals).filter(s => ['mutual','requesting'].includes(nb.pals[s])),
     ...Object.entries(nb.discovered).filter(([s,d]) => nb.dial > 0 && d.hops <= nb.dial + 1 && nb.pals[s] !== 'blocked').map(([s])=>s),
-    ...roomVisible()])].filter(s=>s!==our);
+    ...roomVisible(), ...noteVisible()])].filter(s=>s!==our);
 
 /* Pals in Glurff right now. Noltbook announces it: each member's app sets
  * "active" on their copy of the commons, and Noltbook tells their pals when that
@@ -401,6 +582,38 @@ export async function initNoltbook() {
   await subscribe('noltbook', '/notes', applyFact);
   grantApp().catch(() => {});
   return nb;
+}
+
+/* Opening the room menu asks Noltbook for a fresh authoritative note list.
+ * The permanent /notes watch remains the live feed; this short-lived second
+ * watch repairs a missed `note-created` without requiring a page restart. */
+let notesRefresh = null;
+export function refreshNotes() {
+  if (notesRefresh) return notesRefresh;
+  let handle = null, finished = false, timer = null;
+  let finish;
+  const pendingRefresh = new Promise((resolve, reject) => {
+    finish = (error = null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (handle != null) api.unsubscribe(handle).catch(() => {});
+      if (error) reject(error); else resolve(nb);
+    };
+    timer = setTimeout(() => finish(new Error('note list refresh timed out')), 5000);
+    subscribe('noltbook', '/notes', (name, payload) => {
+      applyFact(name, payload);
+      if (name === 'note-list') finish();
+    }, '/notes refresh').then((id) => {
+      handle = id;
+      if (finished) api.unsubscribe(id).catch(() => {});
+    }, finish);
+  });
+  notesRefresh = pendingRefresh.finally(() => {
+    if (notesRefresh === pendingRefresh || notesRefresh === wrapped) notesRefresh = null;
+  });
+  const wrapped = notesRefresh;
+  return wrapped;
 }
 
 /* Watch a note's messages -- or several, since the Rumors room needs both

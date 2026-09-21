@@ -14,7 +14,8 @@ import { processMicrophone } from 'lib/noise';
  */
 import * as G from 'lib/glurff';
 import { our } from 'lib/api';
-import { displayName, visiblePeers, palStatus } from 'lib/noltbook';
+import { displayName, visiblePeers, palStatus, noteCreator, nb, onChange as onNoltbook, nbAction, noteCallRole, noteCallMuted, noteCallBooted, noteCallRecording, noteModerate, noteVisibility, requestRemoteNotes, inNote, noteFacts } from 'lib/noltbook';
+import { subscribeRaw } from 'lib/api';
 import { createRoommates } from 'lib/roommates';
 import { SfuSession } from 'lib/sfu';
 import { regionAt, COMMONS } from 'world/places';
@@ -23,6 +24,7 @@ import { micConstraints, camConstraints, refreshDevices } from 'lib/devices';
 import { createModeration } from 'lib/moderation-session';
 import { roleOf, isMuted, isBooted, mayPlay, recordingOf } from 'lib/moderation';
 import { createRecorder, canRecord } from 'lib/recording';
+import { createNoteCall } from 'lib/notecall';
 
 export const rooms = {
   /* room id -> { host, occupants:Set } , derived from presence every tick. */
@@ -56,6 +58,8 @@ export const rooms = {
    * ours in this call -- 'host', 'admin' or null -- and the two flags are what
    * an admin has done TO US. `recording` is whoever is recording, for the
    * notice everybody sees. */
+  /* THE LEASE we hold: {place, note} or null. One at a time, by rule. */
+  lease: null,
   mod: null,
   role: null,
   mutedByAdmin: false,
@@ -65,7 +69,8 @@ export const rooms = {
 if (typeof window !== 'undefined') window.rooms = rooms;
 
 let sfu=null, controller=null, huddle=null, lastPeers=new Map();
-let moderation=null, recorder=null;
+let moderation=null, recorder=null, noteCall=null;
+const subscribeNoltbook=(path,fn)=>subscribeRaw('noltbook',path,fn);
 /* The video tiles on screen, for the recorder's picture. The rail owns them;
  * this keeps the recorder from reaching into the DOM on its own. */
 let callTiles=()=>[];
@@ -87,6 +92,43 @@ let roomContext={here:()=>null,watchers:()=>new Set()};
 export const setRoomContext=context=>{roomContext={...roomContext,...context};};
 const mateListeners=new Set();
 export const onRoommates=fn=>{mateListeners.add(fn);return()=>mateListeners.delete(fn);};
+let roomCallSyncQueued=false;
+/* A lease is part of the room roster, so it can change without the local
+ * lease action running -- most importantly for every guest when the owner
+ * releases it. Re-select after the roster mutation finishes: a leased room
+ * uses the note call; an ordinary room uses Glurff's call. */
+function queueRoomCallSync() {
+  if(roomCallSyncQueued)return;
+  roomCallSyncQueued=true;
+  Promise.resolve().then(()=>{
+    roomCallSyncQueued=false;
+    if(!mates || rooms.here===COMMONS || !rooms.host)return;
+    const bound=leaseNote(rooms.here,rooms.host);
+    const active=noteCall?.note()??null;
+    if(bound===active)return;
+    /* Both null means an ordinary call already selected. Any other mismatch
+     * is a real transition between the two call systems. */
+    if(!bound && !active)return;
+    diagnostic('room-lease-call',{place:rooms.here,host:rooms.host,
+      reason:bound?'leased':'released'});
+    if(active)noteCall.leave();
+    controller?.select(null);
+    selectCall(rooms.here,rooms.host);
+    changed();
+  });
+}
+/* Where each peer was last seen standing. The body point may keep somebody in
+ * a room they are already in; it must never put them in one they have not
+ * walked into, so the answer depends on where they were. See regionAt. */
+const peerRooms=new Map();
+function roomOfPeer(who,spot){
+  const was=peerRooms.get(who)??COMMONS;
+  const now=regionAt(spot.x,spot.y,spot.scene,was);
+  if(now!==was)peerRooms.set(who,now);
+  return now;
+}
+export const forgetPeerRoom=(who)=>peerRooms.delete(who);
+export const roomOf=(who,spot)=>roomOfPeer(who,spot);
 const isRoomPlace=place=>Number.isSafeInteger(place) && place>COMMONS && place<1000;
 /* Rooms and huddles both keep a guest list; see lib/roommates. */
 const isListPlace=place=>Number.isSafeInteger(place) && place>COMMONS && place<HUDDLE_BASE+900000;
@@ -95,10 +137,202 @@ function createMates(){
     blocked:who=>palStatus(who)==='blocked',
     pal:who=>['mutual','requesting'].includes(palStatus(who)),
     here:()=>roomContext.here(),
+    standing:()=>rooms.here,
     watchers:()=>roomContext.watchers(),
-    changed:why=>{for(const fn of mateListeners){try{fn(why);}catch(e){console.error(e);}}},
+    changed:why=>{queueRoomCallSync();for(const fn of mateListeners){try{fn(why);}catch(e){console.error(e);}}},
   });
 }
+/* MAY THIS SHIP BE ON THIS ROOM'S LIST?
+ *
+ * An ordinary room answers with its own mode -- open, or pals. A LEASED room
+ * does not get to answer at all: its note decides, because the note is what
+ * the room now is. Without this the host's guest list admitted anybody who
+ * asked, so somebody who is not in a private note turned up on the room's list
+ * the moment their client asked to join the call -- which it does whenever it
+ * has not yet heard that the room is leased.
+ *
+ * Noltbook remains the authority; this only stops us listing people it would
+ * refuse. Membership we have not learned yet is not membership. */
+function admitsToRoom(who,place){
+  const note=leaseNote(place,our);
+  if(!note)return true;
+  const n=nb.notes[note];
+  if(!n)return false;
+  return (n.users??[]).includes(who);
+}
+
+/* ------------------------------------------------------------- the lease */
+
+/* A room is leased when somebody has bound it to one of their own Noltbook
+ * notes. While they hold it the room's chat IS that note, saved, and the
+ * note's own settings decide who may take part.
+ *
+ * You hold at most one. Taking another replaces it, and the UI asks first. */
+export function setLease(lease) {
+  const next = lease && Number.isSafeInteger(lease.place) && typeof lease.note === 'string'
+    ? { place: lease.place, note: lease.note } : null;
+  const same = (rooms.lease?.place ?? null) === (next?.place ?? null) &&
+               (rooms.lease?.note ?? null) === (next?.note ?? null);
+  if (same) return;
+  const was = rooms.lease;
+  rooms.lease = next;
+  diagnostic('room-lease', { place: next?.place ?? 0, reason: next ? 'held' : 'released' });
+  /* Our own list carries it, so everyone who can see us learns of it. */
+  if (mates && rooms.here !== COMMONS && rooms.host === our) republishLease();
+  /* Taking or giving back the lease on the room we are STANDING IN changes
+   * which call this room has: the note's, or Glurff's own. Move to it rather
+   * than waiting for somebody to walk out and back in. */
+  if ((next?.place === rooms.here || was?.place === rooms.here) && rooms.here !== COMMONS && rooms.host) {
+    const to = rooms.host;
+    if (noteCall?.note()) noteCall.leave();
+    controller?.select(null);
+    selectCall(rooms.here, to);
+  }
+  changed();
+}
+function republishLease() {
+  const note = rooms.lease?.place === rooms.here ? rooms.lease.note : null;
+  /* The note's own visibility travels with it: it is what tells everybody
+   * else whether this room is open, asks first, or is closed. */
+  mates?.setNote?.(note, note ? noteVisibility(note) : null);
+  if (rooms.here === COMMONS) return;
+  if (note) {
+    /* THE ROOM'S LIST IS THE NOTE'S MEMBERS.
+     *
+     * A leased room's call is Noltbook's, so nobody ever asks Glurff to join
+     * it and nothing would otherwise put a single person on this list. The
+     * list is what carries the note's id to the people who are entitled to
+     * it -- and for a SECRET note it is the only thing that does, because its
+     * id never rides presence. Without it two members of one secret note
+     * stood in the same room and could not see each other. */
+    mates?.setMembers?.((nb.notes[note]?.users ?? []).filter((s) => s !== our));
+    return;
+  }
+  /* No longer the note's: anybody on the list who may not be there comes off,
+   * here and on everybody else's copy of the list. */
+  mates?.keepOnly?.((who) => admitsToRoom(who, rooms.here));
+}
+/* The note a room is leased to, from where we are standing: our own lease, or
+ * the lease of the copy we are following. Null means an ordinary room. */
+export function leaseNote(place = rooms.here, host = rooms.host) {
+  if (!isRoom(place)) return null;
+  if (rooms.lease?.place === place && host === our) return rooms.lease.note;
+  return mates?.noteOf?.(place, host) ?? null;
+}
+/* The whole lease as we can see it: the note, and how open it is. A room
+ * leased to a SECRET note answers `{note: null, vis: 'secret'}` -- closed, and
+ * nothing else, because its id never travels. */
+export function leaseAt(place = rooms.here, host = null) {
+  if (!isRoom(place)) return { note: null, vis: null };
+  if (rooms.lease?.place === place)
+    return { note: rooms.lease.note, vis: noteVisibility(rooms.lease.note) };
+  /* WHOEVER HOLDS IT, not whoever we happen to be following. A stranger who
+   * walks into a room somebody else leased is not on that host's list and may
+   * not be following them at all -- but the room is still leased, and saying
+   * otherwise is how a stranger ended up unable to join a public note. */
+  const named = host ?? rooms.host;
+  const mine = named ? mates?.leaseOf?.(place, named) : null;
+  if (mine?.note || mine?.vis) return mine;
+  const holder = hostSeenIn(place);
+  return holder ? mates?.leaseOf?.(place, holder) ?? { note: null, vis: null }
+                : { note: null, vis: null };
+}
+/* Somebody else's leased room: ask their ship about it the way Noltbook does,
+ * so we can show its name and description before anybody joins. One request
+ * per host, not one per look. */
+const asked = new Set();
+/* A room shut to us: leased to somebody's SECRET note, and we are not in it. */
+export function roomClosed(place) {
+  if (!isRoom(place) || place === rooms.here) return false;
+  if (rooms.lease?.place === place) return false;      //  our own room is never shut to us
+  const { note, vis } = leaseAt(place);
+  if (vis !== 'secret') return false;
+  /* A member of the note is not a stranger to it. A secret note's id never
+   * travels, so the only way we know one is by being in it. */
+  return !(note && nb.notes[note]);
+}
+/* Whoever we can see holding a lease on that room. */
+function hostSeenIn(place) {
+  for (const [host, r] of mates?.instances?.(place) ?? new Map())
+    if (host !== our && (r.vis || r.note)) return host;
+  /* A room we have been handed the list for. Its host may be invisible to us
+   * from out here -- a secret note's members are not necessarily pals -- but
+   * they told us the room is ours to walk into. */
+  return mates?.invitedTo?.(place) ?? null;
+}
+export const leaseHolder = (place = rooms.here) => hostSeenIn(place);
+
+/* THE DOOR. A non-member never enters a leased room and only then discovers
+ * its call cannot admit them. Secret rooms are simply shut. Public and private
+ * rooms stop them at the doorway with enough information for Glurff to ask the
+ * same JOIN / REQUEST JOIN question Noltbook asks on a profile card. */
+export function roomGate(place) {
+  if (!isRoom(place) || place === rooms.here || rooms.lease?.place === place)
+    return { blocked: false, place, note: null, visibility: null, host: null, facts: null };
+  const lease = leaseAt(place);
+  if (!lease.note && !lease.vis)
+    return { blocked: false, place, note: null, visibility: null, host: null, facts: null };
+  const host = leaseHolder(place);
+  if (lease.vis === 'secret')
+    return { blocked: roomClosed(place), place, note: null, visibility: 'secret', host, facts: null };
+  const facts = lease.note ? noteFacts(host, lease.note) : null;
+  if (lease.note && (inNote(lease.note) || facts?.member))
+    return { blocked: false, place, note: lease.note, visibility: facts?.visibility ?? lease.vis,
+      host, facts };
+  return { blocked: true, place, note: lease.note,
+    visibility: facts?.visibility ?? lease.vis ?? 'private', host, facts };
+}
+export const roomBlocked = (place) => roomGate(place).blocked;
+
+export function learnLease(place = rooms.here, host = rooms.host, force = false) {
+  const { note, vis } = leaseAt(place, host);
+  if (!note || !host || host === our || nb.notes[note] || vis === 'secret') return Promise.resolve(false);
+  if (!force && asked.has(host)) return Promise.resolve(false);
+  asked.add(host);
+  return requestRemoteNotes(host).then(() => true, () => false);
+}
+export const leasedNote = () => leaseNote();
+/* Every note a room we can see is leased to. Members of those notes see each
+ * other in the world; see setLeasedNotes in lib/noltbook. */
+export function leasedNotes(){
+  const out=new Set();
+  if(rooms.lease?.note)out.add(rooms.lease.note);
+  const here=leaseNote();
+  if(here)out.add(here);
+  for(const [,r] of mates?.instances(rooms.here)??new Map())if(r.note)out.add(r.note);
+  return [...out];
+}
+/* Whose note this is: the ship whose Noltbook allocates and mints its call. */
+const noteHostOf=(note)=>noteCreator(note)??null;
+/* Are we in a note's call rather than one of Glurff's own? */
+export const inNoteCall=()=>!!noteCall?.note();
+export const noteCallOf=()=>noteCall?.note()??null;
+
+/* Can we take this room? Only a room, only for a note we made ourselves, and
+ * only one at a time -- taking a second asks first, in the UI. */
+export const canLease = (place = rooms.here) => isRoom(place);
+export async function takeLease(note) {
+  const place = rooms.here;
+  if (!isRoom(place) || noteCreator(note) !== our) return false;
+  await G.takeLease(place, note);
+  setLease({ place, note });
+  return true;
+}
+export async function releaseLease() {
+  if (!rooms.lease) return false;
+  const was = rooms.lease.place;
+  await G.dropLease();
+  setLease(null);
+  if (was === rooms.here && rooms.host === our) republishLease();
+  return true;
+}
+
+/* WHO IS IN THIS CALL, as the call server reports it -- not who is standing in
+ * the region. A room's list is its call's list: walking up to a wall from
+ * outside put people on a room's list who had never joined it, because the
+ * list was being worked out from feet and geometry rather than from the call
+ * they were or were not in. */
+export const callPeers=()=>sfu?.others()??new Set();
 export const roomPeers=()=>mates?.peers()??new Map();
 export const roomAudience=()=>mates?.audience()??new Set();
 export const roomSummary=()=>mates?.summary()??null;
@@ -128,7 +362,16 @@ export function initRooms() {
     }},
     onStreamRemoved:removeRemoteStream,
     onPeerLeft:ship=>{for(const [id,r] of rooms.remoteStreams)if(r.ship===ship)rooms.remoteStreams.delete(id);rooms.streams.delete(ship);changed();},
-    onStatus:(status,why)=>controller?.status(status,why),
+    onStatus:(status,why)=>{
+      /* In a leased room the call is Noltbook's, so the Glurff controller is
+       * not the thing to tell. */
+      if(noteCall?.note()){
+        if(status==='connected'){rooms.voice='connected';rooms.error=null;restoreIntent();}
+        else if(status==='failed'||status==='closed'){rooms.voice='retrying';noteCall.retry();}
+        changed();refreshStage();return;
+      }
+      controller?.status(status,why);
+    },
     onUsers:()=>{const others=sfu?.others()??new Set();mates?.inCall(others);const n=others.size;if(n!==rooms.others){rooms.others=n;changed();}
       /* A recording whose recorder has left the call is stopped by the host:
        * nobody else can, and a REC notice for a recording that is not
@@ -153,6 +396,24 @@ export function initRooms() {
     audioTracks:()=>recordableAudio(),
     changed:()=>{readModeration();changed();},
   });
+  /* A LEASED ROOM'S CALL IS THE NOTE'S CALL, not one of ours: one room on the
+   * call server with two doors into it, the world and Noltbook. See
+   * lib/notecall. */
+  noteCall=createNoteCall({our,trace:diagnostic,
+    calls:()=>nb.calls??{},
+    action:(a,data)=>nbAction(a,data),
+    watch:(fn)=>subscribeNoltbook('/call-access',fn),
+    onGrant:(grant)=>{
+      rooms.host=noteHostOf(grant.noteId)??rooms.host;
+      if(sfu?.refreshGrant?.(grant)===true)return;   //  a renewal of the same room
+      sfu?.connect(grant);
+    },
+    onStatus:(status,why)=>{
+      rooms.voice=status==='requesting'?'requesting':status==='failed'?'blocked':status==='ended'?'idle':rooms.voice;
+      rooms.error=status==='failed'?(why??'refused'):null;
+      changed();refreshStage();
+    },
+  });
   controller=new CallController({our,sfu,trace:diagnostic,
     transport:{send:G.sendPresence,operation:G.callOperation},
     known:who=>visiblePeers().includes(who),
@@ -162,7 +423,7 @@ export function initRooms() {
      * list the moment they ask, and seen as soon as their state arrives. */
     accepts:(who,place)=>place>=HUDDLE_BASE
       ? huddle?.place===place && huddle.host===our && !!mates?.admit(who,place)
-      : rooms.here===place && !!mates?.admit(who,place),
+      : rooms.here===place && admitsToRoom(who,place) && !!mates?.admit(who,place),
     changed:(phase,error)=>{
       rooms.voice=phase;rooms.error=error;watchAlone();
       if(phase==='connected'){
@@ -193,6 +454,20 @@ export function initRooms() {
       changed();refreshStage();
     },
   });
+  /* Noltbook's note calls and their moderation move under us; a leased room
+   * follows them rather than keeping a second copy. */
+  onNoltbook(()=>{
+    const note=noteCall?.note();
+    if(note)noteCall.snapshot(nb.calls[note]??null);
+    readModeration();changed();
+  },c=>['calls','callMods','noteAdmins'].includes(c.field));
+  /* OUR OWN LEASED NOTE changing its settings -- opened up, closed down, a
+   * member added -- has to reach everybody standing in the room. The roster is
+   * how they hear it, so publish it again. */
+  onNoltbook(()=>{
+    if(rooms.lease?.place===rooms.here && rooms.host===our)republishLease();
+    changed();
+  },c=>c.field==='notes' && (!c.noteId || c.noteId===rooms.lease?.note));
   if(typeof window!=='undefined')window.__grants=[];
   return G.watchCallAccess((name,p)=>{
     if(movementResult?.(name,p))return;
@@ -204,6 +479,23 @@ export function initRooms() {
   });
 }
 function selectCall(place,host) {
+  /* A LEASED ROOM: the call is the note's, so Glurff opens nothing. Noltbook
+   * decides who may join it -- membership of the note -- and the note owner's
+   * ship mints for everybody, whether or not they are here. */
+  const bound=leaseNote(place,host);
+  if(bound){
+    if(noteCall?.note()===bound)return;
+    releaseMedia();controller?.select(null);moderation?.enter(null);
+    rooms.host=noteHostOf(bound)??host;
+    rooms.timings={requested:performance.now(),role:noteCreator(bound)===our?'host':'guest'};
+    if(isListPlace(place) && host)mates?.follow(place,host);
+    /* Hosting our own leased room: the list carries the lease, so anybody who
+     * can see us knows which note this room is. */
+    if(host===our)republishLease();
+    noteCall?.enter(bound);
+    refreshStage();return;
+  }
+  if(noteCall?.note())noteCall.leave();
   if(controller?.current?.place===place && controller.current.host===host)return;
   /* Removed from this call: standing in the room is not a way back in. The bar
    * lifts when an admin allows us back, or when the call is a new one. */
@@ -215,6 +507,8 @@ function selectCall(place,host) {
    * host is us. */
   if(isListPlace(place) && host)mates?.follow(place,host);
   else mates?.leave();
+  /* A room we hold a lease on carries it from the moment we host it. */
+  if(host===our)republishLease();
   refreshStage();
 }
 /* Who a call is waiting on changes with TIME, not only with the call's phase:
@@ -259,7 +553,7 @@ export function updateHuddle(self,peers) {
    * already exists keeps its members, so a relay hiccup never hangs one up. */
   if(!huddle && !positionGate.ready())return;
   const near={[our]:{x:self.x,y:self.y}},hosts={};
-  for(const [who,p] of peers)if(regionAt(p.spot.x,p.spot.y)===COMMONS && (positionGate.reliable(who) || huddle?.members.includes(who))){near[who]=p.spot;hosts[who]=p.host??null;}
+  for(const [who,p] of peers)if(roomOfPeer(who,p.spot)===COMMONS && (positionGate.reliable(who) || huddle?.members.includes(who))){near[who]=p.spot;hosts[who]=p.host??null;}
   /* Membership agreed with what the people near us say they are in; see
    * agreedMembers in lib/huddle. */
   const together=agreedMembers(our,near,hosts,huddle?.members??[],huddle?.host??null);
@@ -288,7 +582,7 @@ export function updateHuddle(self,peers) {
     detail:together.size>(before?.members.length??0)?'agreed':'distance'});
   selectCall(huddle.place,huddle.host);changed();
 }
-const occupantsIn=room=>[our,...[...lastPeers].filter(([,p])=>regionAt(p.spot.x,p.spot.y)===room).map(([s])=>s)].sort();
+const occupantsIn=room=>[our,...[...lastPeers].filter(([who,p])=>roomOfPeer(who,p.spot)===room).map(([s])=>s)].sort();
 /* THE DOOR. The copies of a room that people we can see are in, where a copy
  * counts only once it has somebody besides its host: a host alone in a room is
  * somebody who just walked in, not a party to choose. Hosts we cannot see
@@ -297,8 +591,9 @@ const chosen=new Map();   //  room -> the host picked at its door, this visit
 function doorOptions(room){
   if(!mates)return [];
   const occupants=new Set(occupantsIn(room));
-  return [...mates.instances(room)].filter(([host,count])=>count>=2 && host!==our && occupants.has(host))
-    .map(([host,count])=>({host,count})).sort((a,b)=>b.count-a.count || (a.host<b.host?-1:1));
+  return [...mates.instances(room)].filter(([host,r])=>r.count>=2 && host!==our && occupants.has(host))
+    .map(([host,r])=>({host,count:r.count,note:r.note??null}))
+    .sort((a,b)=>b.count-a.count || (a.host<b.host?-1:1));
 }
 export function chooseRoomHost(host){
   const picker=rooms.picker;
@@ -311,6 +606,14 @@ export function chooseRoomHost(host){
   return true;
 }
 function roomHost(room) {
+  /* A LEASED ROOM'S HOST IS WHOEVER HOLDS THE LEASE -- not whoever we happen
+   * to be able to see standing in it. The call is the note's, minted by the
+   * note's own ship, and in a SECRET room the holder may be invisible to us
+   * until their list arrives. Picking a visible occupant instead is how two
+   * members ended up hosting two separate copies of the same room. */
+  if(rooms.lease?.place===room)return our;
+  const holder=leaseHolder(room);
+  if(holder && leaseAt(room,holder).note)return holder;
   const occupants=occupantsIn(room);
   /* A room handed to someone stays theirs while they are in it. */
   const handed=handoffs.get(room);
@@ -320,14 +623,14 @@ function roomHost(room) {
   const picked=chosen.get(room);
   if(picked && occupants.includes(picked))return picked;
   if(picked)chosen.delete(room);
-  const announced=[...lastPeers.values()].filter(p=>regionAt(p.spot.x,p.spot.y)===room).map(p=>p.host).filter(h=>occupants.includes(h));
+  const announced=[...lastPeers].filter(([who,p])=>roomOfPeer(who,p.spot)===room).map(([,p])=>p.host).filter(h=>occupants.includes(h));
   if(rooms.here===room && occupants.includes(rooms.host))announced.push(rooms.host);
   return announced.sort()[0]??occupants[0];
 }
 export function refresh(peers) {
   lastPeers=peers;
   const live=new Map();
-  for(const [who,p] of peers){const room=regionAt(p.spot.x,p.spot.y);if(room===COMMONS)continue;
+  for(const [who,p] of peers){const room=roomOfPeer(who,p.spot);if(room===COMMONS)continue;
     const r=live.get(room)??{host:null,occupants:new Set()};r.occupants.add(who);if(p.host)r.host=p.host;live.set(room,r);}
   if(rooms.here!==COMMONS){const host=roomHost(rooms.here),r=live.get(rooms.here)??{host,occupants:new Set()};r.occupants.add(our);r.host=host;live.set(rooms.here,r);
     /* The room's host is only chosen once positions are trustworthy; see
@@ -343,6 +646,11 @@ export function refresh(peers) {
   const waiting=rooms.here!==COMMONS && rooms.host===null && !positionGate.ready();
   if(waiting!==rooms.waiting){rooms.waiting=waiting;changed();}
   const same=live.size===rooms.live.size && [...live].every(([id,r])=>{const old=rooms.live.get(id);return old && old.host===r.host && old.occupants.size===r.occupants.size && [...r.occupants].every(s=>old.occupants.has(s));});
+  /* SOMEBODY HAS ARRIVED IN THE ROOM WE LEASED. Their client is waiting for
+   * the list -- it is how they learn which note this room is, and for a secret
+   * note it is the only way -- so say it now rather than at the next heartbeat
+   * with them standing outside a door that is theirs. */
+  if(!same && rooms.lease?.place===rooms.here && rooms.host===our)republishLease();
   rooms.live=live;if(!same)changed();
 }
 export function enterRoom(room) {
@@ -365,6 +673,7 @@ export function enterRoom(room) {
   changed();
 }
 export function leaveRoom() {
+  noteCall?.leave();
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
   clearHandoff();mates?.leave();chosen.clear();booted=null;
   rooms.here=COMMONS;rooms.host=null;rooms.waiting=false;rooms.picker=null;huddlePending=null;releaseMedia();controller?.select(null);changed();
@@ -578,7 +887,7 @@ export async function reopenCapture(kind){
   await publish('mic',()=>navigator.mediaDevices.getUserMedia(micConstraints()),'camera');
 }
 export const outputChanged=()=>sfu?.refreshOutput();
-export function closeTab(){mates?.leave();controller?.close();clearHandoff();clearTimeout(huddleTimer);huddleTimer=null;huddlePending=null;clearTimeout(stageTimer);stageTimer=null;huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=intent.screen=false;releaseMedia();stopPreview();stopDisplay();}
+export function closeTab(){noteCall?.leave();mates?.leave();controller?.close();clearHandoff();clearTimeout(huddleTimer);huddleTimer=null;huddlePending=null;clearTimeout(stageTimer);stageTimer=null;huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=intent.screen=false;releaseMedia();stopPreview();stopDisplay();}
 
 /* The world never opens a microphone or camera on its own: each of these is an
  * explicit act, and each can be undone without leaving the room. */
@@ -789,6 +1098,22 @@ const callNow=()=>{const c=controller?.current;return c?{place:c.place,host:c.ho
 /* Copy the record into the shape the UI reads, and keep the recorder pointed
  * at it. Nothing here decides anything: the record does. */
 function readModeration(){
+  /* A LEASED ROOM'S CALL IS NOLTBOOK'S, and so are its rules: the note's
+   * creator hosts it, its admins are admins, and whoever started it is an
+   * admin of the call but not of the note. Glurff keeps no second record for
+   * it -- two sets of rules for one call is how they come apart. */
+  const note=noteCall?.note();
+  if(note){
+    rooms.mod=null;
+    rooms.role=noteCallRole(note,our);
+    rooms.recording=noteCallRecording(note);
+    rooms.mutedByAdmin=noteCallMuted(note,our);
+    rooms.bootedByAdmin=noteCallBooted(note,our);
+    rooms.recordingMine=!!recorder?.active();
+    applyPlayable(null,null);
+    recorder?.follow(null,{place:rooms.here,host:rooms.host,gen:0},rooms.recording);
+    return;
+  }
   const call=moderation?.call()??null;
   const record=moderation?.record()??null;
   rooms.mod=record;
@@ -843,8 +1168,13 @@ const barred=(place,host)=>!!booted && booted.place===place && booted.host===hos
 /* Stop playing and showing anyone the record mutes. */
 function applyPlayable(record,call){
   if(!sfu)return;
+  const note=noteCall?.note();
   const blocked=new Set();
-  for(const {ship} of rooms.remoteStreams.values())if(ship && !mayPlay(record,call,ship))blocked.add(ship);
+  for(const {ship} of rooms.remoteStreams.values()){
+    if(!ship)continue;
+    const hide=note?(noteCallMuted(note,ship)||noteCallBooted(note,ship)):!mayPlay(record,call,ship);
+    if(hide)blocked.add(ship);
+  }
   sfu.setSilenced?.(blocked);
   for(const [id,r] of [...rooms.remoteStreams])if(blocked.has(r.ship))rooms.remoteStreams.delete(id);
   for(const ship of blocked)rooms.streams.delete(ship);
@@ -854,6 +1184,14 @@ function applyPlayable(record,call){
 /* Ask for something. The host does it; everyone else asks the host, and the
  * host's answer is the snapshot everybody takes. */
 export function moderate(target,op){
+  const note=noteCall?.note();
+  if(note){
+    /* Ask Noltbook. Its host ship decides, enforces on the call server, and
+     * tells everybody -- including the people who joined from Noltbook. */
+    if(!rooms.role)return false;
+    noteModerate(note,target,op).catch(()=>{});
+    return true;
+  }
   const call=moderation?.call();
   if(!call)return false;
   const before=moderation.record();
@@ -880,20 +1218,36 @@ export const canModerate=()=>!!rooms.role;
 /* Admins may act on anyone in the call but the host and themselves; an
  * ordinary admin may not act on another admin. */
 export function mayActOn(ship){
+  const note=noteCall?.note();
+  if(note){
+    if(!rooms.role || ship===our || ship===noteCreator(note))return false;
+    const theirs=noteCallRole(note,ship);
+    return !(theirs && rooms.role!=='host');
+  }
   const call=moderation?.call();
   if(!call || !rooms.role || ship===our || ship===call.host)return false;
   const theirs=roleOf(moderation.record(),call,ship);
   return !(theirs && rooms.role!=='host');
 }
-export const roleFor=(ship)=>roleOf(moderation?.record()??null,moderation?.call()??null,ship);
-export const mutedShip=(ship)=>isMuted(moderation?.record()??null,moderation?.call()??null,ship);
-export const bootedShip=(ship)=>isBooted(moderation?.record()??null,moderation?.call()??null,ship);
+export const roleFor=(ship)=>{
+  const note=noteCall?.note();
+  return note?noteCallRole(note,ship):roleOf(moderation?.record()??null,moderation?.call()??null,ship);
+};
+export const mutedShip=(ship)=>{
+  const note=noteCall?.note();
+  return note?noteCallMuted(note,ship):isMuted(moderation?.record()??null,moderation?.call()??null,ship);
+};
+export const bootedShip=(ship)=>{
+  const note=noteCall?.note();
+  return note?noteCallBooted(note,ship):isBooted(moderation?.record()??null,moderation?.call()??null,ship);
+};
 
 /* ------------------------------------------------------------- recording */
 
 export const mayRecord=()=>canRecord() && !!rooms.role && rooms.voice==='connected';
 export function startRecording(audioOnly){
-  const call=moderation?.call();
+  const note=noteCall?.note();
+  const call=note?{place:rooms.here,host:rooms.host,gen:0}:moderation?.call();
   if(!call || !mayRecord() || rooms.recording)return false;
   recorder.ask(call,audioOnly);
   moderate(our,'record-start');
@@ -927,7 +1281,7 @@ export function setPositions(self, peers) {
   /* Inside a room, membership IS the boundary: people sitting around the same
    * table went silent five tiles apart because the commons' attenuation was
    * still applied to them. */
-  if (rooms.here !== COMMONS) return sfu.setFlatGain(1, new Set([...peers].filter(([,p])=>regionAt(p.spot.x,p.spot.y)===rooms.here).map(([ship])=>ship)));
+  if (rooms.here !== COMMONS) return sfu.setFlatGain(1, new Set([...peers].filter(([who,p])=>roomOfPeer(who,p.spot)===rooms.here).map(([ship])=>ship)));
   const near = {};
   for (const [ship, p] of peers) near[ship] = { x: p.spot.x, y: p.spot.y };
   sfu.setPositions({ x: self.x, y: self.y }, near);

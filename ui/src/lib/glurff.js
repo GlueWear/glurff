@@ -20,6 +20,7 @@ const tracked = (kind, p) => {
 const ACTION_CLASS = {
   move: 'legacy-movement', leave: 'legacy-movement', dress: 'avatar', 'fetch-look': 'avatar',
   claim: 'room-control', release: 'room-control', lock: 'room-control', knock: 'room-control',
+  lease: 'room-control', unlease: 'room-control',
   splash: 'world-event', roll: 'world-event', 'ensure-commons': 'note-install',
 };
 const classify = (event) => {
@@ -69,6 +70,10 @@ export const fetchLook = (who) => act('fetch-look', { who });
 export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });
 export const lockRoom = (place, mode) => act('lock', { place, mode });
+/* THE LEASE. One room, held for one of our own Noltbook notes, until we give
+ * it back. It lives in the agent so it outlives the tab. */
+export const takeLease = (place, note) => act('lease', { place, note });
+export const dropLease = () => act('unlease', {});
 export const knock = (host, place) => act('knock', { host, place });
 export const splash = (target) => act('splash', { target });
 export const roll = (place, stage) => act('roll', { place, ...stage });
