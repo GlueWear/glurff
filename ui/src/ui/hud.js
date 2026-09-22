@@ -5,7 +5,8 @@ import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   displayName, noteName, watchNotes, setChatHistory, chatHistoryCount, onChange } from 'lib/noltbook';
 import { installNote } from 'lib/glurff';
 import { roomById, GAME_ROOM } from 'world/places';
-import { leaseNote } from 'lib/rooms';
+import { render as renderText } from 'ui/media';
+import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
 
 
 export class Hud {
@@ -22,7 +23,20 @@ export class Hud {
     /* Our Commons and Rumors posts, shown before Noltbook confirms them. */
     this.pending = createPending();
     this.profileRevision = 0; this.expanded = false; this.historySize = 100;
+    /* The note this room's chat is currently bound to, so we can notice it
+     * changing under us; see retune. */
+    this.boundNote = null;
     this.build();
+    /* A ROOM'S NOTE CAN CHANGE WITHOUT ANYBODY WALKING ANYWHERE.
+     *
+     * Somebody leases the room we are standing in, or gives it back, and the
+     * chat under us stops being one thing and becomes another. Only `setRoom`
+     * bound the chat, and only walking through a door calls it -- so a guest
+     * kept talking into a note that had been released until they left the room
+     * and came back. A lease is a ROSTER change, which is why watching
+     * Noltbook's notes was not enough to hear it. */
+    onRooms(() => this.retune());
+    onRoommates(() => this.retune());
     onChange(change => {
       if (change.field === 'profiles') this.profileRevision++;
       this.invalidate();
@@ -48,6 +62,7 @@ export class Hud {
     this.historySize = 100;
     this.replyTo = null;
     const note = this.noteFor(room);
+    this.boundNote = note;
     if (note) {
       this.maybeInstall(note, room);
     }
@@ -55,6 +70,20 @@ export class Hud {
     const watching=note?watchNotes(note):watchNotes();
     this.paint(); // Cached chat must not wait for a network subscription ACK.
     await watching.catch(() => {});
+  }
+
+  /* The room stayed the same; what it is SAVED TO did not. Rebind to the note
+   * the room is now, or back to the chat this browser keeps for it. Deliberately
+   * not `setRoom`: nobody has moved, so the reply being written and how far the
+   * history is unrolled are left alone. */
+  retune() {
+    const note = this.noteFor(this.room);
+    if (note === this.boundNote) return;
+    this.boundNote = note;
+    this.replyTo = null;
+    if (note) this.maybeInstall(note, this.room);
+    (note ? watchNotes(note) : watchNotes()).catch(() => {});
+    this.invalidate();
   }
 
   /* Materialise a room's note the first time somebody walks in.
@@ -87,7 +116,11 @@ export class Hud {
 
   invalidate() {
     if (this.frame != null) return;
-    this.frame = requestAnimationFrame(() => { this.frame = null; if (this.chatOpen) this.paint(); });
+    /* THE ROOM LABEL IS NOT CHAT CONTENT. It says where you are and whether
+     * what is said here is saved, and it has to be right whether or not the
+     * chat is open -- which, since chat starts closed, was most of the time.
+     * `paint` stops before the stream itself when the chat is shut. */
+    this.frame = requestAnimationFrame(() => { this.frame = null; this.paint(); });
   }
 
   lines() {
@@ -240,7 +273,9 @@ export class Hud {
         el.classList.toggle('pending', Boolean(m.pending));
         const setText = (selector, text) => { const node = el.querySelector(selector); if (node.textContent !== text) node.textContent = text; };
         setText('.who', String(m.who ?? 'Anonymous'));
-        setText('.post-text', String(m.text));
+        /* Rumors is anonymous, so it stays letters for letters; see ui/media. */
+        renderText(el.querySelector('.post-text'), String(m.text),
+          { embed: this.noteFor(this.room) !== RUMORS_NOTE });
         setText('time', Number.isFinite(m.at) && m.at ? timeFormat.format(new Date(m.at)) : '');
         setText('.replies', m.replies ? `${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}` : '');
         el.querySelector('.reply').hidden = !m.eid || m.sendEid === null;

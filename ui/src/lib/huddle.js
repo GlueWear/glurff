@@ -85,10 +85,36 @@ export function agreedMembers(our, near, hosts, previous = [], ourHost = null) {
  * the job while it is still in the huddle. Re-electing every time a lower @p
  * walks up would tear down a live call mid-sentence, which is worse than an
  * arbitrary-but-stable choice. */
-export function electHost(members, sitting = null) {
+/* WHO HOSTS A HUDDLE.
+ *
+ * A sitting host is kept so that somebody joining or leaving does not move the
+ * call and make everybody reconnect. But `sitting` is PURELY LOCAL -- it is
+ * whatever this browser last decided -- and that is how two clients froze
+ * apart: a presence gap let them re-form the huddle a moment apart with
+ * different member sets, so they elected different hosts; once the sets
+ * converged both hosts were members, so each browser's own host stayed
+ * "valid" forever. The places are derived from the host, so they diverged too
+ * (107874 against 242389) and everyone sat alone in a call of one.
+ *
+ * `claims` is what each member says their host is, which both browsers can
+ * see. While everybody agrees, the sitting host stands and nobody reconnects.
+ * The moment anybody disagrees, every browser falls back to the same
+ * deterministic answer -- the lowest @p of the shared member set -- and they
+ * converge on the next beat.
+ *
+ * `trusted` is a deliberate handoff in progress: the new host is authoritative
+ * and the disagreement below is expected, because the others have not been
+ * told yet. */
+export function electHost(members, sitting = null, claims = {}, trusted = false) {
   if (!members.length) return null;
-  if (sitting && members.includes(sitting)) return sitting;
-  return [...members].sort()[0];
+  const lowest = [...members].sort()[0];
+  if (!sitting || !members.includes(sitting)) return lowest;
+  if (trusted) return sitting;
+  for (const who of members) {
+    const said = claims?.[who];
+    if (said && said !== sitting && members.includes(said)) return lowest;
+  }
+  return sitting;
 }
 
 export const huddleKey = (members) => [...members].sort().join(',');

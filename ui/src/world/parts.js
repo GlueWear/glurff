@@ -1,5 +1,6 @@
 import { versioned } from '../lib/build.js';
-import data from 'world/character-data';
+import data from './character-data.js';
+import adventure from './adventure-data.js';
 /* Characters, assembled from Minifantasy's layered NPC art (Krishna Palacio).
  *
  * Every part is drawn on the same grid -- four directions down, four walk
@@ -41,6 +42,19 @@ export const facingAway = (dir) => dir === 'up';
 /* Slots, drawn back to front: trousers before the top so a shirt covers the
  * waistband, hair before the hat so a hat sits on it. */
 export const SLOTS = ['body', 'bottom', 'shoes', 'top', 'gloves', 'shoulders', 'beard', 'hair', 'hat'];
+export const EXTRAS = ['weapon', 'mount', 'companion'];
+export const EQUIPMENT = adventure;
+export const artUrl = (path) => versioned(`/apps/glurff/characters/${path}`);
+const equipment = Object.fromEntries([...EXTRAS, 'premade'].map(slot =>
+  [slot, new Map(adventure[slot].map(v => [v.key, v]))]));
+/* Unfinished whole-character/equipment art is installed but dark by default.
+ * The owner enables it from Dojo on development ships. Keeping this gate in
+ * the compositor means old saved selections remain intact without appearing
+ * or acting for ordinary users. */
+let spriteLab = false;
+export const setSpriteLabEnabled = enabled => { spriteLab = enabled === true; };
+export const spriteLabEnabled = () => spriteLab;
+export const equipmentOf = (slot, key) => spriteLab ? equipment[slot]?.get(key) ?? null : null;
 export const CATALOG = data.slots;
 /* The art is coloured, not greyscale: the colours come from the part you pick,
  * so nothing here is tinted. */
@@ -55,11 +69,18 @@ export const sheetUrl = (slot) => versioned(`/apps/glurff/characters/${slot}.png
 
 /* Where one part's frame sits on its slot's sheet. An empty part -- "wear
  * nothing here" -- is null, and draws nothing. */
-export function frameOf(slot, part, dir, frame) {
+export function frameOf(slot, part, dir, frame, animation = 'walk') {
   const meta = CATALOG[slot];
   if (!meta || !part) return null;
   const at = index[slot].get(part);
   if (at === undefined) return null;
+  const variant = meta.variants[at];
+  const clip = variant.animations?.[animation];
+  if (animation !== 'walk' && clip) return {
+    url: artUrl(variant.sheet), x: (frame % clip.frames) * FRAME,
+    y: clip.y + (clip.rows === 1 ? 0 : ROW[dir] ?? 0) * FRAME,
+    w: FRAME, h: FRAME,
+  };
   const bx = (at % meta.cols) * BLOCK, by = Math.floor(at / meta.cols) * BLOCK;
   return {
     url: sheetUrl(slot),
@@ -108,11 +129,80 @@ export const completeLook = (look) => {
   for (const slot of SLOTS) {
     const piece = look?.[slot];
     if (!piece) continue;
-    if (piece.part && !index[slot]?.has(piece.part)) continue;
+    if ((slot === 'body' && !piece.part) || (piece.part && !index[slot]?.has(piece.part))) continue;
     out[slot] = { part: piece.part ?? '', tint: piece.tint ?? null };
+  }
+  for (const slot of [...EXTRAS, 'premade']) {
+    const piece = look?.[slot];
+    if (piece?.part && equipment[slot].has(piece.part)) out[slot] = { part: piece.part, tint: null };
   }
   return out;
 };
+
+/* Whole sprites retain their own frame size and count. Some companions only
+ * have front/back rows; the side view shares and mirrors the same drawing. */
+export function wholeFrame(item, dir = 'down', frame = 0, animation = 'walk') {
+  if (!item) return null;
+  const clip = item.animations[animation] ?? item.animations.walk ?? item.animations.idle;
+  const row = clip.rows === 1 ? 0 : clip.rows === 2 ? (dir === 'up' ? 1 : 0)
+    : Math.min(clip.rows - 1, ROW[dir] ?? 0);
+  return { url: artUrl(item.sheet), x: (frame % clip.frames) * item.frame,
+    y: clip.y + row * item.frame, w: item.frame, h: item.frame,
+    flip: clip.rows === 2 && dir === 'left', feet: item.feet };
+}
+
+export function animationFrames(look, animation) {
+  const item = equipmentOf('premade', look?.premade?.part);
+  if (item) return item.animations[animation]?.frames ?? (animation === 'die' ? 12 : 4);
+  return {walk: 4, idle: 16, dmg: 4, die: 12, attack: 8}[animation] ?? 4;
+}
+
+export function weaponOffset(key, dir, frame) {
+  return equipmentOf('weapon', key)?.walkOffsets[dir]?.[frame % 4] ?? [0, 0];
+}
+
+/* Shared by Pixi and the canvas preview: the dressed body never changes to
+ * a bare attack/rider body. Layer order remains the same in every direction. */
+export function characterLayers(look, dir = 'down', frame = 0, animation = 'walk', cycle = frame) {
+  const out = [], premade = equipmentOf('premade', look?.premade?.part);
+  const mount = equipmentOf('mount', look?.mount?.part);
+  const weapon = equipmentOf('weapon', look?.weapon?.part);
+  const falling = animation === 'die' || animation === 'dmg';
+  const riderY = mount && !falling ? mount.riderY : 0;
+  const bodyAnimation = animation === 'attack' ? 'walk' : animation;
+  const bodyFrame = animation === 'attack' ? 0 : frame;
+  const weaponLayer = layer => {
+    if (!weapon || falling || !weapon.layers[layer]) return;
+    const meta = weapon.layers[layer];
+    const [dx, dy] = animation === 'walk' ? weaponOffset(weapon.key, dir, frame) : [0,0];
+    out.push({key: `weapon-${layer}`, url: artUrl(meta.sheet),
+      x: (animation === 'attack' ? Math.min(frame, meta.frames-1) : 0)*FRAME,
+      y: Math.min(meta.rows-1, ROW[dir] ?? 0)*FRAME, w: FRAME, h: FRAME,
+      feet: FEET, dx, dy: riderY+dy});
+  };
+  weaponLayer('back');
+  if (premade) {
+    // All victims recover in the same 2.4 seconds. Source creatures can have
+    // 4–40 death frames, so traverse the WHOLE fall across our twelve steps.
+    const poseFrame = animation === 'die' && premade.animations.die
+      ? Math.round(Math.min(11,frame)*(premade.animations.die.frames-1)/11) : bodyFrame;
+    out.push({key: 'premade', ...wholeFrame(premade, dir, poseFrame, bodyAnimation), dy: riderY});
+  }
+  else for (const slot of SLOTS) {
+    const f = frameOf(slot, look?.[slot]?.part, dir, bodyFrame, bodyAnimation);
+    if (f) out.push({key: slot, ...f, feet: FEET, dy: riderY, tint: look[slot]?.tint});
+  }
+  weaponLayer('front');
+  if (mount && !falling) out.push({key:'mount', ...wholeFrame(mount, dir,
+    animation === 'attack' ? 0 : cycle, animation === 'walk' ? 'walk' : 'idle')});
+  return out;
+}
+
+export function characterTop(look) {
+  const premade = equipmentOf('premade', look?.premade?.part);
+  const mount = equipmentOf('mount', look?.mount?.part);
+  return (premade ? premade.feet-premade.bounds[1] : FEET-HEAD) - (mount?.riderY ?? 0);
+}
 
 /* Kept for the older callers: parts are whole sprites now, not a path. */
 export function partTexture(slot, part, dir, frame) {

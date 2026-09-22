@@ -4,14 +4,14 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 595,
     "mime": "text/html; charset=utf-8",
-    "sha256": "d8f321205050032f866ec9ca4f2a7cff0458c5587726af2505be3291160fb095"
+    "sha256": "c4cc843a9acfee17b65294e529a70fd7d0ca65f7ed1f9dc9a7111d11d2539dad"
   },
   {
-    "url": "/apps/glurff/assets/index-25d52b2c.js",
-    "spur": "/lib/glurff/site/assets/index-25d52b2c/js",
-    "size": 858222,
+    "url": "/apps/glurff/assets/index-90834b0b.js",
+    "spur": "/lib/glurff/site/assets/index-90834b0b/js",
+    "size": 1029339,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "5846d160c09b540bc61785c1af2f47c6d5d45eb1222987e13b6963c62ae0baf2"
+    "sha256": "4b21b77f83d8ac91a594c77617311219a9acd69efd7665cb1dea0aa7dcd180da"
   },
   {
     "url": "/apps/glurff/characters/beard.png",
@@ -35,6 +35,2939 @@
     "sha256": "160333816f0c0cbb14e8520dd244f3e435b5a925a192fb1e8d741ddbbf625c8d"
   },
   {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-baby-beholder.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-baby-beholder/png",
+    "size": 2991,
+    "mime": "image/png",
+    "sha256": "f67234ef41c49ce60545203e7e6340997259bb7752a5676e4f19170284e76c50"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-book.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-book/png",
+    "size": 1220,
+    "mime": "image/png",
+    "sha256": "7d71967944a9467b13091ab9ad09c5446cc505bab395e88dd225f0a2d261174c"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-bulldog.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-bulldog/png",
+    "size": 3104,
+    "mime": "image/png",
+    "sha256": "a12840206efcc4765fb2c4fe287b4800101db135017931886b81f1fb7bd7bbe2"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-cactus.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-cactus/png",
+    "size": 4482,
+    "mime": "image/png",
+    "sha256": "32fdbe783c9af232ea69db275f9b9348aefccba9053e55dd6e728fb34f001021"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-carrier.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-carrier/png",
+    "size": 5387,
+    "mime": "image/png",
+    "sha256": "d506f0aafb5661b17054660c1772314ee6b646b0f5b0b86056e124450f3a66c5"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-cherub.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-cherub/png",
+    "size": 3198,
+    "mime": "image/png",
+    "sha256": "3f472d2d4675fd7d28ad844421bb20d96d48c8544147c85364c5e6347e95b395"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-chest.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-chest/png",
+    "size": 5085,
+    "mime": "image/png",
+    "sha256": "cb6ff170ffab25b9459835e5db19943e8d10e433928faf32cfb355318abf23d9"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-cloud.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-cloud/png",
+    "size": 1220,
+    "mime": "image/png",
+    "sha256": "4b365e6efdc3733d682238f69568b2096f49fe9b0f07a0ca99aad4631b2b396d"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-draco.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-draco/png",
+    "size": 3303,
+    "mime": "image/png",
+    "sha256": "bf3b953a05e6e3496c42a3743a175fbb1e5346460f34e8c45afac872e702cf83"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-egg.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-egg/png",
+    "size": 6845,
+    "mime": "image/png",
+    "sha256": "88ee6d7688fc63d22449bd42cd3682549577c51312de96379e03167278f95174"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-hive-and-bee-bee.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-hive-and-bee-bee/png",
+    "size": 1686,
+    "mime": "image/png",
+    "sha256": "ccdf921a02c31be3d8364a465ab0c1f376d65cbc86deea965f508c581c8f08b3"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-hive-and-bee-hive.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-hive-and-bee-hive/png",
+    "size": 3974,
+    "mime": "image/png",
+    "sha256": "028f40d4867391e26781495b79ae0f70b1e4bf842f7d9db24ac459b72fcd5e4e"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-lizard.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-lizard/png",
+    "size": 3790,
+    "mime": "image/png",
+    "sha256": "f310f26c3e973f0f3ef945a03ef600fb96aa92fc0346869d64b9819138837bfd"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-orbs-air.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-orbs-air/png",
+    "size": 321,
+    "mime": "image/png",
+    "sha256": "54499b9b4fd15cdc2810ca66a78161be1546d06742caf52141331f52959e86ee"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-orbs-fire.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-orbs-fire/png",
+    "size": 760,
+    "mime": "image/png",
+    "sha256": "42c0635e91a4fef3b49bd040793c6030113c32026d423d63ba3acd6dda87424f"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-orbs-ice.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-orbs-ice/png",
+    "size": 596,
+    "mime": "image/png",
+    "sha256": "2dbe94d59da6eeb16d60c5512599f787e469e7fa35e68b4ac537c47bdc44632f"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-orbs-rock.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-orbs-rock/png",
+    "size": 434,
+    "mime": "image/png",
+    "sha256": "eb0e08d62137e7cd47197ecc76349106389c029a54dc1c8004d21976eb3ce10a"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-rolling-stone.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-rolling-stone/png",
+    "size": 2097,
+    "mime": "image/png",
+    "sha256": "e5e9182a6c073e9e06a30c1d5d72365702c693e9fee6278e8c1540338060f782"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-shadow.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-shadow/png",
+    "size": 1768,
+    "mime": "image/png",
+    "sha256": "4b6e371a69d5318b03566ebc30d2b2003f0e626327751c87bcbe5817afc21811"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-skull.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-skull/png",
+    "size": 2599,
+    "mime": "image/png",
+    "sha256": "edafa2ee896f3330b7edfa520897408e466f82e3b904fb243822e890ade0c488"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-sprite.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-sprite/png",
+    "size": 758,
+    "mime": "image/png",
+    "sha256": "dc0df84234ecfbf0bd3166e98b6caa81dfa6891f122f41c699170c36e9f4d0e2"
+  },
+  {
+    "url": "/apps/glurff/characters/companion/enchanted-companions-companions-sword.png",
+    "spur": "/lib/glurff/site/characters/companion/enchanted-companions-companions-sword/png",
+    "size": 2575,
+    "mime": "image/png",
+    "sha256": "69ccb597f8529f906dc85f03813b92a1fddfb56358bcd67276b188339799b7c0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-black.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-black/png",
+    "size": 1622,
+    "mime": "image/png",
+    "sha256": "0a10fdd1fba3c6b7991725b6ff4780b719766d2d36213da42e7c23a70da00d5d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-blonde/png",
+    "size": 1650,
+    "mime": "image/png",
+    "sha256": "df58c3eca4a4f12f37fc6632eb0a7bceffc71e6a41be374593737838430084d3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-blue/png",
+    "size": 1655,
+    "mime": "image/png",
+    "sha256": "057a9ed164d45c14a6263c4f8ce7105795c20e6022e60a05baf25f142f9b9afb"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-brown/png",
+    "size": 1655,
+    "mime": "image/png",
+    "sha256": "00cd86a78352864ee2f5f5376a090c297175d05db0020eb81fb8f515d90815b3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-green.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-green/png",
+    "size": 1650,
+    "mime": "image/png",
+    "sha256": "7f86bfc47aa02a6e618ff2486ab8266b38b84b0969acf5003c8c4454a4586a5e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-pink/png",
+    "size": 1656,
+    "mime": "image/png",
+    "sha256": "b53cb5bda0421fd0ffc37aa8d95aaad5745cb9f3c0b2174b7aa7bdcbb5e5f4dd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-purple/png",
+    "size": 1654,
+    "mime": "image/png",
+    "sha256": "d813972ca65529683e323aecd0f0b84155b5061661845a1be46b7136221d1fd1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-red.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-red/png",
+    "size": 1651,
+    "mime": "image/png",
+    "sha256": "23ebaafba1538cfc1fcffd7e0537bb6f792cc69641a4641a8594f754ad7af62a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-turquoise/png",
+    "size": 1654,
+    "mime": "image/png",
+    "sha256": "bcf71b4f6c40fc03818f93f739723d430897c565c23b86300cb2bc7d2f628924"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-curtain-white.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-curtain-white/png",
+    "size": 1622,
+    "mime": "image/png",
+    "sha256": "44463e3dd4a7b7507abb8019f745da50c4b63efef40189bc6bec8ea7ff5cf5bc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-black.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-black/png",
+    "size": 1384,
+    "mime": "image/png",
+    "sha256": "fba3aec3afa105bdbbead15ecacdcc3aca2b9cfc7fc6a82adf8512b615440c2f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-blonde/png",
+    "size": 1407,
+    "mime": "image/png",
+    "sha256": "c7a834b6a1d671ebf0e97cc692264392e4a2fa7d45d32c4e973093a03543fbf5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-blue/png",
+    "size": 1411,
+    "mime": "image/png",
+    "sha256": "36e67989e8b91c32bac73c8ed1570129b06e6d37b3a9f61a79a2bc69743e873f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-brown/png",
+    "size": 1410,
+    "mime": "image/png",
+    "sha256": "476ccbc919291cb82628778c10f266da4b0b4d25c36865181ad845ac3a33880b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-green.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-green/png",
+    "size": 1407,
+    "mime": "image/png",
+    "sha256": "1fd3b05d1367b07ac213d606771486d8639e3b4c0ff30b8569ef6d3bd347a336"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-pink/png",
+    "size": 1411,
+    "mime": "image/png",
+    "sha256": "a0316cc191c203fec16f8f1cf15bb5242142b95b32ad9a090528efa2db84048d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-purple/png",
+    "size": 1409,
+    "mime": "image/png",
+    "sha256": "efd95dbd7e861252d1dd6eaf7ba4432af948f070bff7a1f901a4c152ae03adf2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-red.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-red/png",
+    "size": 1404,
+    "mime": "image/png",
+    "sha256": "533b9a4291dea75c282d538c7b7a06ada1c6dfd3c6dcb59bc4b544e94fa2e803"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-turquoise/png",
+    "size": 1410,
+    "mime": "image/png",
+    "sha256": "3a4c1cc4d9b0e704805380859f653449e4b3b3857d32a06dcbf9714db96e9c9b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/chin-strap-white.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/chin-strap-white/png",
+    "size": 1384,
+    "mime": "image/png",
+    "sha256": "32e83f6e67ab57f8299e4731ee3b53a2f571fea619ea71ce4c315c56a45b3d6d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-black.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-black/png",
+    "size": 1219,
+    "mime": "image/png",
+    "sha256": "a992e0f35bf870124d9e063f73767de92f5229091bb79b62eb853570e37de726"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-blonde/png",
+    "size": 1242,
+    "mime": "image/png",
+    "sha256": "37dcd98fd1c895856ba7d177f851c6c57b50a483b1fdf9fa5c4be100916ead09"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-blue/png",
+    "size": 1246,
+    "mime": "image/png",
+    "sha256": "dc875bbc2f6ac4712613c60ca43076122e5f068404e74ffc8c14876e700ee318"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-brown/png",
+    "size": 1245,
+    "mime": "image/png",
+    "sha256": "233b88997c069cd8bf6584c161f414abf5acc7e0288ca214851067422ee87593"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-green.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-green/png",
+    "size": 1241,
+    "mime": "image/png",
+    "sha256": "2d248d8e27755d57cc74c3848b05f5f01fbeecf7cb06b710896d0c49ddfd0192"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-pink/png",
+    "size": 1246,
+    "mime": "image/png",
+    "sha256": "c8d21abf3d0538645ee98781db98e01b4193c1500da8dd5d879fc3b8a7f3e7ea"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-purple/png",
+    "size": 1244,
+    "mime": "image/png",
+    "sha256": "9f6cd30cb686bdfd46fe18350f6f831e2f5b12298c14a910b68a40ca960ce626"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-red.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-red/png",
+    "size": 1242,
+    "mime": "image/png",
+    "sha256": "45044b515d766e328b864d428b5c81e3ae2478a5a8ce77062687f4d863b83ebd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-turquoise/png",
+    "size": 1245,
+    "mime": "image/png",
+    "sha256": "2c946e62108e3493aeab1ddc0a22a091ce79bf753dbc4c895c8399c010132b12"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/goatee-white.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/goatee-white/png",
+    "size": 1219,
+    "mime": "image/png",
+    "sha256": "2b559024138afed09d7047de97eeafb10e007c373527b25d831df1b1faee291d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-black.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-black/png",
+    "size": 1495,
+    "mime": "image/png",
+    "sha256": "9cc3898fa86ecc2e22c0191002563b06d7f6c41203ff0d50a49cf630e2db008e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-blonde/png",
+    "size": 1517,
+    "mime": "image/png",
+    "sha256": "2b275ab948957e755fd5025a0be75fded006f75e03251fde0a97b319b217cc3f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-blue/png",
+    "size": 1521,
+    "mime": "image/png",
+    "sha256": "29f0e444171f3a842182585398ebc13d36ab6818034451edb236feb7dc31356b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-brown/png",
+    "size": 1520,
+    "mime": "image/png",
+    "sha256": "3246c40ba07816103a165a923c4ef64f4533b2f2040f275818414f58731e365a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-green.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-green/png",
+    "size": 1516,
+    "mime": "image/png",
+    "sha256": "89efc4ed0d4d248971801d12ee14b45983da6626f07af8cfff6b600480155777"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-pink/png",
+    "size": 1521,
+    "mime": "image/png",
+    "sha256": "05350b58334ea82454573e73210c7ee97bfb759e66d62ec2f028ef2749c59ff3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-purple/png",
+    "size": 1519,
+    "mime": "image/png",
+    "sha256": "b321ee8f5bcaa9adb24f571a6dc8be702b8f7ecdb4d3dd515a5e9945211433f7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-red.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-red/png",
+    "size": 1514,
+    "mime": "image/png",
+    "sha256": "cb2d58643106b606a7601694f30466b2169252fc25a430332eaa187ad2190c7f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-turquoise/png",
+    "size": 1520,
+    "mime": "image/png",
+    "sha256": "8cdb03d07d0cfbaa776ac9f8d510a6072d9ffd2ad0e34411637ca5d57c490018"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/longbeard-white.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/longbeard-white/png",
+    "size": 1494,
+    "mime": "image/png",
+    "sha256": "6bdec0e285e2b3d23de85fdbd56cbc65687c33445476b6910067c765f74f4b19"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-black.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-black/png",
+    "size": 1221,
+    "mime": "image/png",
+    "sha256": "ee8d409e151edf8468288b0a320402d60e7d1fe1341a157ef58dc24a1e3f22f6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-blonde/png",
+    "size": 1243,
+    "mime": "image/png",
+    "sha256": "8aeda032b4e93bbda7ba1c7b2932777cb188efdb19b604f14ff60008ad1acd55"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-blue/png",
+    "size": 1248,
+    "mime": "image/png",
+    "sha256": "3060666c6199f8455b1d5dbd041199599e06f46149311d2f44015be4b32a8e74"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-brown/png",
+    "size": 1247,
+    "mime": "image/png",
+    "sha256": "ecb1d2129758739f648156fa997e5122dcb74bc40574a19065f25267e0d3ee5a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-green.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-green/png",
+    "size": 1242,
+    "mime": "image/png",
+    "sha256": "cde74849644d0bcd1084f9be07713b2b5fd30ad8bb8369558e78ec9e88c1245e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-pink/png",
+    "size": 1248,
+    "mime": "image/png",
+    "sha256": "c053c6feca3bba6647ca7c6618ce526b59628869d15a77071a576549b87e4045"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-purple/png",
+    "size": 1246,
+    "mime": "image/png",
+    "sha256": "11be6c9f5633a98924813999db0e9d67b21c72f3f22bba49f718b5a086caa75f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-red.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-red/png",
+    "size": 1187,
+    "mime": "image/png",
+    "sha256": "0886cecb3206557c3fc38ce86c723fa020c29ad0a70fbc5c41e2db12efa3a48a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-turquoise/png",
+    "size": 1246,
+    "mime": "image/png",
+    "sha256": "982eb4fc95ee9ff8480a6b29d499564bdd5d54d167cad59ecaf63dca43440a60"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/beard/moustache-white.png",
+    "spur": "/lib/glurff/site/characters/doll/beard/moustache-white/png",
+    "size": 1220,
+    "mime": "image/png",
+    "sha256": "a6d5631fb3e4a14767789b1a478f77fb71aa2acbc2ffa0b13bf9cba5b6cde777"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/elf-albinoskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/elf-albinoskin/png",
+    "size": 2763,
+    "mime": "image/png",
+    "sha256": "3ed8483826442266743227d08f52a0a01450d7f0214f20379190489e43bd82a0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/elf-elfskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/elf-elfskin/png",
+    "size": 2832,
+    "mime": "image/png",
+    "sha256": "f1cc428eee99f46d9e0b326bee349ba39c62ab72c600430efee836e13f1f022f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/elf-purpleskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/elf-purpleskin/png",
+    "size": 2841,
+    "mime": "image/png",
+    "sha256": "8c3e2e552f40ddf95705a0812e2f4797fb20bc77945e9d679a80a370de5bb9cb"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/elf-tourmalineskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/elf-tourmalineskin/png",
+    "size": 2846,
+    "mime": "image/png",
+    "sha256": "0240b5dd6d457812b6b1ec9df67c864153dcc44518c77c578fc281d3cc7e6f62"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/human-blackskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/human-blackskin/png",
+    "size": 2784,
+    "mime": "image/png",
+    "sha256": "bf79ee69f6931167069515ce07f755a079d4f1b8163b703008a8987fd768c847"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/human-brownskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/human-brownskin/png",
+    "size": 2795,
+    "mime": "image/png",
+    "sha256": "51221de53861916beaa2bcf5e757ad21e2431ebf82bfb6a349008a941461ebf5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/human-paleskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/human-paleskin/png",
+    "size": 2785,
+    "mime": "image/png",
+    "sha256": "0e9308ee552bc19d95c547e6abbe0963f2673f8a5fe46af17ff0827784e755a3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/human-whiteskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/human-whiteskin/png",
+    "size": 2806,
+    "mime": "image/png",
+    "sha256": "7b0fcd3a3945e95bd0a517d64089dbfc5884434eea4555df803eb4cdbad11bd7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/orc-darkgreenskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/orc-darkgreenskin/png",
+    "size": 2837,
+    "mime": "image/png",
+    "sha256": "7f8d5eb8fb739cbaac0529787cb90080089738c7a9276c864fd36aa5d952aff0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/orc-emeraldskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/orc-emeraldskin/png",
+    "size": 2845,
+    "mime": "image/png",
+    "sha256": "652d2b9ee2f5f38e496fab9a45f1b1d034a91506bdad19c6d9d43b177efe3823"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/orc-greenskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/orc-greenskin/png",
+    "size": 2843,
+    "mime": "image/png",
+    "sha256": "58c945c117f4aa9ae08c514a4aa7130a981015da31e19a48c07a09182e47ca86"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/body/orc-oliveskin.png",
+    "spur": "/lib/glurff/site/characters/doll/body/orc-oliveskin/png",
+    "size": 2847,
+    "mime": "image/png",
+    "sha256": "f52d0e7324d46568ea38afdd3cd7b3d7c13e17007ebe8d60496dbf17499d82f5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-black.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-black/png",
+    "size": 1141,
+    "mime": "image/png",
+    "sha256": "58e2cb6ad013202679f269cc7330179ad8b320623241a142dfdcdade633ad694"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-blackleather/png",
+    "size": 1168,
+    "mime": "image/png",
+    "sha256": "c3fbe0b7002da3fb1c87e64166b918be2221d91249cb6f495cfe1438ab641e55"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-blue/png",
+    "size": 1169,
+    "mime": "image/png",
+    "sha256": "e2c81650700f3d7b2c7ee461a62d0ed336ddbc291ac257fd603d6a4fba0659a1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-brownleather/png",
+    "size": 1168,
+    "mime": "image/png",
+    "sha256": "392b7c964e14d5fbc5ec0be8efb57e445bc2292b03ae00a66bdd4b2aa8590f78"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-green.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-green/png",
+    "size": 1169,
+    "mime": "image/png",
+    "sha256": "a9ed41eaeb14295ccefdb4eb0c495feb293c71a6e5aa4c82fd737b5b71aea89b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-grey/png",
+    "size": 1140,
+    "mime": "image/png",
+    "sha256": "275ecce08d56d88df8db9bf19b352ce241e9cabb6fa17b1f4c6d8b510d10ba1d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-lime/png",
+    "size": 1169,
+    "mime": "image/png",
+    "sha256": "87c24a10f783e9c90abf371a4a5b3667f757daaf715aba4480c93c2147856f7e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-magenta/png",
+    "size": 1164,
+    "mime": "image/png",
+    "sha256": "74841a3e568bd61b8850558bd71a9c91af35c5ec3828b3ba5d88078c7a414cb6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-orange/png",
+    "size": 1170,
+    "mime": "image/png",
+    "sha256": "b22824b4b062ee358754060721e81f783e8cb989d56229a80768a62fa23d3957"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-purple/png",
+    "size": 1165,
+    "mime": "image/png",
+    "sha256": "00bd13e3d6e72c385ad0b370d26dcb80b2fb63b758978f36d96f5bae9e66c203"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-red.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-red/png",
+    "size": 1157,
+    "mime": "image/png",
+    "sha256": "8dea23564f01967a57372dbf86fb65bfecda95c39fd4443064a0dc1613c79ace"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-turquoise/png",
+    "size": 1168,
+    "mime": "image/png",
+    "sha256": "259ccc9dd051a657b4a45257292970db736297a237c2b983c8190240431907fd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-white.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-white/png",
+    "size": 1141,
+    "mime": "image/png",
+    "sha256": "9b1ff87c7dcf0d0af7b60d6a64fdba8d56dea3c4f60b7bb2feeb19b0a26201ed"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-whiteleather/png",
+    "size": 1168,
+    "mime": "image/png",
+    "sha256": "aa23ab5ead80a024aecce42366feddb0ce3857fd97632ac1898051cb09d2527b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/bottom/trousers-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/bottom/trousers-yellow/png",
+    "size": 1170,
+    "mime": "image/png",
+    "sha256": "f86822e251f22f80248226fb18c7ab95ac7ee901c89ff5a1220b210d005bf5a3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-black.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-black/png",
+    "size": 1134,
+    "mime": "image/png",
+    "sha256": "ddbeb3da6d307ca3aefc0a59a1f02b8231b1bd40de6ee7a948eb2e07c80ee30b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-blackleather/png",
+    "size": 1151,
+    "mime": "image/png",
+    "sha256": "fccefb5c0f542a7970e3befa71cc56f52c1d9518456694879894020fc5381352"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-blue/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "936d06df6185dd4028a9c2c5a4497a4718474a8a5499f2b7decd6fe0940e6ccf"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-brownleather/png",
+    "size": 1148,
+    "mime": "image/png",
+    "sha256": "cc1c02e4caee1731278f27b0beb410d23076d293fd263cba286fe394840b8f33"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-green.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-green/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "412acd120d1ad461da26080c209858e75e5802abc656fab63d0126af37f577ad"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-grey/png",
+    "size": 1134,
+    "mime": "image/png",
+    "sha256": "96c89df847655206992a469a951f5655d3089d1526702c898cfd4e0694fb68e3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-lime/png",
+    "size": 1148,
+    "mime": "image/png",
+    "sha256": "41446f300e3ab2accb7ae5a6a0e9e7a1eabcf075307f179c4706e22f0d12bf0e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-magenta/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "4636035e588b2007f402a438adc11040cdcf7b3f686a4aa9caa98d611218194f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-orange/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "21deeb925a94b9f0281d957a0281bbce611ab60e65bec756f9c9c52ff04c6531"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-purple/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "cf4c1d878f19e148dda892aed259439edc83070d9901c628a203953f23360793"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-red.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-red/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "2f0fdafa4350ff832056ae66536b1c13d73aa9c742e5f764e6b4b18a1eab7072"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-turquoise/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "d1fd6f573c3104c32c8056a7a69b00aa1464651957f26e9e43bc6df4532dde63"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-white.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-white/png",
+    "size": 1135,
+    "mime": "image/png",
+    "sha256": "40529ed8427cb2e1d620211eea3658df8ff2244311447165ff65769d1fcb4d2a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-whiteleather/png",
+    "size": 1148,
+    "mime": "image/png",
+    "sha256": "ade5104a07f6245369c0d7c34b6c527686f0140a6cabef5ccb06cc92d4c20683"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/gloves/gloves-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/gloves/gloves-yellow/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "11ec7bfb02d000bf83447389674b87ae498d3be177a29bbe5213eccc390199b8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-black/png",
+    "size": 1563,
+    "mime": "image/png",
+    "sha256": "f99b10183964b273809eebe605d35fad40c19b54423857fc3cbb7bb4f04dd37a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-blonde/png",
+    "size": 1587,
+    "mime": "image/png",
+    "sha256": "2855e946c8d10f390369c801b40bc7433f454ced4d914e50a8a705b900205d7d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-blue/png",
+    "size": 1592,
+    "mime": "image/png",
+    "sha256": "a37616c192e06b631ae0c14aa6b29eeab0867c5337c381a76d4cc468238325db"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-brown/png",
+    "size": 1591,
+    "mime": "image/png",
+    "sha256": "a1b5f211516d9f2483a4ba347ea067d602a2853fc8c95fb4fde21b328b1e31c5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-green/png",
+    "size": 1586,
+    "mime": "image/png",
+    "sha256": "fc9d8fd86fe9e540e7dcdf39542649e3862d694af9b0975120e831b04fbb3d60"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-pink/png",
+    "size": 1592,
+    "mime": "image/png",
+    "sha256": "341efe15798a28d633fef7fab8218d2c2739120f582319c2362dd74b44e29ecb"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-purple/png",
+    "size": 1590,
+    "mime": "image/png",
+    "sha256": "d437e086c0f3759dcf0980fad69e5a8bb79f13c20f2e38c830ff3b759d0a7851"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-red/png",
+    "size": 1584,
+    "mime": "image/png",
+    "sha256": "a6d50b6756cdc8a06b406759dd3fa352675b26a81e2ce776c8cb3d49529b0b9e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-turquoise/png",
+    "size": 1590,
+    "mime": "image/png",
+    "sha256": "1bc6ced055733e375cda4f3eacd23df474e5cdd36d7c358939dfab094e6f27a6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bold-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bold-white/png",
+    "size": 1563,
+    "mime": "image/png",
+    "sha256": "d34af567760cc6821660c56de0a2af0bcb00ec3c9b3336b62caa2a0e1e2bbb10"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-black/png",
+    "size": 2341,
+    "mime": "image/png",
+    "sha256": "1f572409da389a9827e6994b6c50380b019424bec67d5669c83f45b3ea5e170e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-blonde/png",
+    "size": 2368,
+    "mime": "image/png",
+    "sha256": "f3e91c9168428b943c0500ff1dba65caed2bd8e2eafabf47ebb05f90686f749b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-blue/png",
+    "size": 2371,
+    "mime": "image/png",
+    "sha256": "505497310af6a861fcef0e092417154d7ced10a0ea0712b2e424563d108b781a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-brown/png",
+    "size": 2371,
+    "mime": "image/png",
+    "sha256": "272aff749d9ded1a8d4cbd8d856593149ca7fe9a98eb0ec228aaaf18994136d6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-green/png",
+    "size": 2366,
+    "mime": "image/png",
+    "sha256": "03c777e086a239fa7c9bd9b987990d9697c2a4954a2ebf2d839c921a955cca24"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-pink/png",
+    "size": 2371,
+    "mime": "image/png",
+    "sha256": "431adaa32f32f9243ea46db83cca6d0e1887be18743d15f35449f679d54bbe05"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-purple/png",
+    "size": 2369,
+    "mime": "image/png",
+    "sha256": "0b3a966a717d96c4b0e7288a1e058c13551eb62157ddecd9c16c51fbe2b1987e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-red/png",
+    "size": 2359,
+    "mime": "image/png",
+    "sha256": "586ca4d4e7ed0163f5129a0db705fddb4095bff619fd488bbbc49a0bb0a2a57b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-turquoise/png",
+    "size": 2370,
+    "mime": "image/png",
+    "sha256": "d2f3f7f49e2bf34b24aa751346c8b3497c976c3d7bcb707e1867e47b538c454a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/bubble-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/bubble-white/png",
+    "size": 2341,
+    "mime": "image/png",
+    "sha256": "b308988803f6b57be528940daa5a6a9b0b08f71af2e74ba11775b56b0daa6f26"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-black/png",
+    "size": 2295,
+    "mime": "image/png",
+    "sha256": "eddd9ccba7893debdf66b5f6d718ffae55e905fe58eadbe0a7a44c2f61af5275"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-blonde/png",
+    "size": 2323,
+    "mime": "image/png",
+    "sha256": "b97ccde583fc0cd9a5793ac232c404ff4a22f80ea8709292e8744f3027d14d4a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-blue/png",
+    "size": 2326,
+    "mime": "image/png",
+    "sha256": "80a0bd5a3668dded3798e082035a479007e2c956db594ea7a53fe1d7be5596b0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-brown/png",
+    "size": 2326,
+    "mime": "image/png",
+    "sha256": "c757128f04ea041e3975def5b858514d1fa0baa9ab21914bfae38d50b1e8c5c7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-green/png",
+    "size": 2321,
+    "mime": "image/png",
+    "sha256": "10944a05955e917a0267f894893259fe2546f417d06687b9bc01d9f5cebb5ccd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-pink/png",
+    "size": 2326,
+    "mime": "image/png",
+    "sha256": "dfea990d4327a494264687c9308b6f2d18d228f065eb3c8a54f645083acb10b1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-purple/png",
+    "size": 2324,
+    "mime": "image/png",
+    "sha256": "c35273c3c4078181118dcdee811334100bb171348fd0ef9a3258f9880252a9a8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-red/png",
+    "size": 2318,
+    "mime": "image/png",
+    "sha256": "8d61342116b7c8ef9561d5822033dd31cd1f41a2f02b717ce17c72f5d55ef643"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-turquoise/png",
+    "size": 2325,
+    "mime": "image/png",
+    "sha256": "16d11b86178c243f551014536832d0dcb6f084435e9651b55ae3d34bdfef9860"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/long-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/long-white/png",
+    "size": 2295,
+    "mime": "image/png",
+    "sha256": "8dbe102caa782e631ade3c78cc62953e4e4e7ebdbab02abb555582fb0fdff790"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-black/png",
+    "size": 2426,
+    "mime": "image/png",
+    "sha256": "3e0b4acf3d659449699e44c6ea019480844554733cf4033f4c22eabf97fcc8f4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-blonde/png",
+    "size": 2452,
+    "mime": "image/png",
+    "sha256": "59a2a28fa8eb1689251e08640d3757d0c85d662e6b9721a5ab2d37aa225c2113"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-blue/png",
+    "size": 2455,
+    "mime": "image/png",
+    "sha256": "34f427fff5f5e33bacff8741aadfa43c9c2685c1e8e401ba8cdbccd70129cfc1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-brown/png",
+    "size": 2455,
+    "mime": "image/png",
+    "sha256": "6729360eb43c72b180c499acf37a97de7569f9f370efc28230b3185bf0e513d2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-green/png",
+    "size": 2450,
+    "mime": "image/png",
+    "sha256": "6513029a283be74c241b333b68e1c93af367d8c7cc3932e0ed4e26827cbbc37c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-pink/png",
+    "size": 2455,
+    "mime": "image/png",
+    "sha256": "6772954da6a9991d3e05d493e20a5ac0e99224c161262c8b876c2a6a0b85e344"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-purple/png",
+    "size": 2453,
+    "mime": "image/png",
+    "sha256": "1e03bfe9e405f8285e0235571d58d1fef3bb1c9391acaed86b25ce77d5adff23"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-red/png",
+    "size": 2447,
+    "mime": "image/png",
+    "sha256": "1a09dae643e309fc61a48d653b20e87e5b45aeca0284a63542d051ddf74561d3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-turquoise/png",
+    "size": 2454,
+    "mime": "image/png",
+    "sha256": "8b4b14276f157969846a9acb18331606ad0e926dbab22503e81b7ef2248c9691"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mane-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mane-white/png",
+    "size": 2426,
+    "mime": "image/png",
+    "sha256": "fef161fa2f62de99556cc7660fb910b5c34fb127f05d5d8c2779343c7f21a1c0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-black/png",
+    "size": 1822,
+    "mime": "image/png",
+    "sha256": "38317fc7c377a02775b7fe630e33bbf2018f8695121b34bd349513070932d293"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-blonde/png",
+    "size": 1847,
+    "mime": "image/png",
+    "sha256": "2abf44d130ad5284a4bf8e7bf6e93efa7b10e35e0191d52b547c629b1b1dd3f7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-blue/png",
+    "size": 1852,
+    "mime": "image/png",
+    "sha256": "4aa3558ac5bee0a8f8afe89ade10a24cca378513c10053c54ee7f7d096032c86"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-brown/png",
+    "size": 1851,
+    "mime": "image/png",
+    "sha256": "b3bcaddc912b6d472434b097386777d1685aecaf2f5fdb7e34afaf514b637920"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-green/png",
+    "size": 1847,
+    "mime": "image/png",
+    "sha256": "f809342d99efa1c00aee49d29958c63ab5bceb5ead20342e7ada94e99df91572"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-pink/png",
+    "size": 1852,
+    "mime": "image/png",
+    "sha256": "e880bc97a69b838ef348e830b74506697e1a7abd21720a36f4a58df6191bb92f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-purple/png",
+    "size": 1850,
+    "mime": "image/png",
+    "sha256": "f00e8b34f4ce6053617e4bbb347488950c404202df46d2250b9fd4e3d513f52a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-red/png",
+    "size": 1841,
+    "mime": "image/png",
+    "sha256": "c75e4397acf15675d21574cea92dcf0082414ff767e12e6daa481dc181a5bb29"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-turquoise/png",
+    "size": 1850,
+    "mime": "image/png",
+    "sha256": "d75a795fe338db843ff45ad7a42a9e330f3c028e66f66fd35591466308388ab4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/mohawk-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/mohawk-white/png",
+    "size": 1822,
+    "mime": "image/png",
+    "sha256": "363659d7115c0e9d7bced93d90d629d8c6aba3bede00ea239c59340b51ae7a47"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-black/png",
+    "size": 2444,
+    "mime": "image/png",
+    "sha256": "e73adaf605c0e2fd1ee6f4a718539f4433420f181a058685352ef63ab36b664e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-blonde/png",
+    "size": 2471,
+    "mime": "image/png",
+    "sha256": "ae5d9bacfd63793ad86adbb703e994c1e8fe8da598a29c59e3896952f65cf4d4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-blue/png",
+    "size": 2475,
+    "mime": "image/png",
+    "sha256": "9de7a96a780197cbf28e3fb7469e532f73664147b03d18908c17286e03e312b7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-brown/png",
+    "size": 2474,
+    "mime": "image/png",
+    "sha256": "6f452d3229a106ff399d6c74ee1c00e92851dffa7dfb846c833a30af91aaf1a4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-green/png",
+    "size": 2470,
+    "mime": "image/png",
+    "sha256": "c4d1fa0a3b4acc480bd2725b4b1625bcdbd5d6f43773d35e1c3e0090316ed35e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-pink/png",
+    "size": 2475,
+    "mime": "image/png",
+    "sha256": "161fd4470ce0fbbd8ce3eb5d5cf2e298d2c0116c02c61709b102776e4d767a70"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-purple/png",
+    "size": 2473,
+    "mime": "image/png",
+    "sha256": "8b8d72916ed566f8e8a2e536819fb4e0a2d988a8e157755e8edbf9d9e17ef51e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-red/png",
+    "size": 2468,
+    "mime": "image/png",
+    "sha256": "b3cb5363ff068d9c89cff82bc70049a3d6880596c2e2b1e941bf38208555beea"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-turquoise/png",
+    "size": 2474,
+    "mime": "image/png",
+    "sha256": "d6ead23f8d6189355c874f783df73970c0d8b8d6110b3b6d3e33a3e486f55f42"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/ponytail-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/ponytail-white/png",
+    "size": 2444,
+    "mime": "image/png",
+    "sha256": "c68f794e780a2663af10a4fb867ae541a372678639a04c2c6368af902a9302ba"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-black/png",
+    "size": 1786,
+    "mime": "image/png",
+    "sha256": "248b528a52f133fe87ecd4bb5f1b96b248d9b22949e1e5dee5982a818727e361"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-blonde/png",
+    "size": 1815,
+    "mime": "image/png",
+    "sha256": "e59e9fdfbc40156214affeca13cbb2bcec75ba1ddcda328322bd7840c79fc068"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-blue/png",
+    "size": 1819,
+    "mime": "image/png",
+    "sha256": "d9de5ae403ff5dfd08c831e499e90b18b475156b7151d13fb1610f6f3c1d5dc0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-brown/png",
+    "size": 1818,
+    "mime": "image/png",
+    "sha256": "431a3a15ee3771fec8a1d183ab4f728ec7dd79141c3f3808423e2e863e64c2e0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-green/png",
+    "size": 1814,
+    "mime": "image/png",
+    "sha256": "699199ab30d35dbd49ada57435f7919031e244364e84c4ee75a5080da5710dcd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-pink/png",
+    "size": 1819,
+    "mime": "image/png",
+    "sha256": "e47d8033387e5694825eb9a713e9338c081df0d9fbeffdf1ae922e0c92cb3669"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-purple/png",
+    "size": 1817,
+    "mime": "image/png",
+    "sha256": "05c89dc01aad7212c32a982e484d1d59382d6cf0c2412cd2d91eb4d0f2e2f4e1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-red/png",
+    "size": 1807,
+    "mime": "image/png",
+    "sha256": "e70907dc1c4920e926c1d7598cbcc010ed5dfeba6b78992ed85d443d7f9d3ff4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-turquoise/png",
+    "size": 1818,
+    "mime": "image/png",
+    "sha256": "37357a5a16916388dd8e737a0aca541dae887adb181889c3ffc9c42c8794252c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/short-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/short-white/png",
+    "size": 1786,
+    "mime": "image/png",
+    "sha256": "194d014605ebe70523d0b8a3f4ae0a6dad2d9ee4d7d4d46c7175ed98376d1764"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-black/png",
+    "size": 2148,
+    "mime": "image/png",
+    "sha256": "af5d45688c247918625564a768dd19d3a0be5021112d4005572a97945703ce1e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-blonde.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-blonde/png",
+    "size": 2177,
+    "mime": "image/png",
+    "sha256": "62305161dba24abfa39f67338950759d71c620bc52db5766202b5e80ee771480"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-blue/png",
+    "size": 2181,
+    "mime": "image/png",
+    "sha256": "36c656ff6846e78bbab0d5e62e3caaf8e44b864735a6156ef617915fa28f3b6e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-brown.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-brown/png",
+    "size": 2180,
+    "mime": "image/png",
+    "sha256": "3e6f506eff715a6bf9f092446d779091248eb9a58a7e4baef59bca19ff9bd420"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-green/png",
+    "size": 2175,
+    "mime": "image/png",
+    "sha256": "29380a011614288eee84b8321a04adadd70b49fb293dfc73d5db5383e1b30320"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-pink.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-pink/png",
+    "size": 2181,
+    "mime": "image/png",
+    "sha256": "442263894a42437d7bef690f6f5a5134bdbdf9ed05e5ab8a45a34d0e55ae23a8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-purple/png",
+    "size": 2179,
+    "mime": "image/png",
+    "sha256": "6a37140b8c881c39fda2e7b93756d91bdea12dfa6b780676bc0146595845fd0b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-red/png",
+    "size": 2176,
+    "mime": "image/png",
+    "sha256": "6c709071f7f76e9c75b66e6ad4b9f53481c39f5e6fdae1e883dfa20a74ea81fc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-turquoise/png",
+    "size": 2180,
+    "mime": "image/png",
+    "sha256": "8f199721d5cb5a88d30cee69c9152c7f47e8f4276cdba36a5562e5d778afbb4d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hair/toupee-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hair/toupee-white/png",
+    "size": 2148,
+    "mime": "image/png",
+    "sha256": "c57f3b2f3f0d467a4b7c66166403774ade3d4d44e8a3a26b90ef03cfa1bd6c3a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-black/png",
+    "size": 1178,
+    "mime": "image/png",
+    "sha256": "2b200b313f1d29b436d0ed62b5f8d06ddc5f7960f9865a2f2bdf6aab1a837122"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-blackleather/png",
+    "size": 1205,
+    "mime": "image/png",
+    "sha256": "3c334044d297116d6b8d869d85e7c2a7a562ff7246c3439d2a470fded5f2c82c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-blue/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "33e1ef836245ffa6f3b0bbc74fe048784e17492697dfd2894154007ebca2ddce"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-brownleather/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "f86adfa3eebdbc404297ec518a37676d962ac7da664b9552f5fa80e7630a073d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-green/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "fc24675f51a7a1fe8285f9a35375a087277d238399819b62b2b5752bdf1bf9d5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-grey/png",
+    "size": 1177,
+    "mime": "image/png",
+    "sha256": "3ab512f0f78f73e45b1228694527cde4c9c0b3aabda3b78cbe2e0e1e64baef00"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-lime/png",
+    "size": 1202,
+    "mime": "image/png",
+    "sha256": "c0e315d32064b552ebea9b8db38899cd026ba214bdebcb591fde9aa6307efb19"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-magenta/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "79789a8a21bff0d0b3d9e337d4f7724ac6372972f74471d8bebe2f50ecc21710"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-orange/png",
+    "size": 1208,
+    "mime": "image/png",
+    "sha256": "5c285d9ae980dc0281cdc6470a30b87643f57124102fd114d83d59d7b3049845"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-purple/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "6ffe3a2d29bccd99acc2bc5b2e3756f62d20df261121ff78e960508287f9143e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-red/png",
+    "size": 1194,
+    "mime": "image/png",
+    "sha256": "868082a34857185df1ed547a8d230432405cd734a253ad9cc88ca12d07438247"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-turquoise/png",
+    "size": 1206,
+    "mime": "image/png",
+    "sha256": "c5124c4f7b21c048ad020e20cc052f5a87a8a0a4cebf70268d0c87d1319f56c4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-white/png",
+    "size": 1179,
+    "mime": "image/png",
+    "sha256": "3aac423f2f22c972b00c7968d7955e44d687b3862a82d5de75ed25d36d092eb1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-whiteleather/png",
+    "size": 1205,
+    "mime": "image/png",
+    "sha256": "7341213452ef6786ee49a95b6e208bc7dcdbb776665ae93af94940d8b6996abf"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/bandana-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/bandana-yellow/png",
+    "size": 1207,
+    "mime": "image/png",
+    "sha256": "aa2647a41f9dac2f33c5a655ddbb530743b9b74a9838d07765c774333206b575"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-black/png",
+    "size": 2125,
+    "mime": "image/png",
+    "sha256": "1035ade8c1be57c2b5847003b5befff0ba0707036d72b1b9ea12702e21311b45"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-blackleather/png",
+    "size": 2154,
+    "mime": "image/png",
+    "sha256": "34a1ddb6e81f6781b978d00cd1c5b0acc8dd996cbf4e6b7f14a6bd69ee6cdf47"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-blue/png",
+    "size": 2155,
+    "mime": "image/png",
+    "sha256": "0d979aad94973d6df28430131591c5f4fcf4c5feb0732469c6dd3453817cf505"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-brownleather/png",
+    "size": 2156,
+    "mime": "image/png",
+    "sha256": "a828816f84f3bfe31bb3758a9b13db87b69ff48f2d054f6f9eeb3d6bea601276"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-green/png",
+    "size": 2156,
+    "mime": "image/png",
+    "sha256": "13490e40a50a44dda834c333fc28ee5f70eeaef01888d41abd50ff00733cf5ed"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-grey/png",
+    "size": 2125,
+    "mime": "image/png",
+    "sha256": "f6abadc2b11243a322285dcb2f44bf6c98ca474b6334ab1663d459715a02dd85"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-lime/png",
+    "size": 2151,
+    "mime": "image/png",
+    "sha256": "1f104651ef2fecf695205e033ac363a265358d987940c1e32ad046f70b48996d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-magenta/png",
+    "size": 2156,
+    "mime": "image/png",
+    "sha256": "b1df4b87f57df246294fa7ffd48bfcd33fedebf8f97775c48a41a89f40841c49"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-orange/png",
+    "size": 2157,
+    "mime": "image/png",
+    "sha256": "d253ea1ace2e559d0f126a45acbf5c1760352de576f0cf7e910485e753e455ca"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-purple/png",
+    "size": 2156,
+    "mime": "image/png",
+    "sha256": "c535e4d393eee1a5f57e2f46f78fed29430c91b3726aa6d0c8439602348872cc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-red/png",
+    "size": 2144,
+    "mime": "image/png",
+    "sha256": "ac04e675d51ef49ef4933cd29e2322e93eb4f5ee46cf0a821be11847b493c0be"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-turquoise/png",
+    "size": 2155,
+    "mime": "image/png",
+    "sha256": "eb848bc4ae0786d7940f086748d3c84e9a757a36019d151a90d209d96a598aa7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-white/png",
+    "size": 2126,
+    "mime": "image/png",
+    "sha256": "0c7dc5ee6eab466804ac3bb0302be123fde02ff0a7488de806c377aba9d6c11b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-whiteleather/png",
+    "size": 2153,
+    "mime": "image/png",
+    "sha256": "7e32e7df17478d7354cce377559ea4c10e63d744a55463af2bb7bff98f2576fd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/cowboyhat-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/cowboyhat-yellow/png",
+    "size": 2155,
+    "mime": "image/png",
+    "sha256": "fa0e84d4a49374410cf08db8da2aab5ea92641a455efda6d9ff95438a2c23f10"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-black/png",
+    "size": 2622,
+    "mime": "image/png",
+    "sha256": "1a9ba4265a269a0701e815cbf1200082ed7bac55ab0883512d4415fed208f9d6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-blackleather/png",
+    "size": 2707,
+    "mime": "image/png",
+    "sha256": "f69927d5f541359ecc8aa3bc5ebbc68e037a9e2a6494f386608c48df1cc5a060"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-blue/png",
+    "size": 2707,
+    "mime": "image/png",
+    "sha256": "6e1ffc2aae0d757b7bb3d33c27d65b333166c9f9e51308154900df862bdcb667"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-brownleather/png",
+    "size": 2704,
+    "mime": "image/png",
+    "sha256": "970d1227cd6249b3ab67153af56384415cf1136c8ac3e9e6320a76cbb37d9566"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-green/png",
+    "size": 2707,
+    "mime": "image/png",
+    "sha256": "297dbe2a2390e7bcf7ac142a59d1f16f68cd555c2be1360d27b1c9639987e7fc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-grey/png",
+    "size": 2626,
+    "mime": "image/png",
+    "sha256": "0460c6b253dcded799f400d933b77a9a23ec941d4fb992161c31dc34399ae17c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-lime/png",
+    "size": 2701,
+    "mime": "image/png",
+    "sha256": "4387f8f7b0c42087811cc3a607bdec327969799e91c5f9179aecb28e61894af5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-magenta/png",
+    "size": 2705,
+    "mime": "image/png",
+    "sha256": "a5884aeb1d14eaca5678a409a1a501db8691b01a8ba84e67a87ec01d8d80ca68"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-orange/png",
+    "size": 2709,
+    "mime": "image/png",
+    "sha256": "dd6ffd1c33fc02337de5a091d39af655a608dfa39e83cfe97e8884b1d044dd9c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-purple/png",
+    "size": 2707,
+    "mime": "image/png",
+    "sha256": "c7f95d7e05ddc521285696c94977d5a5ba58fe417bfd29c9a330a7a7dfbd7bac"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-red/png",
+    "size": 2695,
+    "mime": "image/png",
+    "sha256": "bee5e792aa3b1db433d884c22727e3623b8180f8271ba05e07e0f002e2a915af"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-turquoise/png",
+    "size": 2707,
+    "mime": "image/png",
+    "sha256": "4081dd50d25ef3398c74da2a92ec143c85e1ecaa84eaa7af3eccf2c0d8e6f0e9"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-white/png",
+    "size": 2648,
+    "mime": "image/png",
+    "sha256": "1590b20269cde5489f17127ae9f6062dda0e100c5d454442217e5910e7c6a290"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-whiteleather/png",
+    "size": 2704,
+    "mime": "image/png",
+    "sha256": "63e74c8af1818e128e8051f7ada6223680de7bd47a7d176a66a9a5d56b8b90f4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/fedorahat-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/fedorahat-yellow/png",
+    "size": 2698,
+    "mime": "image/png",
+    "sha256": "3ff88fd0d50ee7acad5696e53806964054179b962e8b3742f1282dec14fa3a34"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-black/png",
+    "size": 2103,
+    "mime": "image/png",
+    "sha256": "99c6993385618eee5581dec84c6de9c8541c736599ed812a7edf6737bfb20aa2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-blackleather/png",
+    "size": 2133,
+    "mime": "image/png",
+    "sha256": "196341a25e110d5762665768ebba36a2f49a89fd506b44d210fc7aaabbab59cf"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-blue/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "a1f3e382859843dfcbd9acbe750e31c6ed10877ddfca3189c631a2b489f1c8a5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-brownleather/png",
+    "size": 2135,
+    "mime": "image/png",
+    "sha256": "05f8f95d2d4abe6657de9fa3f7842614cd3e591ef28143234cf4de9f456c95f2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-green/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "47868a80d903b81a45a2cd36728322e3ff35c8c5c73bc989ece96f6e4cad2d78"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-grey/png",
+    "size": 2103,
+    "mime": "image/png",
+    "sha256": "7e3ff0a064a9702e63c297a72ec43e82b73d4895866d302f4d1ecba3ab48e990"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-lime/png",
+    "size": 2129,
+    "mime": "image/png",
+    "sha256": "4ffe6af7ebb4aa91760509dce2c5c50b54b77f7ebcdb85b79ef4219d723465ae"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-magenta/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "2faa934363b2a54c38801f27eba1a66b953369ffdb77a8b254dd662cff3f269e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-orange/png",
+    "size": 2136,
+    "mime": "image/png",
+    "sha256": "b7ca0bd2fb7ed5aa6189d6631b060d38e6c9dac52fa422dc657aed5ab8f5a973"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-purple/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "004b2c10faf46985d91a34d14e71cf775a3ff398ed9cade8f0828e6ca69513c9"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-red/png",
+    "size": 2122,
+    "mime": "image/png",
+    "sha256": "945cc778af1659486df8aaee3e5cc9f34e15a4a18610f3e2b4cd1623acc87a6f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-turquoise/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "933a120105542d56e22e02cbc21add7dca7cc1c5184e28a57181f5c50d3fc42c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-white/png",
+    "size": 2103,
+    "mime": "image/png",
+    "sha256": "c8ba68839c87973af1f6112417864f4e6a962a3d4c7db24e6dd1bd3355bf6aff"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-whiteleather/png",
+    "size": 2131,
+    "mime": "image/png",
+    "sha256": "f5c2ce46872f3a83e41d8709d922978d5597e97d8612b412af9246e17e895ab8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/hood-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/hood-yellow/png",
+    "size": 2134,
+    "mime": "image/png",
+    "sha256": "9be714e4dcabd6d6dc04c36bd1ac38c422eaf69865758db3deb6ced3ce6f9d9e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-black/png",
+    "size": 2530,
+    "mime": "image/png",
+    "sha256": "7c87962e91bd3303fd1ba8a51e7bcec7f2c2573c83d2bd8bc8116f41357dd99a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-blackleather/png",
+    "size": 2558,
+    "mime": "image/png",
+    "sha256": "1a5fecc4e0f8754557c72a48b49b6a69725be7e2ccbaa062ad19fd20f4344e5a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-blue/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "33094002359625ce65fbb27961d51529ec5b66a5ae4c776a6208bdcdf0a17038"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-brownleather/png",
+    "size": 2560,
+    "mime": "image/png",
+    "sha256": "e526961368bd51d561374972feea4bf51e60fab64414514b54f3e5e99b4431fa"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-green/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "d82a6bc16e2c7a0273dc54f400f642325f1768fad69012b962fb240f263bc28b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-grey/png",
+    "size": 2530,
+    "mime": "image/png",
+    "sha256": "95369c8f512eb927ceb0cc2adf37aadd628fc445aeb1c89f733c5a2d662299ef"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-lime/png",
+    "size": 2554,
+    "mime": "image/png",
+    "sha256": "97834ed7f770b24d2cb3d1e013e08ae03269f87643c1f96bd57d426c6ac6ae0c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-magenta/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "5a2ee43dc0ed19756aafb69428da1d757435a46d6488a5cf04a9bbc500186fe0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-orange/png",
+    "size": 2561,
+    "mime": "image/png",
+    "sha256": "e68dde9afd7348b2dcb765f83878b7e83870cade5c5e6389318d007e72191428"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-purple/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "f9640338da7f2b05758ccdba2f7ba50afc170913914e827d7292a22a34550013"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-red/png",
+    "size": 2547,
+    "mime": "image/png",
+    "sha256": "555d8ae84ff69dbf8b91cbb4d65f21402dbb71bbe67a5bb408c3a02e8b7a9f4f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-turquoise/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "cb4a0ce7a3dbf094b69cf701c6777f08e802efe0cbcf248ac5b02fb20df85901"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-white/png",
+    "size": 2531,
+    "mime": "image/png",
+    "sha256": "67281f48e17573fd48666f2566bfb5df31069f494a94ee2af4613b90289d9be8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-whiteleather/png",
+    "size": 2556,
+    "mime": "image/png",
+    "sha256": "3588dfd5737badd6e552dcf9cec0b832698e8138e141200d3b5ded6758065d50"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/longhat-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/longhat-yellow/png",
+    "size": 2559,
+    "mime": "image/png",
+    "sha256": "69e4d31f00a0ec244f10a21ab71a73fd4675b728b1347a5ffeb099c1d8120744"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-black/png",
+    "size": 2610,
+    "mime": "image/png",
+    "sha256": "6c02775390b96b90bc350d4884b44819de4768122eed62b1b1f2eba0a4752236"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-blackleather/png",
+    "size": 2629,
+    "mime": "image/png",
+    "sha256": "4d10e539d3c100f76b2550493dbdb4426fc65b5360f66c42a8be2ba1ee3de925"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-blue/png",
+    "size": 2639,
+    "mime": "image/png",
+    "sha256": "0a63a7d10c20599f2acfc4f1ba6d1464068c43df2187aa343dbd182252dc4605"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-brownleather/png",
+    "size": 2641,
+    "mime": "image/png",
+    "sha256": "9780b6f061ae7f3488f2141c2b9c9413635d4cd6a57a52b8dc7fb326f6d1ffcf"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-green/png",
+    "size": 2640,
+    "mime": "image/png",
+    "sha256": "d18023cd6d8006f6215f8245b6dd7342fe1b0db7fd12add46125a99f6eb8f835"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-grey/png",
+    "size": 2609,
+    "mime": "image/png",
+    "sha256": "b19605e3e55b17d060be45ca86a8642f492ca7e65fa11b2702a0a36a8bb7bf61"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-lime/png",
+    "size": 2635,
+    "mime": "image/png",
+    "sha256": "b646e5014cb37fc7c885d4299e7c7fb7132f0600b585b9da4ea5b74874b5724b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-magenta/png",
+    "size": 2639,
+    "mime": "image/png",
+    "sha256": "7735f518baf7939e2805e6d0827d7602e91787888fa27b41f219b977c01c0d87"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-orange/png",
+    "size": 2627,
+    "mime": "image/png",
+    "sha256": "d2372237eb2197fc731fa581a95e0ea9d0e14dbc6f91b460eab4c177383a2057"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-purple/png",
+    "size": 2640,
+    "mime": "image/png",
+    "sha256": "45f1fb6a249328f7425791e10f2597fcf2244f6953827d4027e1919eb5d52dbb"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-red/png",
+    "size": 2627,
+    "mime": "image/png",
+    "sha256": "d2372237eb2197fc731fa581a95e0ea9d0e14dbc6f91b460eab4c177383a2057"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-turquoise/png",
+    "size": 2640,
+    "mime": "image/png",
+    "sha256": "15b02dd6e78a1238194fa6f2e1339c4eef5ad04eba18232471c44d64fa3a9478"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-white/png",
+    "size": 2608,
+    "mime": "image/png",
+    "sha256": "f8b660c2dc4b41869919d9a409da181da5019f68411197cedc4fba831e7b1281"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-whiteleather/png",
+    "size": 2629,
+    "mime": "image/png",
+    "sha256": "4d10e539d3c100f76b2550493dbdb4426fc65b5360f66c42a8be2ba1ee3de925"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/pompombeanie-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/pompombeanie-yellow/png",
+    "size": 2638,
+    "mime": "image/png",
+    "sha256": "bb465b3a4896a3ff872521d4a78e6d80ee2f18db353ed28a3ebe051aa5269067"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-black/png",
+    "size": 2101,
+    "mime": "image/png",
+    "sha256": "fa67e6615eb5a808fe97624a4dd38d096f555729605bf758724f638e3ba790f8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-blackleather/png",
+    "size": 2129,
+    "mime": "image/png",
+    "sha256": "9f268ed80036b93a55b657c85e963e121286ee82a3b0342e2d3abf74245c118f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-blue/png",
+    "size": 2130,
+    "mime": "image/png",
+    "sha256": "745fb2bcd630df7651c074f99783240071e6fdded782df0eca12551415074217"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-brownleather/png",
+    "size": 2131,
+    "mime": "image/png",
+    "sha256": "f2a1f3f7667c845fa6b018cb1c608430070b579c829ef8577124f1a6ed7869e2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-green/png",
+    "size": 2130,
+    "mime": "image/png",
+    "sha256": "94a845d97e4dd5d78ab54a5cdf3c0d7b6f5233256a79f6140dbfc3bcb6bfb007"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-grey/png",
+    "size": 2101,
+    "mime": "image/png",
+    "sha256": "2f6b937973ed50b6a9b30879b5db2300e51199f9e0854bc4c3f5b012237a9e1d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-lime/png",
+    "size": 2125,
+    "mime": "image/png",
+    "sha256": "a9f9ee43d2be7243bfeb3b76bbb1bb83eca98f1b0ef72f3c9eb6af2bfd4171a9"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-magenta/png",
+    "size": 2130,
+    "mime": "image/png",
+    "sha256": "f255119bdf17fc310d0b7dad4fef318ab3b3fb5f234c616541a23d417c5def26"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-orange/png",
+    "size": 2131,
+    "mime": "image/png",
+    "sha256": "1236913fb29e432e7b5f5f5cdca3ed364a12f67968581a647fd655ab7aef52a8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-purple/png",
+    "size": 2130,
+    "mime": "image/png",
+    "sha256": "a6e4c6cdf27d7545fb740178bbfe89c109a7ef475fbee29e6f75965bd2fcb7a3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-red/png",
+    "size": 2118,
+    "mime": "image/png",
+    "sha256": "b6c12e8d9d68be995db314dfe03cabb7d4c393b6fd18f1c75828fb03fba70529"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-turquoise/png",
+    "size": 2130,
+    "mime": "image/png",
+    "sha256": "171e2cb8ace9506adfe96d0c768cdd8005c58862e8559fb43a9e2c2f09d1c6ea"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-white/png",
+    "size": 2102,
+    "mime": "image/png",
+    "sha256": "ce0c85582b3adbdcea9091ba4fbbb7a1f59badb9858ebcf3751ea1b257b72e86"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-whiteleather/png",
+    "size": 2125,
+    "mime": "image/png",
+    "sha256": "6cc1d28f40ade0c00f66a5327ac3d0634f971b7a7c5f40f7657c0b23edf7bf70"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/rangerhat-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/rangerhat-yellow/png",
+    "size": 2129,
+    "mime": "image/png",
+    "sha256": "47c902771ba92b85f5e932b457b34adf6edd481e1765b62430165b600f30b3d4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-black.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-black/png",
+    "size": 1768,
+    "mime": "image/png",
+    "sha256": "ab319d7018c7a8a069a534c285a1b0b78c9a617ca29f8dec72b34edd697bba50"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-blackleather/png",
+    "size": 1797,
+    "mime": "image/png",
+    "sha256": "75b913221c2478ff7c0f3292a23c20d1e4e422aef85ce35e7bae1979ca292fed"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-blue/png",
+    "size": 1798,
+    "mime": "image/png",
+    "sha256": "ea7a70913d24e7cd20bc0555423f4d3344c22816076195d4477aeabbf47a3538"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-brownleather/png",
+    "size": 1799,
+    "mime": "image/png",
+    "sha256": "af8563b3575902aead6089398b29fe0d2aa7d2473f4df8d8533604b5e2e47c4f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-green.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-green/png",
+    "size": 1799,
+    "mime": "image/png",
+    "sha256": "7f27e39a4421abd133f4aaaf9289c3b859a18afb4a49d8e8692bad627e984bf8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-grey/png",
+    "size": 1768,
+    "mime": "image/png",
+    "sha256": "739d47187348dc11e23ecfa15a7b0872ce61958dcb4af276a644339342a5f945"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-lime/png",
+    "size": 1793,
+    "mime": "image/png",
+    "sha256": "fff17965b84fc6ab254ca84dc61ff25447b31096d0dfc629fd6eecc7e56a84ee"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-magenta/png",
+    "size": 1799,
+    "mime": "image/png",
+    "sha256": "76ab4c30e5e461094f7bf91c317e15114c954d446aa90decb16232e21c08ea71"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-orange/png",
+    "size": 1800,
+    "mime": "image/png",
+    "sha256": "cad0f96aff97c29e661a85fda097dc6a1347b974a6e3f6cb1544e87301f762cc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-purple/png",
+    "size": 1799,
+    "mime": "image/png",
+    "sha256": "2d4390b8cf3b315bcc28ce759513c654fbdbcb67ca767e340469bd8ca637c663"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-red.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-red/png",
+    "size": 1786,
+    "mime": "image/png",
+    "sha256": "23843c8f4973d2084050c57949742376001fc139152f0cdf136c2c3389399b03"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-turquoise/png",
+    "size": 1798,
+    "mime": "image/png",
+    "sha256": "57935113540cd06c40ee7aa0789966cd711b5e0121554a09cdb73de15d3203d7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-white.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-white/png",
+    "size": 1769,
+    "mime": "image/png",
+    "sha256": "fcb574e89cf12df4b7906d7a1b52927609ca8b6da55fab24c0c9bf372126891b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-whiteleather/png",
+    "size": 1795,
+    "mime": "image/png",
+    "sha256": "df31333265d497a20fe9d0568390e7ed4698ca7a06108212642b85fcf191bf8d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/hat/trapperhat-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/hat/trapperhat-yellow/png",
+    "size": 1798,
+    "mime": "image/png",
+    "sha256": "e6c85f4f3d4b8174c23d2c6f8ae9aa00f4dd4804749fa1889353f364dc26fae0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-black.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-black/png",
+    "size": 1124,
+    "mime": "image/png",
+    "sha256": "e2d35b3990521950615ba24cf2f91aedee6c9c2c6433b704020a1ee71165d7db"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-blackleather/png",
+    "size": 1142,
+    "mime": "image/png",
+    "sha256": "ff18ccccc02fead186865c6032ce7f33100e0a73ff8df5d47e581d67f6f58ca1"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-blue/png",
+    "size": 1142,
+    "mime": "image/png",
+    "sha256": "80fccb07d5968b778b35b2f05d7ba1917ee74ae4946fc381fa3e3bd65a8d5aa4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-brownleather/png",
+    "size": 1140,
+    "mime": "image/png",
+    "sha256": "49a66285ede164ca543161b37036f36aa7df965672fd5ae1e201e6eb7d024a54"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-green.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-green/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "88c3850f7781f6e92607f6e4340554bf5269bceb47290276d830977cd8a4996e"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-grey/png",
+    "size": 1142,
+    "mime": "image/png",
+    "sha256": "0e41ed2bb857ee9d0c855c4176884332427813d5f8d458f99d78be8da6f21164"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-lime/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "2f8acf12fab121c2dca74774cd99dfa27db76610401a691785c317142bbb3027"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-magenta/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "88168b24191eb17aeb18699d718f7cb2f34e8045cc04a2f80e76a7b7e08d673f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-orange/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "a5c831fca0169cd791c05327ea853f2632a5d4c7c3235169728359ca76771188"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-purple/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "c9134b297c29ff05105e3d2949ea6a9a478c2301cc236bdd540aab21b4fe3c65"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-red.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-red/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "9c876d71e2afb2dae6e5ff9d22bb0504d4bec0030be46322ec504945bd2b416a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-turquoise/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "0ab165b334ef8a036331fc15b8c4c213e8ed3bc8a16cc74e60485a2a4f751004"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-white.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-white/png",
+    "size": 1140,
+    "mime": "image/png",
+    "sha256": "9fda0d91681740cbbbc596e3beb18ae81ca074e43b6229b5ca4f78592b8cf7cc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-whiteleather/png",
+    "size": 1141,
+    "mime": "image/png",
+    "sha256": "e94bd8a77a8c68b73b87ce171adb0721d2dfa48c65efcce7988ec17b05764936"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoes/shoes-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/shoes/shoes-yellow/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "d2c41a5fe6b08e048b2d71ace208aef9e50b61613d4dd2650bde28df5f461642"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-black.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-black/png",
+    "size": 1127,
+    "mime": "image/png",
+    "sha256": "660ac5105330a4dbefb6a6bcd64e082b9ac2aa38f1d6a60718bab69bd3542b23"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-blackleather/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "45b960d6a105eb528a23ee3c64d46262f5dec5a144a457d9d57b8edb81e90ff3"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-blue/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "3e4e073fbf3df2bf3c8a87daf5d9a99cade9b27aa9915ecbc709a3212a1d6726"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-brownleather/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "e326c83786d0b7b3cf37233b21582255ceba34dcf5dddc16b2091ad3dfc53914"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-green.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-green/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "ac4c773b5373c61062377ee34c5a732b766809076b366604c42372633e957d35"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-grey/png",
+    "size": 1125,
+    "mime": "image/png",
+    "sha256": "ff05046c500967d6ca85fc00a28977a395e0674f88f75f7056bd90dfae0cb8dd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-lime/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "ee5b74cf1005edb99bbe311ec323704ca8bea942c38d1e322b4d1e89f895a308"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-magenta/png",
+    "size": 1148,
+    "mime": "image/png",
+    "sha256": "780423bd391ee0837dc4155e2014121e5007aee2bab0c429ae04d6e30b1b6f20"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-orange/png",
+    "size": 1153,
+    "mime": "image/png",
+    "sha256": "93181c075b21c6715a2c61dd279ceaf209aadac74a63d87be02f94864418dbe0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-purple/png",
+    "size": 1148,
+    "mime": "image/png",
+    "sha256": "da2d39617fb0fcab194e8beb0455ac46b84d1004b3d0078550a96ba70801f816"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-red.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-red/png",
+    "size": 1143,
+    "mime": "image/png",
+    "sha256": "9bf887380aca13f5e67e568458578d035d4fce963b5784139e6f40c10e23a157"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-turquoise/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "38bd31d52751b8235a0c0afd0099e83bd2e040c6f0ce79a550683ee2b3de6e31"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-white.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-white/png",
+    "size": 1127,
+    "mime": "image/png",
+    "sha256": "65bb963b617664868743e32763461f78df6ce2bf745f9fafe889a8d001269866"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-whiteleather/png",
+    "size": 1152,
+    "mime": "image/png",
+    "sha256": "1dbcbbec573aa4817d66905295f70e478e401ca88f789a0c110a08018138ddc7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/shoulders/shoulderpads-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/shoulders/shoulderpads-yellow/png",
+    "size": 1154,
+    "mime": "image/png",
+    "sha256": "b365111a68a5bc9836538b7a868ba550683e6bd1845ccfa965cb2f0b4649075c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-black.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-black/png",
+    "size": 1302,
+    "mime": "image/png",
+    "sha256": "ed1ca5c914f8e9f16af0af0caa1b19ff7f305765d67cbe6203f9dc15307a957b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-blackleather/png",
+    "size": 1337,
+    "mime": "image/png",
+    "sha256": "5f569767fb713ef5d607b2117c2c208d552b530435b84d3c4602d330c2f02ea5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-blue/png",
+    "size": 1339,
+    "mime": "image/png",
+    "sha256": "a09858513bff6f83707ceff8b53519fdcf19295f2dac850d1c9fb5168a6291c2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-brownleather/png",
+    "size": 1339,
+    "mime": "image/png",
+    "sha256": "484539eda4517171ee3a8994a42b5595d2081843cd94794362c6f01a478cbd30"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-green.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-green/png",
+    "size": 1339,
+    "mime": "image/png",
+    "sha256": "899efff0b633ea8763aef3a3880306d04dcda9a95fc8d77a22e7f75315180d4d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-grey/png",
+    "size": 1302,
+    "mime": "image/png",
+    "sha256": "0b385a2eceef04b96741da2cf78df4ada936586a6e1a72c07bf907fcf1c6dbff"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-lime/png",
+    "size": 1336,
+    "mime": "image/png",
+    "sha256": "90f4ece026b0c79d29039128d526f6345b0b50996c322dff06dad53e7730da0b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-magenta/png",
+    "size": 1336,
+    "mime": "image/png",
+    "sha256": "22ae6912484146976837a1182cc64455e981ff75f7bacdb64cd1da8b73762943"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-orange/png",
+    "size": 1341,
+    "mime": "image/png",
+    "sha256": "4977f17f8102cb865a0a2e7b4312a5982808af4c378a40d63f7b72fffffb9b9c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-purple/png",
+    "size": 1337,
+    "mime": "image/png",
+    "sha256": "d7cf5a3372ee7f92e69ad3704eb163b5453b2f07452f8abf761d6a23e7343af7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-red.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-red/png",
+    "size": 1325,
+    "mime": "image/png",
+    "sha256": "23030ddebe319f7c7b30c601f9abaf870d18cef34e7b385807d3987ca8ca89e0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-turquoise/png",
+    "size": 1339,
+    "mime": "image/png",
+    "sha256": "d39cd353c241bccdcd957f73d8958f1834e93b9c8b5789b005cfe741cfc7f691"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-white.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-white/png",
+    "size": 1303,
+    "mime": "image/png",
+    "sha256": "b547f4245643cda232a8082c49d2cb238480dfddcaf464834809a083567aedcc"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-whiteleather/png",
+    "size": 1338,
+    "mime": "image/png",
+    "sha256": "3b17706fa7e6153e82f810d69228841d6953cd0c4c93e57d34af2015b3e021bf"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/blouses-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/top/blouses-yellow/png",
+    "size": 1338,
+    "mime": "image/png",
+    "sha256": "11190db39982715b4d11922cbbdefffde915f056f4a2f0e63c90116aacb275f7"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-black.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-black/png",
+    "size": 1326,
+    "mime": "image/png",
+    "sha256": "7a3aa1c289213f63f844c9082f35b4cc1364badc9ba631e238ae6a4709099e28"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-blackleather/png",
+    "size": 1365,
+    "mime": "image/png",
+    "sha256": "a62b25bb6ef4c580e430eca4ad79fb73e87086941037bde17ee71268b8bce1c2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-blue/png",
+    "size": 1367,
+    "mime": "image/png",
+    "sha256": "ee93856ea0f350f008bcea51100c9b0de980afd0b71c5f0815b921389dbd172f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-brownleather/png",
+    "size": 1367,
+    "mime": "image/png",
+    "sha256": "4b77f740e6fba1c72b0b0570a06ad77660c90edcbe38cbb2c1f531d29fcc2c75"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-green.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-green/png",
+    "size": 1367,
+    "mime": "image/png",
+    "sha256": "af8822e7f98361e9327229e0c751230c2fb7508e964976ce839c7aff94091f36"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-grey/png",
+    "size": 1325,
+    "mime": "image/png",
+    "sha256": "280b6dba7d08f7981bc67f0fe9fcf8607d1d0bec51053729c9e7346ab0e9dbeb"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-lime/png",
+    "size": 1364,
+    "mime": "image/png",
+    "sha256": "1dd7b00f957b13b8f0eaa15cb79095d6c26710b09d5186d50d7c8c27ba10aeca"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-magenta/png",
+    "size": 1364,
+    "mime": "image/png",
+    "sha256": "6b37f5f09387a01b6c128a72903373ceeeafc42fc74c5e25437a080dee165e60"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-orange/png",
+    "size": 1369,
+    "mime": "image/png",
+    "sha256": "c01ae50d450fec2521a4c10a8f004e11c58fc05f3f6f9e132e828215750c39f2"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-purple/png",
+    "size": 1364,
+    "mime": "image/png",
+    "sha256": "a9fffb3cdb71b04b802a4095fb99ca0e7f723fb85246b6b397a886f6d71ae89a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-red.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-red/png",
+    "size": 1352,
+    "mime": "image/png",
+    "sha256": "8646177d41f0ce0a34cf94fd1e0c8b45c10da4c65dc4eff52b814cadf073bcf6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-turquoise/png",
+    "size": 1367,
+    "mime": "image/png",
+    "sha256": "11321004632beadfea94e62779a060c399054410f83b9e0c521f545c6028b1b8"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-white.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-white/png",
+    "size": 1327,
+    "mime": "image/png",
+    "sha256": "d32c83a07495d6392e1d8ddbebcb6af97add662d02e3d68f1f3e96c4c9ebb780"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-whiteleather/png",
+    "size": 1366,
+    "mime": "image/png",
+    "sha256": "c076737d89ead49747ea3b0f2d1d4a244378fdce1631a5ca1c020ce013cc908c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/doublets-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/top/doublets-yellow/png",
+    "size": 1365,
+    "mime": "image/png",
+    "sha256": "b8dd4ccfeaca10ccc52b57d73e04c52b5e870515fb3d39da3d59eba5938c7a93"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-black.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-black/png",
+    "size": 1322,
+    "mime": "image/png",
+    "sha256": "58f578d174f76dd1fb2ca33feb259b1a12e4f0db3f3decda0ab82e7c4819f20b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-blackleather/png",
+    "size": 1361,
+    "mime": "image/png",
+    "sha256": "f509e487c6a1643c68ca59d3522624d609e92baf85ee1fb32c9facd09d15dc35"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-blue/png",
+    "size": 1363,
+    "mime": "image/png",
+    "sha256": "ac1f68b520f592c9736f8c3f8d716098a2712b46457084b158aa49ea7106ff32"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-brownleather/png",
+    "size": 1363,
+    "mime": "image/png",
+    "sha256": "a5b8020dd75644f222d30653857a576d5475452635b3e447b4059ad1ffe11e71"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-green.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-green/png",
+    "size": 1363,
+    "mime": "image/png",
+    "sha256": "13823e012341f9d47a88aa205fc29409f6d4effbc9d4a9b7aad9c38c8a8f3fa9"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-grey/png",
+    "size": 1321,
+    "mime": "image/png",
+    "sha256": "0ce091126e9cae3d1c05cbc90e21a3c9e98624dc74408ee2f4a8da3ebbd4e890"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-lime/png",
+    "size": 1360,
+    "mime": "image/png",
+    "sha256": "ff462d0ea6c502bd4d8f7b5d2e9d394d2e40898bafc218372bb3082114abfcd4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-magenta/png",
+    "size": 1359,
+    "mime": "image/png",
+    "sha256": "b2d806eae828b18229fe7e713c91fe907083b38f0f84df9a48e05f7185efeb4a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-orange/png",
+    "size": 1365,
+    "mime": "image/png",
+    "sha256": "6836c25d91a0f9cd6521545f06e9e9b594575d21c75a5bb991b4f543d0b297d5"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-purple/png",
+    "size": 1360,
+    "mime": "image/png",
+    "sha256": "3ac760805fdc38f266e3c023313d730af2f7d0cbb4f4d7cf987d6e75888f66a4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-red.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-red/png",
+    "size": 1347,
+    "mime": "image/png",
+    "sha256": "7551bcc13bac8fcc45754e2120490b9e5aef1881da1d1ebeb55b9e264ce0c24f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-turquoise/png",
+    "size": 1363,
+    "mime": "image/png",
+    "sha256": "62f0d68ef3ec5720aaf7c92c716c12868a11cacb1f384732c5a1501f3501272f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-white.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-white/png",
+    "size": 1322,
+    "mime": "image/png",
+    "sha256": "85bcf6e6ba7c263ac66098171e395b9d999e1804d8a9ad51d112665031c91279"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-whiteleather/png",
+    "size": 1362,
+    "mime": "image/png",
+    "sha256": "77f41118008e15bb8d41420285d36def379edcdaf15d88fac8a75e30446b282c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/jacket-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/top/jacket-yellow/png",
+    "size": 1361,
+    "mime": "image/png",
+    "sha256": "db736c366b06857e9b60d7cd090a05767ec98673c471d5961837732bcacce624"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-black.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-black/png",
+    "size": 1272,
+    "mime": "image/png",
+    "sha256": "a5f5bead44746424af03904f666f3b7cce724063570920e946b7658c35544b67"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-blackleather/png",
+    "size": 1303,
+    "mime": "image/png",
+    "sha256": "fa1e6dbb1121fceb84673cc85acf27caa3c192f5c29a32dc0ae8b51555925c04"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-blue/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "3485f013a2155c0bd90c5f81d595cfbd6c58b77348b6c11cfc85fb98e9369f16"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-brownleather/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "d942da20943529054e59c53ee69170a769afe5566f71b62e1028965503d8369a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-green.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-green/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "1f33949784bc3248c8908c2bafc079aaafbeebee6fa819f0e2dcf6b7c258677b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-grey/png",
+    "size": 1271,
+    "mime": "image/png",
+    "sha256": "a6eacbb8d312e534bbadfd7f8b016f184ffeac386bcc576efa9533a15aa2fda0"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-lime/png",
+    "size": 1300,
+    "mime": "image/png",
+    "sha256": "eeddf64124e592b8f989c94a1f43e7c5be96367db2112d3840373778e6c0bfe6"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-magenta/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "551f4498ecbf1e331e44fabf6cbfc1a1b3c879e6391617689c7eb17de526c57b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-orange/png",
+    "size": 1306,
+    "mime": "image/png",
+    "sha256": "5debb92225ea231e368c3e24335d01b5233be066eb059fe83e9fc0d6ab1226ba"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-purple/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "4b8646dc980baa3b322c9e6428da37686cf3e0c57ba0f63d950037fd667954ae"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-red.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-red/png",
+    "size": 1291,
+    "mime": "image/png",
+    "sha256": "7cd78e4434f4f3000a95700aa5b259bc747fbdcf8951619bc0d46ee72baeb7c4"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-turquoise/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "7222d9b90bbd9ad5fe6b04a98870689ba290ec5ad5204f9f1d4673d5a4585fbd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-white.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-white/png",
+    "size": 1272,
+    "mime": "image/png",
+    "sha256": "206e080cb8c6e42296bfc71e2670db53a4d0e6d39a1ec4fed59f5d5c8ab91435"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-whiteleather/png",
+    "size": 1303,
+    "mime": "image/png",
+    "sha256": "3437e79155b10c5c355ddde0e37b85cdeb800a934555425bb8c1ac8a22fadbdd"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/shirt-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/top/shirt-yellow/png",
+    "size": 1305,
+    "mime": "image/png",
+    "sha256": "a8edfb929df9c8ed6a6eca06c6f1d79974f8d742b72b1495894340ad15917810"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-black.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-black/png",
+    "size": 1271,
+    "mime": "image/png",
+    "sha256": "825ba148cdf12b1810bcf1e2ad3e98db682d39597400ea0cba07a705bb0d9736"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-blackleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-blackleather/png",
+    "size": 1302,
+    "mime": "image/png",
+    "sha256": "dc269dc4a9780f2ac499225b8818f5d4d72df18d286dc2d9fe8267359208351c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-blue.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-blue/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "6018a277ae2f1865a427959704785e21c81222caf383f4749cc36da3ab8f7c95"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-brownleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-brownleather/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "b6d1d3c04dbed988434691b5b78c5cbe460dc7060fe52c7d880aa696d80d5239"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-green.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-green/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "93099eeac4aec3862a5e8df04cadac3f6514c458f763652b895f14e81cf59032"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-grey.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-grey/png",
+    "size": 1270,
+    "mime": "image/png",
+    "sha256": "ec51dcb236f914fc80844006efc4ca6b008cd5b054b5a327de356e1eb8d3ca12"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-lime.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-lime/png",
+    "size": 1299,
+    "mime": "image/png",
+    "sha256": "ef5bb8d2cb6af710df9b62eccf2cbc1d666394e2ec81c1a3a8e6d12e51ffb90a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-magenta.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-magenta/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "4f0f3289d2d9d7a76fc1a26d98d001ca23b71110b88e3a5d38d71b1b7b93d93a"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-orange.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-orange/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "6ad251d07e3262423d3fc402bd59d12789d80aba60a69024963d2dee11b2bc5d"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-purple.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-purple/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "05ffaf2448e2da43ae8534b85b3109f71af1f65ef1e8795b6235cbb4b84c673c"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-red.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-red/png",
+    "size": 1290,
+    "mime": "image/png",
+    "sha256": "8e950001f1a6e893603e28dabb642ffb99aae67e2c5543658d469d3c067efc42"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-turquoise.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-turquoise/png",
+    "size": 1303,
+    "mime": "image/png",
+    "sha256": "2c77365c4b5b6392ad12f99772eb09201c83f61a45ec0371a1ab26f0f9d614ad"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-white.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-white/png",
+    "size": 1271,
+    "mime": "image/png",
+    "sha256": "958a35c86e066e57140c3247d71950d1abc6bdaa3ef26f802b5427d8f8db6a5b"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-whiteleather.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-whiteleather/png",
+    "size": 1302,
+    "mime": "image/png",
+    "sha256": "d5f1f0dce575ac1253462890479204a4e90ae9a83ac3d352be03be1f1e71295f"
+  },
+  {
+    "url": "/apps/glurff/characters/doll/top/togas-yellow.png",
+    "spur": "/lib/glurff/site/characters/doll/top/togas-yellow/png",
+    "size": 1304,
+    "mime": "image/png",
+    "sha256": "9cae834c902ac7ac9536d5826c2a85b29f1e7613485b540ec2834bd23b091ced"
+  },
+  {
     "url": "/apps/glurff/characters/gloves.png",
     "spur": "/lib/glurff/site/characters/gloves/png",
     "size": 3767,
@@ -56,6 +2989,1455 @@
     "sha256": "34bc068dfbfc2a10da4eb8e632d9d530897d2f8aab68178ad82d8c1028aded19"
   },
   {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-bicycle-bicycle.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-bicycle-bicycle/png",
+    "size": 2850,
+    "mime": "image/png",
+    "sha256": "7e404a8f23e5c5833d5f867e3ad20adb57d2a1a228d1b49108ebd11617bc96eb"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-canoe-canoe.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-canoe-canoe/png",
+    "size": 4055,
+    "mime": "image/png",
+    "sha256": "d9f53582eb0bb6b077bed53ad7a38a0402a9d37e0f4d757a0bcb4e0233e5d2dd"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-magic-carpet-magic-carpet.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-magic-carpet-magic-carpet/png",
+    "size": 3853,
+    "mime": "image/png",
+    "sha256": "366724f16e4b253adef3c74e1617b1bbc1a7b57fb8f85e9e7135949dafc4439b"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-unicorn-unicorn.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-unicorn-unicorn/png",
+    "size": 4483,
+    "mime": "image/png",
+    "sha256": "c3b61d73b098543a31d7dd2b30adda58b08f42ad736a8b5e8d2f2082743c4c7a"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-war-horse-war-horse-goldenarmour.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-war-horse-war-horse-goldenarmour/png",
+    "size": 2040,
+    "mime": "image/png",
+    "sha256": "c849227b74b60ab0f5b5d53283bcc4eda1f47f438f1318ad1e2efeac8b5fbdfc"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-war-horse-war-horse-silverarmour.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-war-horse-war-horse-silverarmour/png",
+    "size": 2043,
+    "mime": "image/png",
+    "sha256": "bc9cdbb8505d9abda4d6f81d8fdd487c4dd57b91cc7073c1870f2bf1d4b45e62"
+  },
+  {
+    "url": "/apps/glurff/characters/mount/mounts-new-mounts-war-horse-war-horse-stallion.png",
+    "spur": "/lib/glurff/site/characters/mount/mounts-new-mounts-war-horse-war-horse-stallion/png",
+    "size": 4185,
+    "mime": "image/png",
+    "sha256": "345409509ad7e8edbe3f3cf6c2573878292f7062689de8fe055e8c2a46c6b56a"
+  },
+  {
+    "url": "/apps/glurff/characters/picker.png",
+    "spur": "/lib/glurff/site/characters/picker/png",
+    "size": 40838,
+    "mime": "image/png",
+    "sha256": "cc0b8fa47cf62655d2a5eaa3673b7b12b67284ba8f83a0c933f965639250be50"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-alchemist.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-alchemist/png",
+    "size": 4142,
+    "mime": "image/png",
+    "sha256": "c8a442876e7de5f04907dafd234aa109aa152ce4ead59e50799b6d41d754089d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-blacksmith.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-blacksmith/png",
+    "size": 4025,
+    "mime": "image/png",
+    "sha256": "957de8108478f8acd8985055893884add4b814bdd77c62affcf493c4acd73663"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-butcher.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-butcher/png",
+    "size": 3801,
+    "mime": "image/png",
+    "sha256": "98fed114e7a0e016c279ef05bf07718a25e22d52d281a1499d41e62a358e0931"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-carpenter.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-carpenter/png",
+    "size": 3849,
+    "mime": "image/png",
+    "sha256": "ec2530cfcce2d54b0c604871b23da7ad68ef4dbb7a4cdbb25058625045a9c3df"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-cooker.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-cooker/png",
+    "size": 4099,
+    "mime": "image/png",
+    "sha256": "f768ce1c0613de7339ab162aeb8d127e2f5d069c1f7d345f4a50290fc2dd446e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-dyer.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-dyer/png",
+    "size": 3688,
+    "mime": "image/png",
+    "sha256": "888509f47dfcb9c1f2a420798ef43e9145398531b8231ef1ab4001a944257855"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-furrier.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-furrier/png",
+    "size": 4387,
+    "mime": "image/png",
+    "sha256": "803802dd3b6c808b4753e0f8e0c9046d65d2abb19bbd22626913b919cd7adb79"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-jeweller.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-jeweller/png",
+    "size": 4133,
+    "mime": "image/png",
+    "sha256": "4edaf7e91033d9a6ec66e6ecb1facd21eee38b87691901749bb66511c4f16f0d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/amyriadofnpcs-premade-npcs-tailor.png",
+    "spur": "/lib/glurff/site/characters/premade/amyriadofnpcs-premade-npcs-tailor/png",
+    "size": 3987,
+    "mime": "image/png",
+    "sha256": "d9332057c12494848a3f3e733be0de7cae051e31d7cb8de29c5b84bd94e940d1"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-acolyte.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-acolyte/png",
+    "size": 4357,
+    "mime": "image/png",
+    "sha256": "970840764f6d624cc7fd1f1588c8c78757ea77342fbac43119844336f8ae6a53"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-hound.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-hound/png",
+    "size": 3968,
+    "mime": "image/png",
+    "sha256": "7e069aa1fecb655a19cbb77b8eb1c761e460a3da813c2de6613c600400d34759"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-zealot.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-zealot/png",
+    "size": 5163,
+    "mime": "image/png",
+    "sha256": "885bd33f33a9da35f2c5367be84561a6b0cc165570aac360e43abc037a114459"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-dark-channeler.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-dark-channeler/png",
+    "size": 7313,
+    "mime": "image/png",
+    "sha256": "be43c766a263e45496d888bb38789fa23c6e8c26a5ea28179858bc2efea6da49"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-flagellant.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-flagellant/png",
+    "size": 11581,
+    "mime": "image/png",
+    "sha256": "ed142e169cbb15a4055fbdca380b1a4d7a1bfd2173d8dc56fdc65207a058f9c7"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-ritual-guard.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-ritual-guard/png",
+    "size": 7842,
+    "mime": "image/png",
+    "sha256": "1c3590a74865db909f5078e8a7bfdcdaebc2807d810014de8026e4a96bf2fb33"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-blade.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-blade/png",
+    "size": 6395,
+    "mime": "image/png",
+    "sha256": "ad597e3d40910ae42031d5a0f3855000ebc660d89a86f35b93298dbae0b4bfcb"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-sentinel.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-sentinel/png",
+    "size": 8836,
+    "mime": "image/png",
+    "sha256": "908343bd5480e7d7c9a0131a0607e55448a70a1028edb5583bf5fd614af16ea4"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-stalker.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-stalker/png",
+    "size": 6040,
+    "mime": "image/png",
+    "sha256": "d8e8a6b51105257dff4a91151a8814361ee1fb9aff37d280109c75879ba8fc9d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-abomination.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-abomination/png",
+    "size": 13236,
+    "mime": "image/png",
+    "sha256": "5286a36c98fac1a1d37532358037ed9634a492ac6de533e158bca1ea77d2df97"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-cultist.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-cultist/png",
+    "size": 6860,
+    "mime": "image/png",
+    "sha256": "d175bbf1f389aa7221c085857a9347004db823843526c80230a23f6b807e4159"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-hound.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-hound/png",
+    "size": 9918,
+    "mime": "image/png",
+    "sha256": "3f0ea90059d5e61f037166c47530d066b6e0df215841a5093791fd61e13d92fa"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-arbalist.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-arbalist/png",
+    "size": 6381,
+    "mime": "image/png",
+    "sha256": "6066cd3208f2f7ff4bee771a4341754b661dde77548c00c28ff1fd597871ef9e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-berserker.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-berserker/png",
+    "size": 6594,
+    "mime": "image/png",
+    "sha256": "14016afffa5e0d43d41a4f70f8dfe52ed8347b51cd11615e24409a65443eb447"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-blade.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-blade/png",
+    "size": 6999,
+    "mime": "image/png",
+    "sha256": "358a3395ebd218bb5f0d272dc831c1b893cca4d6eaff879c81605152dbcc69ad"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-phalanx.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-phalanx/png",
+    "size": 8132,
+    "mime": "image/png",
+    "sha256": "0976143c0a296e0cc7d78b4f47b3c1ee9da1b62855eb16a07059580a60e0e3f6"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-blade.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-blade/png",
+    "size": 5041,
+    "mime": "image/png",
+    "sha256": "e33f3c2f66f8b9ae22dd53c00ffc44a1e8770a5dbd7c014df5bdb998c56ac690"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-raider.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-raider/png",
+    "size": 9794,
+    "mime": "image/png",
+    "sha256": "7e09c79da3de8707af977985450b520de93eae52dfa1307d5e6f81e879a7809a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-scout.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-scout/png",
+    "size": 4552,
+    "mime": "image/png",
+    "sha256": "14855e234167e998acec2d92e400cc736c1186d117c88d5517b7ba4ce792179d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-others-cave-troll.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-others-cave-troll/png",
+    "size": 17850,
+    "mime": "image/png",
+    "sha256": "d573f4a8a84e0b19bc19d95c7b5be8b4024c27639ff0d2e1573b16010da57954"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-others-pale-champion.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-others-pale-champion/png",
+    "size": 8043,
+    "mime": "image/png",
+    "sha256": "bbdf9d67f75f104724bcc0d7905fec7501bcc54fa3894352193193bb784a7fe3"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-others-warg.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-others-warg/png",
+    "size": 6077,
+    "mime": "image/png",
+    "sha256": "a6000f4c6c04f02248807acb2d73c393ac07cb3a8eb61b825f726e59d6284e2c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-arbalist.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-arbalist/png",
+    "size": 6515,
+    "mime": "image/png",
+    "sha256": "bcfee8fbbf9dae771d7b34c991ad1eaca002b06ba6ed6bd865ea3a219eb8b950"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-berserker.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-berserker/png",
+    "size": 8059,
+    "mime": "image/png",
+    "sha256": "9a8180c6784a9a4fa6976c5f097c20f188ccc4c14b956faa500e1770041ac586"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-blade.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-blade/png",
+    "size": 7024,
+    "mime": "image/png",
+    "sha256": "34934a9514cf1684efd8f65b202a1eeb0ad647243cc6de37a4fd3cbfb19174dc"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-phalanx.png",
+    "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-phalanx/png",
+    "size": 8344,
+    "mime": "image/png",
+    "sha256": "89ad96e0466f0ea11cf74cb2751ec06479d22b92176e18ee8484f50edc9abee4"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-grimflorals-alpha-creeper.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-grimflorals-alpha-creeper/png",
+    "size": 10536,
+    "mime": "image/png",
+    "sha256": "9e1769b4e1e88934682e3001fb2e820cdc8bd01608a207d9accd284f0864efc7"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-grimflorals-creeperlings.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-grimflorals-creeperlings/png",
+    "size": 8402,
+    "mime": "image/png",
+    "sha256": "e6130e559155424a3bd3fe9d48a34c1951ab2bb390a6e8bb9012b04472ae554a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-fungifyed-corpse.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-necromyces-fungifyed-corpse/png",
+    "size": 8305,
+    "mime": "image/png",
+    "sha256": "74550aaad926a5c1a249cdce34a0480532b1ce9670f1d61b9b38e07964bebc75"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-necrofungus.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-necromyces-necrofungus/png",
+    "size": 1286,
+    "mime": "image/png",
+    "sha256": "3913112ef19f6ebfcf961b6de5a3562c25e66b74b066fd2d91af95b89ef05b8e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-necrothallus.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-necromyces-necrothallus/png",
+    "size": 28556,
+    "mime": "image/png",
+    "sha256": "e0db91f8c51b46e277725619b19fb29e1f74070fcefd07e820505c2942c69c72"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-base-model.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-base-model/png",
+    "size": 10712,
+    "mime": "image/png",
+    "sha256": "411ab1413c24c534e6903a052fa37581aab4aa4378da4040ce01ce76cdc31b3c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-treetop-variation.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-treetop-variation/png",
+    "size": 11451,
+    "mime": "image/png",
+    "sha256": "16355fd8e6788f2870e76c3a267bc5efd607cf90ae8a8a03e5ecf46d39fb3f90"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-base-model.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-base-model/png",
+    "size": 10775,
+    "mime": "image/png",
+    "sha256": "860367eb83f02ec5097f0fa370c83aa267b857acb9104cf0f8f341c6628523f4"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-treetop-variation.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-treetop-variation/png",
+    "size": 11113,
+    "mime": "image/png",
+    "sha256": "1cb9442892bb0069a8f8e2b5e49d42f600b887d2ff13711cce6a54cebf900309"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-base-model.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-base-model/png",
+    "size": 10825,
+    "mime": "image/png",
+    "sha256": "160aac1446268199e2a5286339024803a5b633d4bc4f684b18d58a87a80b5fbc"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-treetop-variation.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-treetop-variation/png",
+    "size": 11642,
+    "mime": "image/png",
+    "sha256": "39d76d0e970f63b672ef5d006027223b6caf9d31650fbc75c23a02f0934cd6f6"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-base-model.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-base-model/png",
+    "size": 10838,
+    "mime": "image/png",
+    "sha256": "1b944145f4e4a52cae72d15e4ea015982ad61ce309acf96939eb3f138edea0cc"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-treetop-variation.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-treetop-variation/png",
+    "size": 11068,
+    "mime": "image/png",
+    "sha256": "26b5fded7a0ea8a93b74e8cae5ede8ba4229e96c58f419e71a8882ab32589220"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-base-model.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-base-model/png",
+    "size": 10775,
+    "mime": "image/png",
+    "sha256": "d059980e3ce93d4f57d84e44397a9de38fd18b44680a490c30d5054a13b2c47d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-treetop-variation.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-treetop-variation/png",
+    "size": 10955,
+    "mime": "image/png",
+    "sha256": "2a36cf98685db44643bb31bd002ad16d272620a58d9ee8f910ca7262037c7163"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-birch-spirit.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-tree-spirits-birch-spirit/png",
+    "size": 5768,
+    "mime": "image/png",
+    "sha256": "95e32a7af27ed089542108864abd0d8227bcbb4deb69ee2047298dd49370ac05"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-hickory-spirit.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-tree-spirits-hickory-spirit/png",
+    "size": 5467,
+    "mime": "image/png",
+    "sha256": "e185b75972a20731121ff832592830f5e01b3ed379a8ee1b2eee471d85ed9a37"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-oak-spirit.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-tree-spirits-oak-spirit/png",
+    "size": 5411,
+    "mime": "image/png",
+    "sha256": "c383f33c2df0379724aea01802df3508fa1f1bd93493eb8231ae6b073839692a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-pine-spirit.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-tree-spirits-pine-spirit/png",
+    "size": 5750,
+    "mime": "image/png",
+    "sha256": "3325b5be81a656294f60797589489bf8b0ac89fcb03273acd20b5bcc9b971f42"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-willow-spirit.png",
+    "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-tree-spirits-willow-spirit/png",
+    "size": 5558,
+    "mime": "image/png",
+    "sha256": "aa1f5bb72a58cd87e3a9183a97ac35714cdd41f523c106c35eff12c198b6be6c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-angel-of-death.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-angel-of-death/png",
+    "size": 14013,
+    "mime": "image/png",
+    "sha256": "43105830300c6d5e2ed5e5e7bf687be1cb5ddf42fc3cb9d24706e02edd1e0873"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-brain-slayer.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-brain-slayer/png",
+    "size": 12156,
+    "mime": "image/png",
+    "sha256": "50dfae67ebb3c94e36931b95180f6ed65c5ba0efbbc5fe0c2708426d88af3d71"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-centaur-king.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-centaur-king/png",
+    "size": 9701,
+    "mime": "image/png",
+    "sha256": "a38e2f85fa8002505c5d81c7ecad51521181accc19504e32b4fdb72ba7eea754"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-chest-mimic-agressive-chest-mimic.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-chest-mimic-agressive-chest-mimic/png",
+    "size": 5435,
+    "mime": "image/png",
+    "sha256": "ae76e968ff55b21ebb115fb59f087bd4738dc34473f668f3fa9e70b93794485d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-chest-mimic-shy-chest-mimic.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-chest-mimic-shy-chest-mimic/png",
+    "size": 4546,
+    "mime": "image/png",
+    "sha256": "10253e2f624918099c3e896728c28d4a8f43c3bd9cd6fd2a3a8204bb0e53e239"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-deep-one.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-deep-one/png",
+    "size": 6167,
+    "mime": "image/png",
+    "sha256": "fb849a175b4a069c3c616cd11d4c0205fd42ed99b77fcb21d9ce3f5349bd71d8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-demon-spider.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-demon-spider/png",
+    "size": 15573,
+    "mime": "image/png",
+    "sha256": "7ba1a8231cd7d0f77236ba62b73f29f0ed84f8336713a8b5fc35fd0113931e6d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-gargoyle.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-gargoyle/png",
+    "size": 8056,
+    "mime": "image/png",
+    "sha256": "5457f5300abfc3b7c7b122a017bde586e5598b3cd4a2448d960522302926df97"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-giant-rat.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-giant-rat/png",
+    "size": 3198,
+    "mime": "image/png",
+    "sha256": "f8153f653f119376f29818add0bcfcdbf48d9661aefdbaf04bc5b46c90882463"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-giant.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-giant/png",
+    "size": 13476,
+    "mime": "image/png",
+    "sha256": "7d3f440b7aba1642b03f01bd2d35dd3e2f5139524173c5e11f1756179b8d4cb6"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-gnoll-gnoll.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-gnoll-gnoll/png",
+    "size": 6643,
+    "mime": "image/png",
+    "sha256": "4b75b5439b562b310912e37c06ac73e4d005fc616e1d3839ef24e6a3230217d0"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-predatory-mushroom.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-predatory-mushroom/png",
+    "size": 6006,
+    "mime": "image/png",
+    "sha256": "4bdd6aea285a49adaca40206e30220295b3a67333bcda78d1647c568676af939"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-rat-people-royalty.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-rat-people-royalty/png",
+    "size": 8857,
+    "mime": "image/png",
+    "sha256": "f5a8ec30ddbf2d823a9924fe6ed1d38c58604dbe1114017d24657466bc72538c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-rat-people.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-rat-people/png",
+    "size": 4756,
+    "mime": "image/png",
+    "sha256": "b1c04fd4ed809590ba53ac350d7b302f8eac05ed0484e06b169d88f405f7ee65"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-werewolf-human-shape.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-werewolf-human-shape/png",
+    "size": 3590,
+    "mime": "image/png",
+    "sha256": "a042c28208ab844e8810094cc6f5e6ad5a9d8a26f5defded732a2e4d0762d4c5"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/monster-creatures-werewolf-wolf-shape.png",
+    "spur": "/lib/glurff/site/characters/premade/monster-creatures-werewolf-wolf-shape/png",
+    "size": 6097,
+    "mime": "image/png",
+    "sha256": "742e784cb17545a2ccb9f651ff23c6bc291a195f70332d6fea352bf7036bd840"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-ambuster-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-ambuster-regular/png",
+    "size": 6512,
+    "mime": "image/png",
+    "sha256": "00f5c1cde2c669d88a515710e97d64c42d53dfa8a17b2f3cf4907f1c25e82ab8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-bicephalous-1-head-regular-1h.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-bicephalous-1-head-regular-1h/png",
+    "size": 4517,
+    "mime": "image/png",
+    "sha256": "321741e5d05eb9f95b47c94a3e4dad4eeae606ec604101f5a46c2728bfdf4bd1"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-bicephalous-2-heads-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-bicephalous-2-heads-regular/png",
+    "size": 4873,
+    "mime": "image/png",
+    "sha256": "bb2690c17d68e0d8920ed7ad2f7c684ef82861b04977da8bed8a4218bbcc7961"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-lobster-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-lobster-regular/png",
+    "size": 7378,
+    "mime": "image/png",
+    "sha256": "19ad508241f7c37fe96ee3a9ee9122ba1a5a2b4f47c932da53635bca9bdae354"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-observer-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-observer-regular/png",
+    "size": 5808,
+    "mime": "image/png",
+    "sha256": "bf1b2633d6e94b4a88e0ed7ef294062aff3917506091412ce2bea24e56a01d65"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-serpent-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-serpent-regular/png",
+    "size": 5050,
+    "mime": "image/png",
+    "sha256": "0fb34f20043fec50451f76d6f32d6c8b4292c2ee947db9d2a9e80d779e79042c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-shifted-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-shifted-regular/png",
+    "size": 2678,
+    "mime": "image/png",
+    "sha256": "e247e295ea56d7eaa3f09751be0ce995322cde4cb0d1b106f7f7c39bd1a13af2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-stalker-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-stalker-regular/png",
+    "size": 1619,
+    "mime": "image/png",
+    "sha256": "f4105ce167928641d10ebe1354f789dfc7813b2dd38696f683465c06e37baacd"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-stickman-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-stickman-regular/png",
+    "size": 8682,
+    "mime": "image/png",
+    "sha256": "1b506d93e81d989e5d418b93bbbccc894476ed57f57415ec5367c97ab593cb1c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-winged-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-winged-regular/png",
+    "size": 2443,
+    "mime": "image/png",
+    "sha256": "218b9addad9483012e062ac50da12dd02cbbc6afb118380557eb985d2e85e027"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/nightmare-creatures-worm-regular.png",
+    "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-worm-regular/png",
+    "size": 2066,
+    "mime": "image/png",
+    "sha256": "c7d93630d9276f7c249ef8d5112e9c495cd8f6b0adc7f0a87a8474e627366f8a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-blue/png",
+    "size": 5617,
+    "mime": "image/png",
+    "sha256": "f349411b8b5dc107c1c4a3e6104c6c587b7eb9d0bd77e9a4c6dc218029edae19"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-brown/png",
+    "size": 5617,
+    "mime": "image/png",
+    "sha256": "b787b754c44d27d1bc9ef94f1ddf59f7a3212e946f77f621d4891bc8e282f3ab"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-green/png",
+    "size": 5619,
+    "mime": "image/png",
+    "sha256": "2af1aade74f11fd7985a2e267f4ebfada981cf57a8e3588700cf91f9fc0497fb"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-purple/png",
+    "size": 5618,
+    "mime": "image/png",
+    "sha256": "e30c7e0e82bf9d85aab248d429f69d38edf6847fd6ea9e9baf1fca3b9afc9fe8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-red/png",
+    "size": 5602,
+    "mime": "image/png",
+    "sha256": "8842305bbf0fdc16d51a2c43fb77afa5cd4a11c315b3634573109c704d39fdb9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-turquoise/png",
+    "size": 5625,
+    "mime": "image/png",
+    "sha256": "65a4bcfb2361d095f00742f025b464369c6243a310ba459f4cfa9165017319c8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-archer-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-yellow/png",
+    "size": 5610,
+    "mime": "image/png",
+    "sha256": "dc948073a88cb5bb34b8b922b74e5a38c55a8eeec6335710c0fb75c9f18adf9d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-blue/png",
+    "size": 9592,
+    "mime": "image/png",
+    "sha256": "0b5968f49bf5ec8271bb2870719a4bb8a7ce4a82af0091887ff3910478b7eae9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-brown/png",
+    "size": 9595,
+    "mime": "image/png",
+    "sha256": "0fb10f75a7012b57417fbb69f919da1a822a5b0690f5a5cd0815339d36117680"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-green/png",
+    "size": 9590,
+    "mime": "image/png",
+    "sha256": "7c2d6ad812f3e111c555fc5025792c8b15d2e1c0b4beafebfd4c1bdb5f2aa920"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-purple/png",
+    "size": 9600,
+    "mime": "image/png",
+    "sha256": "a122129e419142cb9de40ed095ed0b0eec03e893286fbf6d4f9f61f98edc0254"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-red/png",
+    "size": 9549,
+    "mime": "image/png",
+    "sha256": "264ae14820c684b1dfa3de232856e08411a6a4a948fd49dbe78d12f10c5a5c8a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-turquoise/png",
+    "size": 9606,
+    "mime": "image/png",
+    "sha256": "2f8711434cb382178f775dca2b8849f6bfa4f6444e69535c3066c7b4427ffade"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-knight-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-yellow/png",
+    "size": 9577,
+    "mime": "image/png",
+    "sha256": "28a705795b656e2f84582af29d1d127ec7a66986058a3a9fdc3a93b71ede46d3"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-blue/png",
+    "size": 6685,
+    "mime": "image/png",
+    "sha256": "99b0cdc4b6eedf36deeab265fe68e522e672ab6bb70b5f5d080e6e04a0ce88e9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-brown/png",
+    "size": 6684,
+    "mime": "image/png",
+    "sha256": "d94149945f8e0e0fe1fc6d521934ddfd97a29279d83364be927fc2cfb630bd25"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-green/png",
+    "size": 6689,
+    "mime": "image/png",
+    "sha256": "bd9cce6dc7006843c76dedd5eddd33f54d21e3513062759364cd70d59d4f734e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-purple/png",
+    "size": 6687,
+    "mime": "image/png",
+    "sha256": "659035e62392e6d873314f34918999157be9aac802b9b658e6be618ac23c2e2d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-red/png",
+    "size": 6659,
+    "mime": "image/png",
+    "sha256": "ea5da4f4f7fa74ceb769cecdab5b4fe7e5a2e4185802d746fb91912b52f14b29"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-turquoise/png",
+    "size": 6697,
+    "mime": "image/png",
+    "sha256": "eb2033d36ceafb052661fc74a53e886bf7591287e8655d440fcac0ab75c19a9d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-yellow/png",
+    "size": 6664,
+    "mime": "image/png",
+    "sha256": "064a0086bb1a8170db47cd69baa8861921b552c84db0b6f9ed07424ce6ba8da7"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-blue/png",
+    "size": 5867,
+    "mime": "image/png",
+    "sha256": "2adc2689822feb40e6da0199bde7410a686603be0f8cf729144c62571ec49f2b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-brown/png",
+    "size": 5866,
+    "mime": "image/png",
+    "sha256": "0ca50e6c0e8db5e620592761be4073bf31d9bdc326e955b63356a3135e5c3804"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-green/png",
+    "size": 5870,
+    "mime": "image/png",
+    "sha256": "83e16b61cdee30f8f1faafdce202586b47838a687efe542ab077304e141aa315"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-purple/png",
+    "size": 5868,
+    "mime": "image/png",
+    "sha256": "2dd3b0bb5a27bbaabfaa996e9901b3876d6860fba30c2254fcbc65ccde08b417"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-red/png",
+    "size": 5846,
+    "mime": "image/png",
+    "sha256": "9727532645a9e4a30dbdee86ba3138ce223e7d81064bab494cd933c32274fd39"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-turquoise/png",
+    "size": 5870,
+    "mime": "image/png",
+    "sha256": "160ea0e477d0105c04596aeacc8edbc1b655116c4f9172110d8e316b50addcc1"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-yellow/png",
+    "size": 5842,
+    "mime": "image/png",
+    "sha256": "84acb3592344a450a98b4094d9bb2fdb7531f3cd2ec269c93f73de8b95a781d5"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-blue/png",
+    "size": 4542,
+    "mime": "image/png",
+    "sha256": "ec74723dd0600f7aafe70d1cc6d8ad78e48b697bffbef07d51e42c71795dcaee"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-brown/png",
+    "size": 4543,
+    "mime": "image/png",
+    "sha256": "3069cfa20d2b27ab57b7062d6fb97b951f3151ef8673508cd3b071c9187414cc"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-green/png",
+    "size": 4549,
+    "mime": "image/png",
+    "sha256": "4036a780311600845a37f0eee020ea72e6a4a1f1a77541089d0932bdae658d0f"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-purple/png",
+    "size": 4544,
+    "mime": "image/png",
+    "sha256": "1592da12b3bbe970108f7956475306deeeb51697a27311e54312d641d099af26"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-red/png",
+    "size": 4530,
+    "mime": "image/png",
+    "sha256": "2141a45d7d85c939aacc82c565f565935bbf94804c00f8e4d3d9867f05283915"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-turquoise/png",
+    "size": 4547,
+    "mime": "image/png",
+    "sha256": "32071c7d2ac54ea3936651106395440882f4ff15aefeaa785135d5711ec181ab"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-humans-units-worker-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-humans-units-worker-yellow/png",
+    "size": 4535,
+    "mime": "image/png",
+    "sha256": "2dfb7b16bdca66c566c273466cd4ba00de74fbb2e80348b576a630d7925c2b3e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-blue/png",
+    "size": 7349,
+    "mime": "image/png",
+    "sha256": "4bc88882e9e0e7c1d15cd3a69c77aab92ae436837433cdc1ae6b5e76bfe241ef"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-brown/png",
+    "size": 7361,
+    "mime": "image/png",
+    "sha256": "e906e63ef9d31cf409b6221b782a4167312b37150a0147889170334b15aa9d36"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-green/png",
+    "size": 7351,
+    "mime": "image/png",
+    "sha256": "2cb2708210730f09a490cebb1650891f8559da49db0954e49f3a633d2f29b2e8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-purple/png",
+    "size": 7359,
+    "mime": "image/png",
+    "sha256": "3de0e7764226679a39610f14e300d8cfd255747d2c71f4698b4595f0d5f22300"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-red/png",
+    "size": 7328,
+    "mime": "image/png",
+    "sha256": "cc8148f91dcfa8a28362bd8e324550103dd9357204f891cc5c6d60f69d0833d8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-turquoise/png",
+    "size": 7363,
+    "mime": "image/png",
+    "sha256": "60d43208708d29474a483a1447659dfb75aa1b93214ef191bcad803a6748e2d4"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-yellow/png",
+    "size": 7332,
+    "mime": "image/png",
+    "sha256": "18a4a995e34e51f71373d952374225339b4601876b5bb8ed31b10af4b5a5dfb6"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-blue/png",
+    "size": 5702,
+    "mime": "image/png",
+    "sha256": "08d77c21a603d2b537d06083e5df9131818f70184e3fc47e4f2e89c33a9d11a9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-brown/png",
+    "size": 5712,
+    "mime": "image/png",
+    "sha256": "9be13b00ee2ef4e082afb63b12d517fa34c674965cb57122f2d5ebb2cb39e374"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-green/png",
+    "size": 5709,
+    "mime": "image/png",
+    "sha256": "929a7825088aa778516e26bbf9eefa774d0ac5257b6fb3fc5f04827ea261abb4"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-purple/png",
+    "size": 5706,
+    "mime": "image/png",
+    "sha256": "e7d073934ded792164dd56472ea453ae07efaec046aca9d40ec4c2c9cd984c77"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-red/png",
+    "size": 5660,
+    "mime": "image/png",
+    "sha256": "1c39aeb6738cc8e1ce0edf27c259f785b3b6c3c6b852ae727fcaf81dca824f8e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-turquoise/png",
+    "size": 5711,
+    "mime": "image/png",
+    "sha256": "3f46c382a5eaad2f07b6320bee1fc44dc6639e6a739e20f95a7b78f9eaf5c78a"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-yellow/png",
+    "size": 5695,
+    "mime": "image/png",
+    "sha256": "dfaa1129803014b3d23ac54706de7d3db253d8493ab96238f77a97d5d0501a6b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-blue/png",
+    "size": 8929,
+    "mime": "image/png",
+    "sha256": "11dbf6307c847c4fc808ad9c3357d7dce324e3596a3e08820bd51b1b7edf1d42"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-brown/png",
+    "size": 8925,
+    "mime": "image/png",
+    "sha256": "ebd8ab9d995469cd658f38b052eb2aa77d8e783299c4f4b26b89d461a6d4f066"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-green/png",
+    "size": 8920,
+    "mime": "image/png",
+    "sha256": "079411848ba4a00b016c4fe3a8e73c5e98f87a553ad423d617ea49873a28aba9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-purple/png",
+    "size": 8927,
+    "mime": "image/png",
+    "sha256": "652926a77bdd9fca21a511d2bd0723de7cc9a6e363b4dbe57e9ec8823b36bc28"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-red/png",
+    "size": 8884,
+    "mime": "image/png",
+    "sha256": "64878b7b8c4838ab774d8c03de3a5870fe050650b3c994c548a6f3a1dd53668d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-turquoise/png",
+    "size": 8931,
+    "mime": "image/png",
+    "sha256": "ab381dde408d82a69c5bb02da24f6a407167c9c5b598202ff03b669940b12c90"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-yellow/png",
+    "size": 8919,
+    "mime": "image/png",
+    "sha256": "5bb67f8c46294520de207adfee6c69d0cf2e923b745645a613cd4e11e83f6b1c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-blue/png",
+    "size": 6328,
+    "mime": "image/png",
+    "sha256": "c1bdeb9d3eaf1924749670dbbd578447dad6f21ee201a64f98acce23d74cc1d2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-brown/png",
+    "size": 6337,
+    "mime": "image/png",
+    "sha256": "44ab3ad17ef6c0b236b15292522349afa3366541bcad4f70c1fbaf9df72980ad"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-green/png",
+    "size": 6322,
+    "mime": "image/png",
+    "sha256": "b43e544a59d3dbf0af7fcad849bedbfbf91915e46f265774feb656250bfa38a6"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-purple/png",
+    "size": 6334,
+    "mime": "image/png",
+    "sha256": "335260885f82c713b7314fa119da787e31f5245a3c9b8aecd120c8a6619cfa36"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-red/png",
+    "size": 6302,
+    "mime": "image/png",
+    "sha256": "37f9bdbe7a68a111fe0751f3f3223ddb58f7e1067263f2ba06d746cffd311b52"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-turquoise/png",
+    "size": 6340,
+    "mime": "image/png",
+    "sha256": "3689cb84157f128744b501b723ffeb65e4c0624b80523b2be18e33d1715a48db"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-yellow/png",
+    "size": 6317,
+    "mime": "image/png",
+    "sha256": "0b9b880eb94b2ce9fdcac3e724082a9ce47d303d8821c76d4d835518071f4c86"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-blue.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-blue/png",
+    "size": 3929,
+    "mime": "image/png",
+    "sha256": "368a26d890b27ffed8ec92c2b579bd7f9f0fe8b5107187ea5ccc42cd852e7ba3"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-brown.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-brown/png",
+    "size": 3937,
+    "mime": "image/png",
+    "sha256": "38771653fb288668b4ac510e9e3d8bdcd2c5a277d4e7ca1e009578837702d67b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-green.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-green/png",
+    "size": 3927,
+    "mime": "image/png",
+    "sha256": "934f8fc7469aa7a422d43aa719b4c8b16d9dfb0b9400a5191538cb85759f9e93"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-purple.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-purple/png",
+    "size": 3934,
+    "mime": "image/png",
+    "sha256": "7288b406355de8fa4748b94d546a67adefdf89b888a31464448d6492fd082857"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-red.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-red/png",
+    "size": 3908,
+    "mime": "image/png",
+    "sha256": "348093ee6061bb3e28a8629cc271f638eab26662f73d39d56a892b2600ac60d5"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-turquoise.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-turquoise/png",
+    "size": 3937,
+    "mime": "image/png",
+    "sha256": "0fa4eb89402ff4188d5c737fbba534e18d44b2ffe13e9f18c3bf75bf1f1931da"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-yellow.png",
+    "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-worker-yellow/png",
+    "size": 3919,
+    "mime": "image/png",
+    "sha256": "672ef7c87e2fcb36bd9c24dd811d44d39b4711489677798db8607228ae37a550"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-ii-bard.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-bard/png",
+    "size": 5893,
+    "mime": "image/png",
+    "sha256": "c8eee91bb1840b13f8f740846440976990d32b0b55d7d50575a9d1f09eb85599"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-ii-cleric-special-animations-prayers-spirit-guardians.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-cleric-special-animations-prayers-spirit-guardians/png",
+    "size": 6688,
+    "mime": "image/png",
+    "sha256": "2f3746b2a94cd61584eda10926d42e6dc562333c917f0bdc1ea0dbcd4109af64"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-ii-cleric.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-cleric/png",
+    "size": 8458,
+    "mime": "image/png",
+    "sha256": "b359c3b9b2367d307c1ed0409cda713ad08113af1bbd7bae7635adf58f737fd2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-ii-paladin.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-paladin/png",
+    "size": 5460,
+    "mime": "image/png",
+    "sha256": "511b6c8460bb65338d15abe56ecdf7a40bda13fbe68df85f52eb04af63a99ac2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iii-fighter.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-fighter/png",
+    "size": 5357,
+    "mime": "image/png",
+    "sha256": "af870388b42ef0a7edbb3f436fe12ce60d036e4d03ba2c232cbf5b3cad45219f"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iii-ranger.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-ranger/png",
+    "size": 5034,
+    "mime": "image/png",
+    "sha256": "0a5eef5457c8654c6b605e182a6f0c05f059d7d8fd428aff6b95966b9aa002fb"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iii-wizard-special-animations-fire-familiar.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-wizard-special-animations-fire-familiar/png",
+    "size": 3983,
+    "mime": "image/png",
+    "sha256": "f54d751cb53af2ad07f97fe9f304df72373fb0fa54124cc8b4854483fdb32a09"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iii-wizard.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-wizard/png",
+    "size": 4909,
+    "mime": "image/png",
+    "sha256": "437f337eac079058148687894d3f7ff264b7771b917b7290ad9e3b50b7d4e209"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iv-blood-mage-special-animations-summon-blood-elemental-blood-elemental.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-blood-mage-special-animations-summon-blood-elemental-blood-elemental/png",
+    "size": 4917,
+    "mime": "image/png",
+    "sha256": "f8faa8502a7c31edb69726d69d3619a9d8e23965a4a680dae8eced49ea7eba49"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iv-blood-mage.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-blood-mage/png",
+    "size": 5010,
+    "mime": "image/png",
+    "sha256": "6554815bc40164948b82fc7455a2d200cbc13af7c0e6dc9bb3522e6566f7aa8d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iv-ninja-assassin.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-ninja-assassin/png",
+    "size": 4229,
+    "mime": "image/png",
+    "sha256": "0e466569181108c65742024c4bf118a19e93c509dc931f0adf57423a4169c7a2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-iv-tech-augmented-gunslinger.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-tech-augmented-gunslinger/png",
+    "size": 5485,
+    "mime": "image/png",
+    "sha256": "b4b685a6c0f69a7883dfa216f63682809fcc89573c8e581b91bfec2fb1e72c6b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-v-engineer.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-v-engineer/png",
+    "size": 7554,
+    "mime": "image/png",
+    "sha256": "325ed116f1f31a7b1b589f34e9d798c2750a5cea2afd0129ae33ee6d8f96a37f"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-1-shield-1-shield.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-v-guardian-1-shield-1-shield/png",
+    "size": 7279,
+    "mime": "image/png",
+    "sha256": "e066c0ec85a03e474f2273ee3a0e73932f4819bd906854ad927f395d16d25bdb"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-2-shields.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-v-guardian-2-shields/png",
+    "size": 8769,
+    "mime": "image/png",
+    "sha256": "a0fc72afd6c104d348a5fc0da965ffe7e3175e9243a2d0847237981dee5c5546"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-no-shield-no-shield.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-v-guardian-no-shield-no-shield/png",
+    "size": 5125,
+    "mime": "image/png",
+    "sha256": "0ff2a40c2330fbade5373b87f0feb30a2ecaf3365ad264f2265d620ae10070b3"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-heroes-v-runesmith.png",
+    "spur": "/lib/glurff/site/characters/premade/true-heroes-v-runesmith/png",
+    "size": 8419,
+    "mime": "image/png",
+    "sha256": "a61d4e0fb90f1d1fab8ba5a084f6341ae10301cbbe0aaad2476dc68e78924b69"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-dark-priest.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-dark-priest/png",
+    "size": 9744,
+    "mime": "image/png",
+    "sha256": "675b1f5521970ed356e290467a87c0a8ded4a4c2d0aa583de7233fbfcbc6634b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-demonologist-special-animations-summon-demon-angry-demon.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-demonologist-special-animations-summon-demon-angry-demon/png",
+    "size": 11779,
+    "mime": "image/png",
+    "sha256": "48d4eac01d632a2d9a5911f83fb5b630a733c84b5380fadf5fc13e136352f245"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-demonologist.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-demonologist/png",
+    "size": 13946,
+    "mime": "image/png",
+    "sha256": "b05d0526c05ecdb1df5306024815f8096da0ab39354957a852d6ba1856df4b0b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer-special-animations-plane-shift-soul-shape.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-supreme-necromancer-special-animations-plane-shift-soul-shape/png",
+    "size": 2409,
+    "mime": "image/png",
+    "sha256": "73ad913d48df2621d9c6df57aa3bd4fce9ac1753fee42b4306f5cc0700584c14"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer-special-animations-rise-corpse-skeletal-champion.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-supreme-necromancer-special-animations-rise-corpse-skeletal-champion/png",
+    "size": 6612,
+    "mime": "image/png",
+    "sha256": "6d1967b29dfe35ff66ea825a3f40f7a57a72786e5a43bdb90aaf3b497806eb13"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-i-supreme-necromancer/png",
+    "size": 11830,
+    "mime": "image/png",
+    "sha256": "ae2d5654cb5baf5c5fb1c61f73de55ee2fade56b950054f02aa291dc5442abb0"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-ii-gambler.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-ii-gambler/png",
+    "size": 7636,
+    "mime": "image/png",
+    "sha256": "7d5889d60cb8dd2163df01943bba284968bb18e98d9abaa09c66dbfdb7f0e2c9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-ii-plague-doctor.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-ii-plague-doctor/png",
+    "size": 14799,
+    "mime": "image/png",
+    "sha256": "3d6b946803e5d85411c15bf5b0902cddd7ef873a022062dab96e7df7a2d01c77"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-ii-puppeteer-special-animations-summon-puppet-puppet.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-ii-puppeteer-special-animations-summon-puppet-puppet/png",
+    "size": 15175,
+    "mime": "image/png",
+    "sha256": "9e36606084aad9cdc4e12bb41697b428ab645ca9b67c94c73243c93d3c83aaa7"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/true-villains-ii-puppeteer.png",
+    "spur": "/lib/glurff/site/characters/premade/true-villains-ii-puppeteer/png",
+    "size": 11292,
+    "mime": "image/png",
+    "sha256": "4310e898af0589d3e2e3b69d9bab8f71acc1fadf1db702db74151bdda2c14b10"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-barbarian.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-barbarian/png",
+    "size": 7650,
+    "mime": "image/png",
+    "sha256": "f650b0baf2d4f1504cd8919821ff1fc56c26e77a80319bf6a1acc3708001427b"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-beast.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-beast/png",
+    "size": 7228,
+    "mime": "image/png",
+    "sha256": "50efd6b5501762df442ce794dfeb6cc2e6f79e02312826c45a46b3daa74eddc9"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-hound.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-hound/png",
+    "size": 5240,
+    "mime": "image/png",
+    "sha256": "b169f8d7d6f47d694a10667f68ddecfabb0f472b7fc6f17e7ee656082891340d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-owl.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-owl/png",
+    "size": 1525,
+    "mime": "image/png",
+    "sha256": "462c307cca69687b1192ba6ac9324cff99597ed564ec2eccb1f6a6a90be0eeb0"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-druid.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-druid/png",
+    "size": 7846,
+    "mime": "image/png",
+    "sha256": "5ae931aa94400eda234d848a4fba3921ba723cfcd7bab967dc1b2557e4b46f3d"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/trueheroes-rogue.png",
+    "spur": "/lib/glurff/site/characters/premade/trueheroes-rogue/png",
+    "size": 6402,
+    "mime": "image/png",
+    "sha256": "d677563bb6550dc0984c802000d657901c971db748422eb8d8377b59709c1fd0"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-ghost.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-ghost/png",
+    "size": 3756,
+    "mime": "image/png",
+    "sha256": "5438cc22e867819aea08a07afe06f220deb974172a78cd5eecb94d968218b82f"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-headless-skeleton.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-headless-skeleton/png",
+    "size": 1883,
+    "mime": "image/png",
+    "sha256": "7dd77c9d203865518505bf3a625d2e94c57991c2bff2663f9d737d39df047ada"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-jumping-skull.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-jumping-skull/png",
+    "size": 1678,
+    "mime": "image/png",
+    "sha256": "18c45339ba8c84eb868506095f560c73209da76c01eaa13d728f335a8a14e627"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-archer.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-archer/png",
+    "size": 3569,
+    "mime": "image/png",
+    "sha256": "488e11624425dedda0bd4f764ba090046d6f19e67fa8a0ad6fd278bb3b79fe97"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-mage.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-mage/png",
+    "size": 4037,
+    "mime": "image/png",
+    "sha256": "e4e2b7e1e2abb27ac69b9e673851fa8bdad7821abc4a66983a26ec09b0f9e45e"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-warrior.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-warrior/png",
+    "size": 3438,
+    "mime": "image/png",
+    "sha256": "0c68a27f3c59904ad30656b0039194d9450f798768418b8ee64dcba0001d147c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-archer.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-archer/png",
+    "size": 5555,
+    "mime": "image/png",
+    "sha256": "ccd72cf2b54f67b49fc01ea40cddd1241b9453a097c67f2076dad1b3b56340fd"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-mage.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-mage/png",
+    "size": 4847,
+    "mime": "image/png",
+    "sha256": "9c154ecba5ef6de17db0f9eda24cf7a60368418fedb0eb497ebd8e735db9b968"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-warrior.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-warrior/png",
+    "size": 6092,
+    "mime": "image/png",
+    "sha256": "d500c21efabc1d25644f312053d1676939e0a3942b29c752d68a3e18f111f08c"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-skeletal-horse-horse.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-skeletal-horse-horse/png",
+    "size": 3240,
+    "mime": "image/png",
+    "sha256": "e9c29bfa7db53c440a8dccac12a7d9af2a4043f22d23e3a7d9c8e89142302f31"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-skeleton-minotaur.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-skeleton-minotaur/png",
+    "size": 4785,
+    "mime": "image/png",
+    "sha256": "2122e64ed0f7356800518de07084bc869ec6d98edf1be03db8b75ad0f28cacc2"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-zombie-bear.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-bear/png",
+    "size": 9782,
+    "mime": "image/png",
+    "sha256": "5480bf62368305a55640e2a975522385ffcdff898003b4a3ae78c8d81d635ae8"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-zombie-giant.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-giant/png",
+    "size": 9225,
+    "mime": "image/png",
+    "sha256": "d040349cc2c90fdadb98871d11a523c079484e0db8b57a8abf05252951da07dc"
+  },
+  {
+    "url": "/apps/glurff/characters/premade/undead-creatures-zombie-minotaur.png",
+    "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-minotaur/png",
+    "size": 4513,
+    "mime": "image/png",
+    "sha256": "54416dd6bd7170f25141e63920f9ea93bd039d3aad221929eb7440819f234688"
+  },
+  {
     "url": "/apps/glurff/characters/shoes.png",
     "spur": "/lib/glurff/site/characters/shoes/png",
     "size": 4319,
@@ -75,6 +4457,160 @@
     "size": 29959,
     "mime": "image/png",
     "sha256": "7a5645cf1a8d9f1e0af4ae97e3fd753eca6d6e4d4e84d4dd79d0df4eef7f960a"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/arrow.png",
+    "spur": "/lib/glurff/site/characters/weapon/arrow/png",
+    "size": 269,
+    "mime": "image/png",
+    "sha256": "22baf59a34e1965e253bdc8cf4176d1687898b908c34971762626563609a61f3"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/axe-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/axe-back/png",
+    "size": 221,
+    "mime": "image/png",
+    "sha256": "3d49522a666651032295b8ee17b1c17a4af44eefb445bded1fc769035187683a"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/axe-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/axe-front/png",
+    "size": 511,
+    "mime": "image/png",
+    "sha256": "16c7292cbe6a208867d38b6c6aaa039cff405ffbe61766d26625a2579802bab6"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/bow-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/bow-back/png",
+    "size": 368,
+    "mime": "image/png",
+    "sha256": "da583bc4549c6d257acd42b4f91491b1f70d934a300f4c985f51315cfd653033"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/bow-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/bow-front/png",
+    "size": 713,
+    "mime": "image/png",
+    "sha256": "781518d1ff3c89e1168753a1cc1fbd456dd3df5c679908d4b653746e2c5520f5"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/dagger-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/dagger-back/png",
+    "size": 201,
+    "mime": "image/png",
+    "sha256": "fe51ab5a5ea349858616908a576b7ea6e0ea791f4c6f10df0381f8264759557c"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/dagger-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/dagger-front/png",
+    "size": 302,
+    "mime": "image/png",
+    "sha256": "3d0a21b55309b0db39fa2b02c18011bcb1190028031fb793cae05d67a19aef4f"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/flail-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/flail-front/png",
+    "size": 657,
+    "mime": "image/png",
+    "sha256": "85fab7da6967868fd22d5c5e717897f6795e3b9fb0af9ec812ae918412f58e0c"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/longsword-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/longsword-back/png",
+    "size": 403,
+    "mime": "image/png",
+    "sha256": "4ee2ec0cf83c59d8e0787f6fee3b513df8464c89266d99ee53632dde7cf6b779"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/longsword-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/longsword-front/png",
+    "size": 510,
+    "mime": "image/png",
+    "sha256": "bdc1534a1f3a2ce657e7cba86206ef3c06c96a3d741f87b4bbff293f001d3377"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/pitchfork-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/pitchfork-back/png",
+    "size": 263,
+    "mime": "image/png",
+    "sha256": "971c5ae28d69b1cdb917cea59dbd2eecf5bcad1fcd51f4ade4ab3cf96248b148"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/pitchfork-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/pitchfork-front/png",
+    "size": 458,
+    "mime": "image/png",
+    "sha256": "ab34e9af07e7b359f706bd0c4a49d03390e005b8c74e10f2e016c0aae3df9c3d"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/sling-stone.png",
+    "spur": "/lib/glurff/site/characters/weapon/sling-stone/png",
+    "size": 231,
+    "mime": "image/png",
+    "sha256": "0096630fc3570e13d27572df27d052fb6ae8e850bf25c5b41ec9e2b5f3612ce1"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/slingshot-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/slingshot-back/png",
+    "size": 328,
+    "mime": "image/png",
+    "sha256": "a40d109175c1b8fd5825abdeccd0c94fd469c4e5145ad62ce29d5e904f6687d3"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/slingshot-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/slingshot-front/png",
+    "size": 730,
+    "mime": "image/png",
+    "sha256": "ba5f7faf3a522661aa235fbd10612fe11bbb5e2c098d17f25daa0efdeb27fb1d"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/spear-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/spear-back/png",
+    "size": 222,
+    "mime": "image/png",
+    "sha256": "8c2cb32051098b7d4c5815d679cd6fd8edc1503c45388d446bfb7d9f22b76180"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/spear-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/spear-front/png",
+    "size": 360,
+    "mime": "image/png",
+    "sha256": "ded075775551ce37f1096ad9125f1240a0f1dab1eba0c9f36022aa82e9b1b44c"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/sword-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/sword-back/png",
+    "size": 211,
+    "mime": "image/png",
+    "sha256": "cd6a461288d22582f174af64ba4526b4399d0a9655e7e2795dd0ee6059a4f876"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/sword-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/sword-front/png",
+    "size": 423,
+    "mime": "image/png",
+    "sha256": "7617ed96708589fd7903212e027814df32265bbe6f47bb5004feb5ab5b11bb61"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/waraxe-back.png",
+    "spur": "/lib/glurff/site/characters/weapon/waraxe-back/png",
+    "size": 469,
+    "mime": "image/png",
+    "sha256": "120e6b4277e5de2af99b406e962b1b87b1812bf21486bf2b84b5ce287cdfbae6"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/waraxe-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/waraxe-front/png",
+    "size": 603,
+    "mime": "image/png",
+    "sha256": "1d0c6973dd66c0b28480153192f57f29d6709219f7a656977720c8410081febe"
+  },
+  {
+    "url": "/apps/glurff/characters/weapon/whip-front.png",
+    "spur": "/lib/glurff/site/characters/weapon/whip-front/png",
+    "size": 712,
+    "mime": "image/png",
+    "sha256": "fbb169a170a6678ddd5072b0ef67b5faf6eaaa2e6a7a052db2e7d3bb5e5e1014"
   },
   {
     "url": "/apps/glurff/denoise-worklet.js",
@@ -102,7 +4638,7 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 595,
     "mime": "text/html; charset=utf-8",
-    "sha256": "d8f321205050032f866ec9ca4f2a7cff0458c5587726af2505be3291160fb095"
+    "sha256": "c4cc843a9acfee17b65294e529a70fd7d0ca65f7ed1f9dc9a7111d11d2539dad"
   },
   {
     "url": "/apps/glurff/licenses/jitsi-license.html",
@@ -149,8 +4685,8 @@
   {
     "url": "/apps/glurff/style.css",
     "spur": "/lib/glurff/site/style/css",
-    "size": 22770,
+    "size": 28122,
     "mime": "text/css; charset=utf-8",
-    "sha256": "fce9a0e6e5301e90b686c878746438d91f0d7f6f9697968a34f09c445251c803"
+    "sha256": "7ff05dfdb18bcfe2cf57a4160c4a3f981d8b13bd021535bf37b687ca1e9804b5"
   }
 ]

@@ -197,21 +197,47 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     ...(l.vis ? { vis: l.vis } : {}) });
 
   /* The list changed: everyone on it hears the new one, and only newcomers get
-   * our state -- everyone else already has it. */
-  function publishList() {
-    const before = list?.guests ?? new Set();
+   * our state -- everyone else already has it.
+   *
+   * COALESCED. Several things can change a list in one beat -- a guest joins
+   * while the note updates while the lease is republished -- and each send is
+   * one poke per guest. Collapsing a burst into a single round costs nothing
+   * in latency (it lands in the same tick) and is the difference between one
+   * send and thirteen. Genuine joins, removals and lease changes all still go
+   * out at once; only duplicates within the same beat are dropped. */
+  /* A LIST IS NEVER SENT TWICE.
+   *
+   * The storm was not a burst of different lists, it was the SAME list sent
+   * over and over: `setMembers` published unconditionally, and it is called on
+   * every occupancy change and every note update, once per guest. Thirteen
+   * guests gave 21,806 sends with 17,716 still queued and requests 48 seconds
+   * old, which starved presence, room-state and call control on the same
+   * channel.
+   *
+   * Refusing to repeat a message we have already sent is the whole fix, and
+   * it is better than a timer: a genuine change is never delayed by even a
+   * tick, because a genuine change produces a different message. A newcomer
+   * still gets the list even when its content is unchanged -- being new to it
+   * is itself the difference. */
+  let lastSent = '';
+  function publishList(before = list?.guests ?? new Set(), force = false) {
     list = hostedList();
     const message = listMessage(list);
+    const key = JSON.stringify(message);
+    const newcomers = new Set([...list.guests].filter((s) => !before.has(s)));
+    if (key === lastSent && !newcomers.size && !force) { reconcile(); return; }
+    lastSent = key;
     for (const s of list.guests) emit(s, message);
     reconcile();
     notify('list');
-    publish(new Set([...list.guests].filter((s) => !before.has(s))));
+    publish(newcomers);
   }
 
   /* We host this room. We are the first guest on our own list. */
   function host(place, { mode = 'open', share = true, note = null } = {}) {
     if (!isRoom(place) || hosted?.place === place) return;
     leave();
+    lastSent = '';
     hosted = { place, rev: 1, mode: MODES.has(mode) ? mode : 'open', share,
                note: isNote(note) ? note : null, vis: null,
                guests: new Map([[our, { at: now(), seen: true, missing: null }]]) };
@@ -286,6 +312,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
       }
     }
     const had = !!(hosted || following || list);
+    lastSent = '';
     hosted = null; following = null; list = null;
     viewers.clear(); introduced.clear();
     reconcile();
@@ -455,7 +482,15 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
        * carries a secret note's id to its members, and it is what gets them
        * through the room's door -- so somebody who opened Glurff after the
        * last change would otherwise stand outside a room that is theirs. */
-      else if (hosted.note && t - saidMembers >= MEMBER_REFRESH_MS) { saidMembers = t; publishList(); }
+      /* The one send that is allowed to repeat itself. A secret note's id
+       * travels nowhere else, so a member who was not around when the list
+       * last changed has no other way to hear it -- the deduplication above
+       * must not swallow this. Bounded by MEMBER_REFRESH_MS, and only while a
+       * note is actually attached. */
+      else if (hosted.note && t - saidMembers >= MEMBER_REFRESH_MS) {
+        saidMembers = t;
+        publishList(list?.guests ?? new Set(), true);
+      }
     }
     const before = viewers.size;
     reconcile();
@@ -518,12 +553,25 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         if (g) g.at = now();
         else hosted.guests.set(who, { at: now(), seen: false, missing: null });
       }
-      if (!same) hosted.rev++;
-      trace('room-list', { place: hosted.place, host: our, reason: 'note-members', count: hosted.guests.size });
-      /* Sent every time, not only when the list changes: a member who has just
-       * walked in, or come back from a reload, has no other way to hear it. */
-      publishList();
-      return true;
+      /* PUBLISH ONLY WHEN THE LIST ACTUALLY CHANGED.
+       *
+       * This used to send every time it was called, so that a member who had
+       * just walked in or reloaded would hear the list. That was wrong twice
+       * over: `republishLease` calls it on every occupancy change and on every
+       * note update, and one call is one poke PER GUEST. A thirteen-person
+       * note room produced 21,806 room-list sends with 17,716 still queued and
+       * requests forty-eight seconds old -- which then starved presence,
+       * room-state and call control on the same channel.
+       *
+       * The two cases it was covering are both served without this: somebody
+       * arriving asks for the list themselves (room-hello, see follow), and
+       * the periodic refresh in tick() catches anyone else. */
+      if (!same) {
+        hosted.rev++;
+        trace('room-list', { place: hosted.place, host: our, reason: 'note-members', count: hosted.guests.size });
+        publishList();
+      }
+      return same ? false : true;
     },
     /* Drop anybody the room will no longer have. Taking a lease on a room
      * with people already standing in it, or a member being removed from the

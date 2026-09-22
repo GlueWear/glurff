@@ -94,7 +94,7 @@
 ::  is what turns a small part set into a wide one.
 ::  The slots of the layered character art: a body, what it wears, and what is
 ::  on its head. Parts are ids into that art, never images.
-+$  slot  ?(%body %bottom %shoes %top %gloves %shoulders %beard %hair %hat)
++$  slot  ?(%body %bottom %shoes %top %gloves %shoulders %beard %hair %hat %weapon %mount %companion %premade)
 +$  piece  [part=@ta tint=(unit @ux)]
 +$  look   (map slot piece)
 ::  Bumped on every change. Peers refetch when the number moves, the way a
@@ -148,6 +148,9 @@
       ::  take a room for one of our own notes, or give it back. One at a time.
       [%lease peers=(list @p) =place note=@ta]
       [%unlease peers=(list @p) ~]
+      ::  Owner-local development switch. Deliberately absent from the JSON
+      ::  parser: it is changed from Dojo, not from the public UI.
+      [%sprite-lab peers=(list @p) enabled=?]
   ==
 ::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
 ::  confers only "the ship that mints tokens" -- no kick, no mute.
@@ -197,7 +200,7 @@
   $%  [%peer-here who=@p =spot rev=look-rev host=(unit @p)]
       [%peer-gone who=@p]
       [%peer-look who=@p =look rev=look-rev]
-      [%our-look =look rev=look-rev]
+      [%our-look =look rev=look-rev sprite-lab=?]
       [%peer-hosting who=@p =place mode=lock-mode]
       [%peer-unhosting who=@p =place]
       [%knocked who=@p =place]

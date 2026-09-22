@@ -84,7 +84,7 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 
 /* ---- messages --------------------------------------------------------- */
 /* ---- the top of the screen -------------------------------------------- */
-/* Left: search, then who is here. Middle: reach. Right: you. */
+/* Left: contacts, search, then who is here. Middle: reach. Right: you. */
 #top-left { position: fixed; left: 12px; top: 12px; z-index: 6;
   display: flex; align-items: flex-start; gap: 8px; }
 #top-mid { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 6; }
@@ -147,6 +147,42 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
   color: inherit; font: inherit; padding: .3rem; border-radius: 3px; }
 .dm-send input:focus { outline: none; border-color: #7fd6c3; }
 
+/* ---- contacts and pal requests ---------------------------------------- */
+.contacts { position: relative; z-index: 7; }
+.contacts-btn { position: relative; line-height: 0; padding: 0; width: 35px; height: 35px;
+  display: grid; place-items: center; }
+.contacts-btn svg { width: 21px; height: 21px; display: block; }
+.contacts-btn .dot { position: absolute; right: -3px; top: -3px; width: 11px; height: 11px;
+  border-radius: 50%; border: 1px solid #141820; background: #3b82f6; }
+.contacts-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 320px;
+  max-height: 65vh; overflow-y: auto; scrollbar-width: thin; background: rgba(10,12,18,.96);
+  border: 1px solid #2a3244; border-radius: 4px; }
+.contacts-group { padding: .45rem .5rem .25rem; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: #7b879b; border-bottom: 1px solid rgba(42,50,68,.5); }
+.contact-row { display: flex; align-items: center; gap: .4rem; padding: .45rem .5rem;
+  cursor: pointer; border-bottom: 1px solid rgba(42,50,68,.5); }
+.contact-row:hover { background: rgba(127,214,195,.08); }
+.contact-row.requested { background: rgba(59,130,246,.07); }
+.contact-row .av { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 3px;
+  background: #222a38; overflow: hidden; }
+.contact-row .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.contact-person { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.contact-person .who, .contact-person .prev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-person .prev { font-size: 10px; }
+.contact-tags, .contact-request-actions { display: flex; flex: 0 0 auto; gap: .25rem; }
+.contact-tag, .contact-request-actions button { padding: .15rem .3rem; font-size: 10px; }
+.contact-request-actions .accept, .pal-requested { border-color: #3b82f6; color: #75a7ff;
+  background: rgba(59,130,246,.1); }
+.contact-request-actions .dismiss { color: #9aa7bd; }
+.pal-mutual { border-color: #2d6752 !important; color: #4aba8a !important;
+  background: rgba(45,103,82,.15) !important; }
+.pal-requesting { border-color: #ffaa00 !important; color: #ffaa00 !important;
+  background: rgba(255,170,0,.1) !important; }
+.pal-requested { border-color: #3b82f6 !important; color: #75a7ff !important;
+  background: rgba(59,130,246,.1) !important; }
+.pal-blocked { border-color: #a3524b !important; color: #d98b83 !important;
+  background: rgba(163,82,75,.12) !important; }
+
 /* ---- profile card ------------------------------------------------------ */
 .card-overlay { position: absolute; inset: 0; z-index: 10; display: flex;
   align-items: center; justify-content: center; background: rgba(6,8,12,.6); }
@@ -165,6 +201,7 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .card-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
 .card-btns button { flex: 1 1 auto; }
 .card-btns .danger { border-color: #a3524b; color: #d98b83; }
+.card-btns .b-pal.pal-none { border-color: #2a3244; color: #c9d4e4; background: rgba(15,19,29,.85); }
 .card-notes { display: flex; flex-direction: column; gap: .2rem;
   border-top: 1px solid #2a3244; padding-top: .5rem; }
 .card-note { display: flex; gap: .4rem; overflow: hidden; }
@@ -195,6 +232,21 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .builder .dirs{display:flex;flex-direction:column;gap:4px;}
 .builder .dirs button{text-transform:capitalize;}
 .builder .dirs button.on{border-color:#7fd6c3;color:#7fd6c3;}
+.builder .browse-characters{display:block;width:100%;padding:12px;border:2px solid #7fd6c3;background:#233f3d;color:#ddfff6;font-weight:bold;}
+.builder .equipment{border-top:1px solid #49616c;margin-top:14px;padding-top:4px;}
+.builder .equipment select{flex:1;width:auto;min-width:0;}
+.builder .bow-hint,.builder .equipment-notice,.builder .character-credit{font-size:12px;line-height:1.5;color:#b8cbcb;}
+.builder .builder-error{color:#ffb0a5;}
+.builder.character-picker{width:min(760px,94vw);}
+.character-search{display:block;margin:14px 0;}
+.character-search input{display:block;width:100%;margin-top:6px;}
+.character-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;max-height:60vh;overflow:auto;padding:3px;}
+.character-choice{min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12px;}
+.character-choice[hidden]{display:none;}
+.character-choice.selected{outline:2px solid #7fd6c3;}
+.character-choice.build-own{background:#294841;border:2px solid #9ee0aa;color:#e8ffe8;grid-column:span 2;}
+.character-choice.build-own strong{font-size:18px;}
+.character-thumb{display:block;width:48px;height:48px;image-rendering:pixelated;flex-shrink:0;}
 .builder .done{margin-top:12px;}.noise-option{display:flex;gap:6px;align-items:center;margin:8px 0;}
 .reach{background:#202938e8;padding:0 8px;height:35px;border-radius:6px;white-space:nowrap;display:flex;align-items:center;gap:.3rem;}
 .game-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.game-controls:empty{display:none;}
@@ -348,3 +400,26 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
   border-radius: 4px; padding: .45rem .55rem; display: flex; flex-direction: column; gap: .35rem; }
 .door-picker .options { display: flex; flex-direction: column; gap: .25rem; }
 .door-picker .options button { text-align: left; }
+
+/* ---- pictures and files in chat --------------------------------------- */
+/* Two lines tall in the conversation. A picture is something somebody said,
+ * not the whole room: one of them must never swamp a three-line chat. */
+.shot-thumb { display: inline-block; vertical-align: text-bottom; margin: 0 .25rem; }
+.shot-thumb img { display: block; height: 2.6em; width: auto; max-width: 14rem;
+  object-fit: cover; border-radius: 4px; border: 1px solid #4a5568;
+  background: #141922; cursor: zoom-in; }
+.shot-thumb img:hover { border-color: #7fd6c3; }
+/* Anything that is not a picture: its name, and a way to open it. */
+.file-card { display: inline-flex; align-items: center; gap: .3rem; margin: 0 .25rem;
+  padding: .12rem .4rem; border: 1px solid #4a5568; border-radius: 4px;
+  background: #141922; color: #cbd5e0; text-decoration: none; font-size: 12px;
+  max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-card::before { content: '⎙'; opacity: .6; }
+.file-card:hover { border-color: #7fd6c3; color: #7fd6c3; }
+/* Full size, over the world -- which keeps running behind it. */
+.shot-overlay { position: fixed; inset: 0; z-index: 45; display: flex;
+  flex-direction: column; align-items: center; justify-content: center; gap: .5rem;
+  background: rgba(6,8,12,.9); cursor: zoom-out; padding: 2rem; }
+.shot-overlay .shot { max-width: 92vw; max-height: 82vh; object-fit: contain;
+  border-radius: 6px; box-shadow: 0 12px 60px #000a; image-rendering: auto; }
+.shot-name { font-size: 12px; }

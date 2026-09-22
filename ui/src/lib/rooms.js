@@ -168,7 +168,7 @@ function admitsToRoom(who,place){
  * note's own settings decide who may take part.
  *
  * You hold at most one. Taking another replaces it, and the UI asks first. */
-export function setLease(lease) {
+export function setLease(lease, { reselect = true } = {}) {
   const next = lease && Number.isSafeInteger(lease.place) && typeof lease.note === 'string'
     ? { place: lease.place, note: lease.note } : null;
   const same = (rooms.lease?.place ?? null) === (next?.place ?? null) &&
@@ -182,7 +182,7 @@ export function setLease(lease) {
   /* Taking or giving back the lease on the room we are STANDING IN changes
    * which call this room has: the note's, or Glurff's own. Move to it rather
    * than waiting for somebody to walk out and back in. */
-  if ((next?.place === rooms.here || was?.place === rooms.here) && rooms.here !== COMMONS && rooms.host) {
+  if (reselect && (next?.place === rooms.here || was?.place === rooms.here) && rooms.here !== COMMONS && rooms.host) {
     const to = rooms.host;
     if (noteCall?.note()) noteCall.leave();
     controller?.select(null);
@@ -333,6 +333,30 @@ export async function releaseLease() {
  * list was being worked out from feet and geometry rather than from the call
  * they were or were not in. */
 export const callPeers=()=>sfu?.others()??new Set();
+/* Why each peer in this call is or is not audible. Read by the diagnostics
+ * bundle and by the audio trace below; see SfuSession.audioState. */
+export const callAudioState=()=>sfu?.audioState?.()??{};
+
+/* AUDIBLE-BUT-SILENT is the fault this exists to catch: a stream whose video
+ * is on screen while its volume sits at zero for a reason nobody can see.
+ * Traced only when the answer CHANGES, so a steady call writes nothing, and
+ * capped so a large room cannot flood the log. */
+let audioSaid = '';
+function traceRoomAudio(reason) {
+  if (!sfu) return;
+  const state = callAudioState();
+  const ships = Object.keys(state).sort().slice(0, 24);
+  if (!ships.length) { audioSaid = ''; return; }
+  const rows = ships.map((s) => {
+    const a = state[s];
+    return `${s}:${a.track ? (a.live ? 'live' : 'ended') : 'none'}/${a.playing ? 'play' : a.started === false ? 'refused' : 'idle'}/${a.volume}${a.silenced ? '/muted' : ''}`;
+  });
+  const key = reason + '|' + rows.join(',');
+  if (key === audioSaid) return;
+  audioSaid = key;
+  diagnostic('room-audio', { reason, place: rooms.here, count: ships.length,
+    silent: rows.filter((r) => r.endsWith('/0') || r.includes('/0/')).length, detail: rows.join(' ') });
+}
 export const roomPeers=()=>mates?.peers()??new Map();
 export const roomAudience=()=>mates?.audience()??new Set();
 export const roomSummary=()=>mates?.summary()??null;
@@ -357,7 +381,12 @@ export function initRooms() {
   mates=createMates();
   if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),picker:rooms.picker});
   sfu=new SfuSession({our,
-    onStream:(ship,stream,meta={})=>{if(ship && ship!==our && visiblePeers().includes(ship)){
+    /* WHOEVER THE CALL SERVER GAVE US. Gating this on `visiblePeers` made a
+     * call stream depend on world visibility: a legitimate participant we
+     * could not currently see was dropped outright and never heard again,
+     * even after they became visible. Blocking is still honoured -- that is a
+     * decision about a person, not about whether we can see them. */
+    onStream:(ship,stream,meta={})=>{if(ship && ship!==our && palStatus(ship)!=='blocked'){
       rooms.remoteStreams.set(meta.id??stream.id,{ship,stream,label:meta.label??'camera'});selectRemoteCamera(ship);changed();
     }},
     onStreamRemoved:removeRemoteStream,
@@ -576,7 +605,10 @@ export function updateHuddle(self,peers) {
    * this the lowest @p wins the election straight back and the handoff undoes
    * itself in the same beat. */
   if(huddleHandoff && !mine.includes(huddleHandoff.host))huddleHandoff=null;
-  const host=electHost(mine,huddleHandoff?.host??huddle?.host??null);
+  /* `hosts` is what each person near us says their own host is. Passing it in
+   * is what lets two browsers notice they disagree and settle on the same
+   * answer; see electHost. A handoff we are running is trusted over it. */
+  const host=electHost(mine,huddleHandoff?.host??huddle?.host??null,hosts,!!huddleHandoff);
   huddle={key,members:mine,host,place:huddlePlace(host)};
   diagnostic('huddle',{reason:before?'changed':'formed',place:huddle.place,host:huddle.host,count:mine.length,
     detail:together.size>(before?.members.length??0)?'agreed':'distance'});
@@ -806,6 +838,22 @@ function receiveHandoff(who,event){
       huddle={...huddle,host:who,place:huddlePlace(who)};
       controller?.hosted.delete(place);
       selectCall(huddle.place,who);changed();return;
+    }
+    /* HANDING A LEASED ROOM ON GIVES THE ROOM BACK.
+     *
+     * A leased room's call is the note's, minted by the note's own ship -- it
+     * is not ours to hand to anybody. Worse, while the lease stands every
+     * client picks the lease holder as the room's host, so a handoff was
+     * immediately elected back and the call flapped between the two of them.
+     *
+     * So the lease ends here and what is handed over is an ordinary Glurff
+     * room. No re-select: the handoff is about to choose the new host's call
+     * itself, and selecting our own in between would start a call we are in
+     * the middle of giving away. */
+    if(rooms.lease?.place===place){
+      diagnostic('room-lease',{place,reason:'handed-on'});
+      G.dropLease().catch(()=>{});
+      setLease(null,{reselect:false});
     }
     handoffs.set(place,who);
     G.releaseRoom(place).catch(()=>{});
@@ -1176,6 +1224,7 @@ function applyPlayable(record,call){
     if(hide)blocked.add(ship);
   }
   sfu.setSilenced?.(blocked);
+  traceRoomAudio('moderation');
   for(const [id,r] of [...rooms.remoteStreams])if(blocked.has(r.ship))rooms.remoteStreams.delete(id);
   for(const ship of blocked)rooms.streams.delete(ship);
   rooms.blocked=[...blocked];
@@ -1278,10 +1327,22 @@ function recordableAudio(){
 /* Proximity volume, applied per stream from how far away someone is standing. */
 export function setPositions(self, peers) {
   if (!sfu) return;
-  /* Inside a room, membership IS the boundary: people sitting around the same
-   * table went silent five tiles apart because the commons' attenuation was
-   * still applied to them. */
-  if (rooms.here !== COMMONS) return sfu.setFlatGain(1, new Set([...peers].filter(([who,p])=>roomOfPeer(who,p.spot)===rooms.here).map(([ship])=>ship)));
+  /* INSIDE A ROOM, THE CALL IS THE BOUNDARY -- NOT PRESENCE.
+   *
+   * This used to pass an allowed set worked out from `peers`, the presence
+   * map, so a stream was audible only while its sender also had a live avatar
+   * standing in this room. Presence and the call are two different channels
+   * with two different lifetimes: a presence gap, a stale avatar, or a peer we
+   * simply cannot see drops somebody out of that set while their stream stays
+   * in `rooms.remoteStreams`. The rail went on drawing their video and their
+   * audio was silently turned down to zero.
+   *
+   * Being connected to this call is already proof of membership: the SFU only
+   * hands us streams from the room we authenticated into, so there is nothing
+   * presence can add. Mutes, boots and blocks are enforced separately by
+   * applyPlayable -> setSilenced, which setFlatGain honours, so dropping the
+   * allowed set loosens nothing. */
+  if (rooms.here !== COMMONS) { sfu.setFlatGain(1); traceRoomAudio('room'); return; }
   const near = {};
   for (const [ship, p] of peers) near[ship] = { x: p.spot.x, y: p.spot.y };
   sfu.setPositions({ x: self.x, y: self.y }, near);

@@ -2,6 +2,9 @@ import { diagnostic, setMovementDiagnostics, milestone } from 'lib/diagnostics';
 import { createPresence } from 'lib/presence';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
+import { createBow } from 'lib/bow';
+import { palStatus } from 'lib/noltbook';
+import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
 /* Boot.
  *
  * The world comes up first and stays up. Noltbook is wired in beside it, so a
@@ -19,11 +22,12 @@ import { Rail } from 'ui/rail';
 import { CallPanels } from 'ui/callpanels';
 import { ProfileCard } from 'ui/profile';
 import { Dms } from 'ui/dms';
+import { Contacts } from 'ui/contacts';
 import { Me } from 'ui/me';
 import { Members } from 'ui/members';
 import { ask } from 'ui/ask';
 import * as R from 'lib/rooms';
-import { DEFAULT_LOOK, DIRS } from 'world/parts';
+import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
 
 const state = {
   look: DEFAULT_LOOK,
@@ -201,6 +205,9 @@ onChange(() => void offerJoinRequest(), (c) => c.field === 'joinRequests' || c.f
 R.onRooms(() => void offerJoinRequest());
 
 const game = new Game(document.getElementById('stage'), {
+  onEmote: scene => {
+    void Promise.resolve(sendWorldAction({kind:'emote',scene,t0:Date.now()})).catch(()=>{});
+  },
   onMove: (self) => {
     /* Starting, stopping and turning go out at once. Everything between them is
      * the ordinary rate: a stop that waits for the next tick is seen as sliding
@@ -247,6 +254,29 @@ const game = new Game(document.getElementById('stage'), {
   },
 });
 
+// Ephemeral world effects use Glurff's authenticated envelope, not a claimed
+// sender inside the JSON body. No changes to Noltbook or movement traffic.
+function sendWorldAction(event) {
+  const audience = [...new Set([...presence.viewers(),...state.peers.keys(),...R.roomAudience()])]
+    .filter(who => who !== our && palStatus(who) !== 'blocked');
+  return G.sendWorldEffect(audience,event);
+}
+const bow = createBow({
+  our,
+  self: () => game.selfSprite && ({...game.self,
+    weapon: builder.equipmentReady ? game.selfSprite.look.weapon?.part : null,
+    locked: game.selfSprite.animation.locked(performance.now()),
+  }),
+  visible: who => state.peers.has(who),
+  blocked: who => palStatus(who) === 'blocked',
+  solid: mapSolid,
+  hitBox: scene => {const half=2*sceneCharacterScale(scene)/sceneTile(scene);return {x:half,y:half};},
+  send: sendWorldAction,
+  onShot: (ship,shot) => game.react(ship,'attack',shot.scene,shot.weapon),
+  onHit: (ship,shot) => game.react(ship,'die',shot.scene),
+});
+game.bow = bow;
+
 const events = createRoomEvents({our,room:()=>state.room,peers:()=>[...state.peers].filter(([ship,p])=>
   R.roomOf(ship,p.spot)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
   rooms:isChattyRoom,gameRoom:GAME_ROOM});
@@ -271,7 +301,7 @@ R.setCallTiles(() => rail.recordableTiles());
 /* Members of a note a room is leased to see each other in the world. */
 setLeasedNotes(() => R.leasedNotes());
 
-/* THE TOP OF THE SCREEN, in three places. Left: search, and who is here with
+/* THE TOP OF THE SCREEN, in three places. Left: contacts, search, and who is here with
  * you. Middle: how far your reach goes. Right: you -- your picture and your
  * name, the way Noltbook has it, and clicking it opens your own profile.
  *
@@ -288,6 +318,8 @@ const topRight = document.createElement('div');
 topRight.id = 'top-right';
 document.body.appendChild(topRight);
 
+const contactsRoot = document.createElement('div');
+topLeft.appendChild(contactsRoot);
 const dmRoot = document.createElement('div');
 topLeft.appendChild(dmRoot);
 const cardRoot = document.createElement('div');
@@ -300,6 +332,7 @@ const card = new ProfileCard(cardRoot, {
   onEditCharacter: () => builder.toggle(),
 });
 const dms = new Dms(dmRoot, { onShowProfile: (ship) => card.open(ship) });
+new Contacts(contactsRoot, { onShowProfile: (ship) => card.open(ship) });
 const me = new Me(topRight, { onOpen: (ship) => card.open(ship), look: () => state.look });
 
 /* Who is here with you -- the room you are in, or the commons -- and who hosts
@@ -333,6 +366,7 @@ window.__builder = null;   // debug handle
 const builder = new Builder(builderRoot, {
   onChange: (look) => {
     state.look = look;
+    game.self.look = look;
     me.setLook(look);
     /* The editor is reachable before the world has finished coming up, and
      * dressing a sprite that does not exist yet throws. The panel's own
@@ -570,7 +604,11 @@ reachSelect.onchange = async () => {
 
 function onWorldFact(name, p, fromPresence=false) {
   if(name==='presence-event') {
-    try {const event=JSON.parse(p.body);if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
+    try {const event=JSON.parse(p.body);if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){if(spriteLabEnabled())bow.receive(p.who,event);}else if(event.kind==='emote'){
+      if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
+         ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
+         Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
+    }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
     return;
   }
   // Old, unscoped movement/departure packets cannot override tab leases.
@@ -617,8 +655,11 @@ function onWorldFact(name, p, fromPresence=false) {
       break;
     }
     case 'our-look':
+      setSpriteLabEnabled(p.spriteLab === true);
+      builder.setEquipmentReady(p.equipment === true);
       if (p.look && Object.keys(p.look).length) {
         state.look = p.look;
+        game.self.look = p.look;
         state.rev = p.rev;
         builder.setLook(p.look);
         me.setLook(p.look);

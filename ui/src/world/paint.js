@@ -1,4 +1,4 @@
-import { SLOTS, frameOf, completeLook } from 'world/parts';
+import { characterLayers, completeLook, equipmentOf, wholeFrame } from 'world/parts';
 /* One character, drawn onto a canvas.
  *
  * The builder's preview uses this rather than the world's renderer: the panel
@@ -14,9 +14,9 @@ function sheet(url, onLoad) {
   if (!img) {
     img = new Image();
     img.src = url;
-    if (onLoad) img.addEventListener('load', onLoad, { once: true });
     sheets.set(url, img);
   }
+  if (onLoad && !img.complete) img.addEventListener('load', onLoad, { once: true });
   return img;
 }
 
@@ -32,11 +32,25 @@ export function paintCharacter(canvas, look, dir, frame, scale = 4, onLoad = nul
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, size, size);
   const worn = completeLook(look);
-  for (const slot of SLOTS) {
-    const f = frameOf(slot, worn[slot]?.part, dir, frame);
-    if (!f) continue;
+  const layers = characterLayers(worn, dir, frame);
+  const companion = equipmentOf('companion', worn.companion?.part);
+  if (companion) layers.push({...wholeFrame(companion, dir, 0),dx:14,dy:2});
+  const equipped = ['premade','mount','weapon','companion'].some(slot => worn[slot]);
+  // Keep the familiar close-up for dolls. Whole creatures/equipment share a
+  // fitted viewport; a giant's head and a mount's feet must both stay visible.
+  const box = equipped ? layers.reduce((b,f) => [
+    Math.min(b[0],-f.w/2+(f.dx??0)),Math.min(b[1],-f.feet+(f.dy??0)),
+    Math.max(b[2],f.w/2+(f.dx??0)),Math.max(b[3],f.h-f.feet+(f.dy??0)),
+  ],[0,0,0,0]) : [-8,-15,8,1];
+  const factor = size/Math.max(box[2]-box[0],box[3]-box[1]);
+  const cx = (box[0]+box[2])/2, cy=(box[1]+box[3])/2;
+  for (const f of layers) {
     const img = sheet(f.url, onLoad);
     if (!img.complete || !img.naturalWidth) continue;
-    ctx.drawImage(img, f.x + CROP.x, f.y + CROP.y, CROP.w, CROP.h, 0, 0, size, size);
+    ctx.save();
+    ctx.translate(size/2+((f.dx??0)-cx)*factor,size/2+((f.dy??0)-cy)*factor);
+    ctx.scale(f.flip ? -factor : factor,factor);
+    ctx.drawImage(img,f.x,f.y,f.w,f.h,-f.w/2,-f.feet,f.w,f.h);
+    ctx.restore();
   }
 }

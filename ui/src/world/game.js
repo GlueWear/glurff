@@ -8,11 +8,13 @@ import { versioned } from '../lib/build.js';
  */
 import { MotionBuffer } from 'lib/motion';
 import { Application, Container, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
-import { FRAME, FEET, HEAD, SLOTS, frameOf, completeLook, allTextures } from 'world/parts';
+import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
+  equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
+import { CharacterAnimation } from './animation.js';
 import { buildWorld, regionAt, SPAWN, COMMONS, GAME_ROOM, MAIN_SCENE, VATICAN_SCENE, TILE,
   VATICAN_SPAWN, MAP_IMAGE, OVER_IMAGE, VATICAN_IMAGE, VATICAN_OVER_IMAGE,
   ROOMS, normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
-  vaticanExitAt } from 'world/places';
+  vaticanExitAt, sceneInfo } from 'world/places';
 import { SecretRoomQuest, MAIN_RETURN } from 'world/secret-room';
 
 BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
@@ -41,18 +43,24 @@ const DOOR_LOOK = (() => {
 /* One texture per part frame, cut out of its slot's sheet and kept: a walking
  * character asks for the same handful of frames over and over. */
 const frames = new Map();
+const loading = new Map();
 function frameTexture(f) {
-  const id = `${f.url}|${f.x},${f.y}`;
+  const base = Assets.cache.has(f.url) ? Assets.cache.get(f.url)?.baseTexture : null;
+  if (!base?.valid) {
+    if (!loading.has(f.url)) loading.set(f.url, Assets.load(f.url).catch(() => null));
+    return null;
+  }
+  const id = `${f.url}|${f.x},${f.y},${f.w},${f.h}`;
   let t = frames.get(id);
   if (!t) {
-    t = new Texture(Texture.from(f.url).baseTexture, new Rectangle(f.x, f.y, f.w, f.h));
+    t = new Texture(base, new Rectangle(f.x, f.y, f.w, f.h));
     frames.set(id, t);
   }
   return t;
 }
 const RUN_MULT = 1.8;
 const DOUBLE_TAP_MS = 280;
-const FRAME_MS = 140;       //  walk cycle
+const FRAME_MS = 200;       //  Minifantasy walk timing
 /* How far the world moves for a drag of the mouse. Above one, so crossing the
  * building is one pull rather than several. */
 const PAN_SPEED = 2.5;
@@ -65,7 +73,7 @@ export const ZOOMS = [0.5, 1, 2, 3, 4, 5];
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, isClosed, isBlocked, onRoomDoor } = {}) {
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor } = {}) {
     /* Is this room shut to us? A room leased to somebody's secret note is. */
     this.isClosed = isClosed ?? (() => false);
     /* Public/private note rooms are visible but stop non-members at the door;
@@ -79,6 +87,7 @@ export class Game {
      * place switch -- the room is part of the same world. */
     this.onRoomChange = onRoomChange ?? (() => {});
     this.onSceneChange = onSceneChange ?? (() => {});
+    this.onEmote = onEmote ?? (() => {});
     this.zoom = 3;
     this.keys = new Set();
     this.peers = new Map();   //  ship -> {sprite, spot, look}
@@ -154,6 +163,7 @@ export class Game {
     const release = () => { this.panning = null; this.mount.style.cursor = ''; };
     window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
     window.addEventListener('blur', release);
+    window.addEventListener('blur', () => {this.keys.clear();this.running=false;});
     /* Wheel to zoom, which is what everyone reaches for first. */
     this.mount.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -164,8 +174,21 @@ export class Game {
   }
 
   onKey(e, down) {
-    if (down && (document.querySelector('.builder') || (e.target && /input|textarea|select/i.test(e.target.tagName)))) {this.keys.clear();return;}
+    const modal = down && [...document.querySelectorAll('.builder, dialog[open], [role="dialog"]')]
+      .some(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    if (down && (modal ||
+      e.target?.closest?.('input, textarea, select, [contenteditable]') ||
+      (e.key === ' ' && e.target?.closest?.('button, a')) ||
+      e.ctrlKey || e.metaKey || e.altKey)) {this.keys.clear();return;}
     const k = e.key.toLowerCase();
+    if (k === ' ') {
+      if (down && !e.repeat) this.bow?.fire();
+      e.preventDefault();
+    }
+    if (k === 'b' && down && !e.repeat) {
+      this.emote();
+      e.preventDefault();
+    }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
       if (down && !this.keys.has(k)) {
         const now = performance.now();
@@ -249,6 +272,9 @@ export class Game {
     this.self.dir = destination.dir ?? this.self.dir;
     this.self.moving = false;
     this.self.frame = 0;
+    this.selfSprite.animation = new CharacterAnimation();
+    this.selfSprite.follow = null;
+    this.bow?.clear();
     this.pan = { x: 0, y: 0 };
     this.settling = null;
     this.settled = 0;
@@ -270,15 +296,9 @@ export class Game {
 
   makeCharacter(look, name = null, scene = MAIN_SCENE) {
     const node = new Container();
-    const layers = {};
-    for (const slot of SLOTS) {
-      const s = new Sprite(Texture.EMPTY);
-      /* Anchored at the feet; the narrower secret architecture uses the same
-       * art at half the main world's size. */
-      s.anchor.set(0.5, FEET / FRAME);
-      node.addChild(s);
-      layers[slot] = s;
-    }
+    node.visible = scene === this.scene;
+    const layers = {}, body = new Container(), companion = new Sprite(Texture.EMPTY);
+    node.addChild(body);
     /* The name rides above the head, in the world rather than in the HUD, so
      * you can tell who is who at a glance. It is the Noltbook display name
      * where one is set -- the raw @p is only a fallback. */
@@ -293,7 +313,9 @@ export class Game {
     label.resolution = 2;
     node.addChild(label);
 
-    const ch = { node, layers, label, look: completeLook(look), dir: 'down', frame: 0 };
+    const ch = { node, body, companion, layers, label, look: completeLook(look), dir: 'down', frame: 0,
+      animation: new CharacterAnimation(), follow: null };
+    this.actors.addChild(companion);
     this.scaleCharacter(ch, sceneCharacterScale(scene), sceneNameSize(scene));
     this.dressCharacter(ch, ch.look);
     return ch;
@@ -303,7 +325,7 @@ export class Game {
     ch.scale = scale;
     for (const layer of Object.values(ch.layers)) layer.scale.set(scale);
     if (nameSize && ch.label.style.fontSize !== nameSize) ch.label.style.fontSize = nameSize;
-    ch.label.position.set(0, -(FEET - HEAD) * scale * NAME_HEIGHT);
+    ch.label.position.set(0, -characterTop(ch.look) * scale * NAME_HEIGHT);
   }
 
   nameCharacter(ch, name) {
@@ -315,17 +337,106 @@ export class Game {
     this.poseCharacter(ch, ch.dir, ch.frame);
   }
 
-  poseCharacter(ch, dir, frame) {
+  poseCharacter(ch, dir, frame, animation = 'walk', progress = 0, cycle = frame) {
     ch.dir = dir;
     ch.frame = frame;
-    for (const slot of SLOTS) {
-      const piece = ch.look[slot];
-      const layer = ch.layers[slot];
-      const f = piece ? frameOf(slot, piece.part, dir, frame) : null;
-      if (!f) { layer.texture = Texture.EMPTY; continue; }
-      layer.texture = frameTexture(f);
-      layer.tint = piece.tint ?? 0xffffff;
+    ch.mode = animation;
+    // Off-scene peers do not download art until they can actually be seen.
+    if (!ch.node.visible) return;
+    for (const layer of Object.values(ch.layers)) layer.visible = false;
+    for (const f of characterLayers(ch.look, dir, frame, animation, cycle)) {
+      let layer = ch.layers[f.key];
+      if (!layer) { layer = ch.layers[f.key] = new Sprite(Texture.EMPTY); ch.body.addChild(layer); }
+      // Reinsert in the shared compositor's order (mount ALWAYS in front).
+      ch.body.addChild(layer);
+      const texture = frameTexture(f);
+      layer.visible = true;
+      if (texture) layer.texture = texture;
+      layer.anchor.set(.5, f.feet / f.h);
+      layer.position.set((f.dx ?? 0)*ch.scale, (f.dy ?? 0)*ch.scale);
+      layer.scale.set(ch.scale*(f.flip ? -1 : 1), ch.scale);
+      layer.tint = f.tint ?? 0xffffff;
     }
+    const premade = equipmentOf('premade', ch.look.premade?.part);
+    // Some creatures have no fall strip. Give them the same visible, reversible
+    // reaction with their OWN art rather than substituting a human body.
+    ch.body.rotation = animation === 'die' && premade && !premade.animations.die
+      ? Math.sin(progress*Math.PI)*Math.PI/2 : 0;
+    ch.label.y = -characterTop(ch.look)*ch.scale*NAME_HEIGHT;
+  }
+
+  animateCharacter(ch, dir, moving, time) {
+    const pose = ch.animation.pose(time, moving, {
+      walk: animationFrames(ch.look, 'walk'), idle: animationFrames(ch.look, 'idle'),
+    });
+    this.poseCharacter(ch, dir, pose.frame, pose.animation, pose.progress, pose.cycle);
+  }
+
+  emote() {
+    if (!this.selfSprite || this.self.moving || this.keys.size) return false;
+    const now = performance.now();
+    const frames = animationFrames(this.selfSprite.look, 'idle');
+    if (!this.selfSprite.animation.emote(now, frames)) return false;
+    this.onEmote(this.scene);
+    return true;
+  }
+
+  react(ship, kind, scene, weaponKey = null) {
+    const peer = this.peers.get(ship);
+    const ch = ship === this.ourShip ? this.selfSprite : peer?.ch;
+    if (!ch || (ship === this.ourShip ? this.scene : peer.scene) !== scene) return;
+    if (kind === 'attack') {
+      const weapon = equipmentOf('weapon',weaponKey ?? ch.look.weapon?.part);
+      ch.animation.attack(performance.now(),Math.max(1,...Object.values(weapon?.layers ?? {}).map(l=>l.frames)));
+    }
+    else if (kind === 'emote') ch.animation.emote(performance.now(), animationFrames(ch.look, 'idle'));
+    else ch.animation.hit(performance.now(), 12);
+  }
+
+  followCharacter(ch, x, y, scene, time, dt) {
+    const item = equipmentOf('companion', ch.look.companion?.part);
+    ch.companion.visible = !!item && ch.node.visible;
+    if (!ch.companion.visible) return;
+    const tile = sceneTile(scene), scale = sceneCharacterScale(scene);
+    const distance = 12*scale/tile;
+    if (!ch.follow || ch.follow.scene !== scene || Math.hypot(ch.follow.x-x,ch.follow.y-y)>distance*8)
+      ch.follow = {x:x-distance,y,scene,dir:ch.dir};
+    const f = ch.follow, dx=x-f.x, dy=y-f.y, d=Math.hypot(dx,dy);
+    const moving = d>distance;
+    if (moving) {
+      const step = (d-distance)*(1-Math.exp(-dt*8));
+      f.x += dx/d*step; f.y += dy/d*step;
+      f.dir = Math.abs(dx)>Math.abs(dy) ? (dx<0?'left':'right') : (dy<0?'up':'down');
+    }
+    const frame = wholeFrame(item, f.dir, Math.floor(time/200), moving?'walk':'idle');
+    if (ch.companionKey !== item.key) {ch.companion.texture=Texture.EMPTY;ch.companionKey=item.key;}
+    const texture = frameTexture(frame);
+    if (texture) ch.companion.texture = texture;
+    ch.companion.anchor.set(.5, frame.feet/frame.h);
+    ch.companion.scale.set(scale*(frame.flip?-1:1), scale);
+    ch.companion.position.set(f.x*tile, f.y*tile);
+    ch.companion.zIndex = Math.round(f.y*tile);
+  }
+
+  drawArrows(shots, time) {
+    this.arrows ??= new Map();
+    const live = new Set();
+    for (const shot of shots) {
+      if (shot.scene !== this.scene) continue;
+      live.add(shot.key);
+      let sprite = this.arrows.get(shot.key);
+      if (!sprite) { sprite = new Sprite(Texture.EMPTY); sprite.anchor.set(.5); this.arrows.set(shot.key,sprite); this.actors.addChild(sprite); }
+      const row = {down:0,left:1,right:1,up:2}[shot.dir];
+      const projectile=shot.weapon==='slingshot' ? EQUIPMENT.slingStone : EQUIPMENT.arrow;
+      const texture = frameTexture({url:artUrl(projectile.sheet),
+        x:(Math.floor(time/100)%projectile.frames)*32,y:row*32,w:32,h:32});
+      if (texture) sprite.texture = texture;
+      sprite.scale.set(this.characterScale*(shot.dir==='right'?-1:1),this.characterScale);
+      sprite.position.set(shot.point.x*this.tile,
+        (shot.point.y-sceneInfo(this.scene).collisionOffsetY)*this.tile);
+      sprite.zIndex = Math.round(shot.point.y*this.tile);
+    }
+    for (const [key,sprite] of this.arrows) if (!live.has(key)) {sprite.destroy();this.arrows.delete(key);}
   }
 
   /* A character stands ON its position: x and y are where the feet are. */
@@ -362,7 +473,8 @@ export class Game {
       p.render = { x: spot.x, y: spot.y };
       p.motion = new MotionBuffer(spot, performance.now(), stamp,
         { solid: (x, y) => mapSolid(x, y, spot.scene) });
-      this.scaleCharacter(p.ch, sceneCharacterScale(spot.scene));
+      p.ch.animation = new CharacterAnimation();
+      this.scaleCharacter(p.ch, sceneCharacterScale(spot.scene), sceneNameSize(spot.scene));
     } else if(p.spot.x!==spot.x || p.spot.y!==spot.y || p.spot.dir!==spot.dir) {
       p.motion.push(spot,performance.now(),stamp,motion);
     }
@@ -414,6 +526,7 @@ export class Game {
     const p = this.peers.get(ship);
     if (!p) return;
     p.ch.node.destroy({ children: true });
+    p.ch.companion.destroy();
     this.peers.delete(ship);
   }
 
@@ -521,7 +634,8 @@ export class Game {
        * messages -- standing still with a foot up is what a dropped packet used
        * to look like. */
       const walking=point.moving??(distance>.001);
-      this.poseCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001?Math.floor(time/FRAME_MS)%4:0);
+      this.animateCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001,time);
+      this.followCharacter(p.ch,p.render.x,p.render.y,p.scene,time,dt);
     }
 
     let dx = 0, dy = 0;
@@ -530,7 +644,7 @@ export class Game {
     if (this.keys.has('w') || this.keys.has('arrowup')) dy -= 1;
     if (this.keys.has('s') || this.keys.has('arrowdown')) dy += 1;
 
-    if(time<(this.stunnedUntil??0))dx=dy=0;
+    if(time<(this.stunnedUntil??0) || this.selfSprite.animation.locked(time))dx=dy=0;
     const wasMoving=this.self.moving;
     const moving = dx !== 0 || dy !== 0;
     if (moving) {
@@ -567,7 +681,9 @@ export class Game {
     /* Walking brings the view back to you. */
     if (moving && (this.pan.x || this.pan.y)) this.pan = { x: 0, y: 0 };
 
-    this.poseCharacter(this.selfSprite, this.self.dir, this.self.frame);
+    this.drawArrows(this.bow?.tick() ?? [], time);
+    this.animateCharacter(this.selfSprite, this.self.dir, moving, time);
+    this.followCharacter(this.selfSprite,this.self.x,this.self.y,this.scene,time,dt);
     this.paintCovers();
     this.placeCharacter(this.selfSprite, this.self.x, this.self.y, this.scene);
     this.centreCamera();

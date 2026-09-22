@@ -27,7 +27,7 @@
 /$  c2  %json  %glurff-room
 /$  c3  %json  %glurff-commons
 |%
-+$  versioned-state  $%(state-0 state-1)
++$  versioned-state  $%(state-0 state-1 state-2)
 +$  state-0
   $:  %0
       ::  our own character, as a spec. Peers refetch when `rev` moves.
@@ -48,6 +48,16 @@
       ::  one at a time, by rule. `~` is holding none.
       lease=(unit lease:g)
   ==
+::  state-2 adds an owner-controlled preview switch for unfinished character
+::  art. It defaults off and survives agent reloads; saved equipment remains.
++$  state-2
+  $:  %2
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit lease:g)
+      sprite-lab=?
+  ==
 +$  card  card:agent:gall
 ::
 ::  The packet Noltbook accepts to install a gossip note with a GIVEN id. Shaped
@@ -64,7 +74,7 @@
   ==
 --
 ::
-=|  state-1
+=|  state-2
 =*  state  -
 ^-  agent:gall
 =<
@@ -75,7 +85,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -88,15 +98,19 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
-  =/  now-state=(unit state-1)
-    =/  res  (mule |.(!<(state-1 old)))
+  =/  now-state=(unit state-2)
+    =/  res  (mule |.(!<(state-2 old)))
     ?:(?=(%| -.res) ~ `p.res)
-  =/  parsed=(unit state-1)
+  =/  parsed=(unit state-2)
     ?^  now-state  now-state
+    =/  res  (mule |.(!<(state-1 old)))
+    ?.  ?=(%| -.res)
+      =/  was=state-1  p.res
+      `[%2 look.was rev.was hosting.was lease.was %.n]
     =/  res  (mule |.(!<(state-0 old)))
     ?:  ?=(%| -.res)  ~
     =/  was=state-0  p.res
-    `[%1 look.was rev.was hosting.was ~]
+    `[%2 look.was rev.was hosting.was ~ %.n]
   ?~  parsed  on-init
   :_  this(state u.parsed)
   [(bind:glurff-site) calls-watch:hc]
@@ -273,7 +287,7 @@
     ::  people as soon as they next move, which is within a beat.
     ?>  =(our.bowl src.bowl)
     :_  this
-    :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev])]
+    :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev sprite-lab])]
         ::  The lease outlives the tab, so a fresh page is told about it at
         ::  once rather than finding out when somebody walks in.
         [%give %fact ~ %glurff-update !>(`update:g`[%our-lease lease])]
@@ -338,7 +352,7 @@
 ::
 ::  Everything except the ten Gall arms lives here. An agent door must have
 ::  exactly those arms, so the helpers take the bowl and the state as arguments
-::  and hand back (quip card state-1), which the door threads with =^.
+::  and hand back (quip card state-2), which the door threads with =^.
 |%
 ++  hc
 |_  =bowl:gall
@@ -449,7 +463,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-1)
+  ^-  (quip card state-2)
   ?-    -.act
       %move
     :_  state
@@ -464,7 +478,7 @@
     ::  ride on every beat -- it is far bigger than a position.
     =/  next=look-rev:g  +(rev)
     :_  state(look look.act, rev next)
-    [(fact [%our-look look.act next]) (spray peers.act [%here [0 0 0 %down] next ~])]
+    [(fact [%our-look look.act next sprite-lab]) (spray peers.act [%here [0 0 0 %down] next ~])]
   ::
       %fetch-look
     :_  state
@@ -492,6 +506,10 @@
       %unlease
     :_  state(lease ~)
     ~[(fact [%our-lease ~])]
+  ::
+      %sprite-lab
+    :_  state(sprite-lab enabled.act)
+    ~[(fact [%our-look look rev enabled.act])]
   ::
       %lock
     ?.  (~(has by hosting) place.act)  `state
@@ -530,7 +548,7 @@
 ::
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-1)
+  ^-  (quip card state-2)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])

@@ -518,6 +518,10 @@ export const markRead = (noteId) => {
  * These go through the API surface so a refusal is reported rather than lost. */
 export const addPal = (ship) => nbApi('add-pal', { ship });
 export const removePal = (ship) => nbApi('remove-pal', { ship });
+/* Noltbook's API mark does not expose this action yet, but its ordinary action
+ * mark does. This clears THEIR incoming request without creating an outgoing
+ * relationship of our own. */
+export const dismissPalRequest = (ship) => nbAction('dismiss-pal-request', { ship });
 export const blockPal = (ship) => nbApi('block-pal', { ship });
 export const unblockPal = (ship) => nbApi('unblock-pal', { ship });
 export const addContact = (ship) => nbApi('add-contact', { ship });

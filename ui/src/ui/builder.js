@@ -9,7 +9,7 @@
  * a preview: the panel is fixed dead centre and the camera keeps you dead
  * centre, so the only thing you could not see while editing was yourself.
  */
-import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf } from 'world/parts';
+import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf } from 'world/parts';
 import { paintCharacter } from 'world/paint';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
@@ -23,6 +23,8 @@ export class Builder {
     this.onDone = onDone ?? (() => {});
     this.look = completeLook(null);
     this.open = false;
+    this.picking = false;
+    this.equipmentReady = false;
     this.dir = 'down';
     /* THE PREVIEW STANDS STILL. It used to walk on the spot so the clothes
      * animated; a figure marching while you are trying to look at a hat is
@@ -39,6 +41,11 @@ export class Builder {
 
   setLook(look) {
     this.look = completeLook(look);
+    if (this.open) this.render();
+  }
+
+  setEquipmentReady(ready) {
+    this.equipmentReady = !!ready;
     if (this.open) this.render();
   }
 
@@ -66,7 +73,7 @@ export class Builder {
   }
 
   wear(slot, part) {
-    this.look = { ...this.look, [slot]: { ...this.look[slot], part } };
+    this.look = completeLook({ ...this.look, [slot]: { ...this.look[slot], part } });
     this.onChange(this.look);
     this.render();
   }
@@ -87,7 +94,9 @@ export class Builder {
 
   render() {
     if (!this.open) { this.root.innerHTML = ''; return; }
-    const rows = SLOTS.map((slot) => {
+    if (this.picking) { this.renderPicker(); return; }
+    const premade = equipmentOf('premade',this.look.premade?.part);
+    const rows = (premade ? [] : SLOTS).map((slot) => {
       const meta = CATALOG[slot];
       if (!meta) return '';
       const groups = groupsOf(slot);
@@ -113,13 +122,19 @@ export class Builder {
       </div>`;
     }).join('');
     this.root.innerHTML = `<div class="builder">
-      <h3>Your character</h3>
+      <h3>${premade ? esc(premade.name) : 'Your character'}</h3>
+      ${this.equipmentReady?`<button class="browse-characters">Choose a premade character · ${EQUIPMENT.premade.length} characters</button>`:''}
       <div class="preview-box">
         <div class="preview-slot"></div>
         <div class="dirs">${DIRS.map((d) =>
           `<button class="dir${d === this.dir ? ' on' : ''}" data-dir="${d}">${d}</button>`).join('')}</div>
       </div>
       ${rows}
+      ${this.equipmentReady?`<div class="equipment">${EXTRAS.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
+        <select id="equip-${slot}" data-equipment="${slot}">
+        <option value="">None</option>${EQUIPMENT[slot].map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
+      ${this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">Press Space in the world to '+(['bow','slingshot'].includes(this.look.weapon.part)?'shoot':'strike')+'. Hits are just for fun—you get straight back up.</p>':''}
+      <p class="builder-error" role="status"></p>
       <button class="done">Done</button>
     </div>`;
     this.root.querySelector('.preview-slot').appendChild(this.canvas);
@@ -131,6 +146,33 @@ export class Builder {
       b.onclick = () => this.wear(b.dataset.slot, b.dataset.part));
     this.root.querySelectorAll('select[data-style]').forEach((s) =>
       s.onchange = () => this.showGroup(s.dataset.style, s.value));
-    this.root.querySelector('.done').onclick = () => { this.onDone(this.look); this.toggle(); };
+    this.root.querySelectorAll('select[data-equipment]').forEach(s =>
+      s.onchange = () => this.wear(s.dataset.equipment,s.value));
+    const browse=this.root.querySelector('.browse-characters');
+    if(browse)browse.onclick = () => {this.picking=true;this.render();};
+    this.root.querySelector('.done').onclick = async e => {
+      e.currentTarget.disabled=true;
+      try {await this.onDone(this.look);this.open=false;this.render();}
+      catch {this.root.querySelector('.builder-error').textContent='Could not save. Please try again.';this.root.querySelector('.done').disabled=false;}
+    };
+  }
+
+  renderPicker() {
+    const atlas=EQUIPMENT.picker, cell=atlas.cell;
+    this.root.innerHTML=`<div class="builder character-picker">
+      <h3>Choose your character</h3><button class="picker-back">Back to your character</button>
+      <label class="character-search">Find a character <input type="search" placeholder="Name or collection" aria-label="Find a character"></label>
+      <div class="character-grid"><button class="character-choice build-own" data-character=""><strong>Build your own</strong><span>Choose your body, clothes and colours</span></button>
+      ${EQUIPMENT.premade.map(item=>`<button class="character-choice${this.look.premade?.part===item.key?' selected':''}" data-character="${esc(item.key)}" data-search="${esc((item.name+' '+item.group).toLowerCase())}" title="${esc(item.group)}">
+        <span class="character-thumb" style="background-image:url('${artUrl(atlas.sheet)}');background-position:-${(item.thumb%atlas.cols)*cell}px -${Math.floor(item.thumb/atlas.cols)*cell}px"></span>
+        <span>${esc(item.name)}</span></button>`).join('')}</div><p class="character-credit">Minifantasy art by Krishna Palacio</p></div>`;
+    this.root.querySelector('.picker-back').onclick=()=>{this.picking=false;this.render();};
+    this.root.querySelectorAll('[data-character]').forEach(b=>b.onclick=()=>{
+      this.picking=false;this.wear('premade',b.dataset.character);
+    });
+    this.root.querySelector('input').oninput=e=>{
+      const query=e.target.value.toLowerCase().trim();
+      this.root.querySelectorAll('[data-search]').forEach(b=>b.hidden=!b.dataset.search.includes(query));
+    };
   }
 }

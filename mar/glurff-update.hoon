@@ -52,7 +52,12 @@
     ::
         %our-look
       %+  frond  'our-look'
-      (pairs ~[['look' (look-j look.upd)] ['rev' (numb rev.upd)]])
+      %-  pairs
+      :~  ['look' (look-j look.upd)]
+          ['rev' (numb rev.upd)]
+          ['equipment' b+sprite-lab.upd]
+          ['spriteLab' b+sprite-lab.upd]
+      ==
     ::
     ::  The room we hold for one of our notes, or null for none.
         %our-lease

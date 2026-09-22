@@ -28,6 +28,8 @@ const avatar = (ship) => `<span class="av">${avatarUrl(ship) ? `<img src="${esc(
 const NOTE_TYPE = { gossip: 'gossip', group: 'group', notebook: 'note' };
 const openNote = (id) => window.open(noteUrl(id), '_blank', 'noopener');
 
+import { render as renderText } from 'ui/media';
+
 export class Dms {
   constructor(root, { onShowProfile } = {}) {
     this.root = root;
@@ -273,8 +275,14 @@ export class Dms {
     this.body.innerHTML = msgs.length
       ? msgs.map((m) => `<div class="dm-msg${m.author === our ? ' mine' : ''}">
            <span class="a">${esc(displayName(m.author))}</span>
-           <span class="t">${esc(m.text ?? '')}</span></div>`).join('')
+           <span class="t"></span></div>`).join('')
       : '<div class="dim pad">nothing yet</div>';
+    /* A picture is built as nodes, never as a string of somebody else's
+     * text; see ui/media. */
+    if (msgs.length) {
+      const said = this.body.querySelectorAll('.dm-msg .t');
+      msgs.forEach((m, i) => { if (said[i]) renderText(said[i], m.text ?? ''); });
+    }
 
     /* Reading it is what marks it read; the dot has no other way to clear. */
     if (unread(noteId)) markRead(noteId);

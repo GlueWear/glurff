@@ -78,6 +78,10 @@
           ?:  =('beard' k)      `%beard
           ?:  =('hair' k)       `%hair
           ?:  =('hat' k)        `%hat
+          ?:  =('weapon' k)     `%weapon
+          ?:  =('mount' k)      `%mount
+          ?:  =('companion' k)  `%companion
+          ?:  =('premade' k)    `%premade
           ~
         ?~  s  ~
         ?.  ?=([%o *] j)  ~

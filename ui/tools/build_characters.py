@@ -19,7 +19,7 @@ No ship commands, no network, no deployment. Run from build/ui:
 from pathlib import Path
 import argparse, json, re, sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pnglib import read_png, write_png                        # noqa: E402
+from pnglib import read_png, write_png, over                   # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = Path('/Volumes/DEV/Sprites/characters/Minifantasy_AMyriadOfNPCs_v.1.0/'
@@ -80,6 +80,8 @@ def main():
     ap.add_argument('--art', type=Path, default=ART)
     args = ap.parse_args()
     ART = args.art
+    if ART.name == 'Walk':
+        ART = ART.parent
     assert ART.is_dir(), f'character art not found at {ART}'
     walk = ART / 'Walk'
     assert walk.is_dir(), f'{walk} not found'
@@ -103,8 +105,27 @@ def main():
                 src = y * w * 4
                 dst = ((oy + y) * sw + ox) * 4
                 sheet[dst:dst + w * 4] = px[src:src + w * 4]
-            variants.append({'key': f'{group}-{colour}', 'group': group,
-                             'colour': colour, 'swatch': swatch(px, w, h)})
+            key = f'{group}-{colour}'
+            # Keep the established walk atlases; all extra animation is lazy,
+            # one dressed part per file instead of loading every colour's idle.
+            strips, anims, ay = [], {}, 0
+            for animation, count, directions in [('Walk', 4, 4), ('Idle', 16, 4),
+                                                   ('Dmg', 4, 4), ('Die', 12, 1)]:
+                relative = str(path.relative_to(ART / 'Walk')).replace('NPCsWalk', 'NPCs' + animation)
+                source = ART / animation / relative
+                aw, ah, apx = read_png(str(source))
+                assert (aw, ah) == (count * FRAME, directions * FRAME), str(source)
+                anims[animation.lower()] = {'y': ay, 'frames': count, 'rows': directions}
+                strips.append((aw, ah, apx, ay)); ay += ah
+            packed = bytearray(512 * ay * 4)
+            for aw, ah, apx, oy2 in strips:
+                over(packed, 512, ay, apx, aw, ah, 0, oy2)
+            target = out_dir / 'doll' / slug / f'{key}.png'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            write_png(str(target), 512, ay, packed)
+            variants.append({'key': key, 'group': group, 'colour': colour,
+                             'swatch': swatch(px, w, h),
+                             'sheet': f'doll/{slug}/{key}.png', 'animations': anims})
         write_png(str(out_dir / f'{slug}.png'), sw, rows * BLOCK, bytes(sheet))
         size = (out_dir / f'{slug}.png').stat().st_size
         total += size

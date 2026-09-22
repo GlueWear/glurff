@@ -59,6 +59,12 @@ const PAL_LABEL = {
   blocked: 'BLOCKED', none: 'ADD PAL',
 };
 
+const PAL_TITLE = {
+  mutual: 'You are pals', requesting: 'Your pal request is pending',
+  requested: 'They sent you a pal request', blocked: 'This user is blocked',
+  none: 'Send a pal request',
+};
+
 export class ProfileCard {
   constructor(root, { onOpenDm, look, onEditCharacter } = {}) {
     this.root = root;
@@ -140,7 +146,7 @@ export class ProfileCard {
         <div class="card-btns">
           <button class="b-send">SEND $NOCK</button>
           <button class="b-dm">${dm ? 'OPEN DM' : 'DM'}</button>
-          <button class="b-pal${blocked ? ' danger' : ''}">${PAL_LABEL[status] ?? 'ADD PAL'}</button>
+          <button class="b-pal pal-${esc(status)}" title="${esc(PAL_TITLE[status] ?? PAL_TITLE.none)}">${PAL_LABEL[status] ?? 'ADD PAL'}</button>
           <button class="b-contact"${status !== 'none' ? ' hidden' : ''}>${isContact(ship) ? 'REMOVE CONTACT' : 'ADD CONTACT'}</button>
           <button class="b-block${blocked ? ' danger' : ''}">${blocked ? 'UNBLOCK' : 'BLOCK'}</button>
         </div>`}

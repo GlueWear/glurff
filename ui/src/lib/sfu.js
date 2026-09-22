@@ -428,10 +428,17 @@ export class SfuSession {
       el.hidden = true;
       document.body.appendChild(el);
       el.srcObject = d.stream;
-      /* Start silent; the next position update sets the real level. */
-      el.volume = 0;
+      /* IN A ROOM, START AT THE ROOM'S LEVEL. Starting silent and waiting for
+       * the next position update meant a stream that arrived while nobody was
+       * walking stayed at zero: setPositions only runs on movement and on a
+       * presence reconcile, so standing still could mute a newcomer
+       * indefinitely. Proximity still overrides this on the next update. */
+      el.volume = this.silent(d.ship) ? 0 : (this.flat ?? 0);
       applyOutput(el);
-      el.play?.().catch(() => {});
+      /* Whether playback was actually allowed to start is worth knowing: a
+       * blocked autoplay is silent in exactly the way a muted peer is. */
+      d.played = null;
+      Promise.resolve(el.play?.()).then(() => { d.played = true; }, () => { d.played = false; });
       d.audioEl = el;
     }
     this.onStream(d.ship, d.stream, {id:d.id,label:d.label});
@@ -456,6 +463,7 @@ export class SfuSession {
     for (const d of this.down.values()) {
       if (!d.audioEl || !d.ship) continue;
       const p = peers[d.ship];
+      this.flat = null;
       const g = this.silent(d.ship) ? 0 : (p && us ? gainForDistance(Math.hypot(p.x - us.x, p.y - us.y)) : 0);
       if (Math.abs(d.audioEl.volume - g) > 0.01) d.audioEl.volume = g;
     }
@@ -493,6 +501,7 @@ export class SfuSession {
   /* Every stream at full volume. Rooms use this: inside one, distance is not
    * what decides who you are talking to. */
   setFlatGain(g = 1, allowed = null) {
+    this.flat = g;
     for (const d of this.down.values()) {
       if (!d.audioEl) continue;
       const gain = (allowed && !allowed.has(d.ship)) || this.silent(d.ship) ? 0 : g;
@@ -503,6 +512,32 @@ export class SfuSession {
   /* Per-ship audio state: whether we are receiving any audio from them at all,
    * and how loud proximity is currently making it. Distance muting and "no
    * audio arriving" look identical from the outside, so the rail shows this. */
+  /* WHY A PEER IS OR IS NOT AUDIBLE, per ship. Distance muting, a peer sending
+   * no audio at all, a silenced peer and a browser that refused to start
+   * playback are four different faults that look identical from the outside.
+   * Ship names and booleans only -- never a token, never SDP. Bounded: one
+   * row per received stream, and there cannot be more of those than there are
+   * people in the call. */
+  audioState() {
+    const out = {};
+    for (const d of this.down.values()) {
+      if (!d.ship || d.ship === this.our) continue;
+      const tracks = d.stream?.getAudioTracks?.() ?? [];
+      const live = tracks.filter((t) => t.readyState === 'live');
+      out[d.ship] = {
+        track: tracks.length > 0,
+        live: live.length > 0,
+        enabled: live.some((t) => t.enabled),
+        element: !!d.audioEl,
+        playing: d.audioEl ? (d.played === true && !d.audioEl.paused) : false,
+        started: d.played,
+        silenced: this.silent(d.ship),
+        volume: d.audioEl ? Math.round(d.audioEl.volume * 100) : null,
+      };
+    }
+    return out;
+  }
+
   levels() {
     const out = {};
     for (const d of this.down.values()) {

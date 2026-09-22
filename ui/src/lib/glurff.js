@@ -30,7 +30,7 @@ const classify = (event) => {
   if (typeof k === 'string' && k.startsWith('call-')) return 'call-control';
   if (k === 'room-state') return 'room-state';
   if (typeof k === 'string' && k.startsWith('room-')) return 'room-list';
-  if (k === 'shot') return 'world-event';
+  if (k === 'shot' || k === 'arrow' || k === 'arrow-hit' || k === 'strike' || k === 'strike-hit') return 'world-event';
   return 'presence-other';
 };
 /* Positions published inside this call are the movement FALLBACK, not the
@@ -66,6 +66,11 @@ export const move = (place, x, y, dir, rev, host) =>
 
 export const leave = () => act('leave');
 export const dress = (look) => act('dress', { look });
+/* One poke per shot/hit, regardless of the number of viewers. The agent does
+ * the fan-out; arrows themselves are never streamed or persisted. */
+export const sendWorldEffect = (peers, event) => peers.length ?
+  tracked('world-event', poke('glurff','glurff-action',
+    {op:'presence-event',peers,body:JSON.stringify(event)})) : Promise.resolve();
 export const fetchLook = (who) => act('fetch-look', { who });
 export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });

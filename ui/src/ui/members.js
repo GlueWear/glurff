@@ -94,9 +94,27 @@ export class Members {
     this.btn.onclick = () => this.toggle(!this.open);
     document.addEventListener('click', (e) => { if (this.open && !root.contains(e.target)) this.toggle(false); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) this.toggle(false); });
-    this.panel.addEventListener('click', (e) => {
+    this.panel.addEventListener('click', async (e) => {
       const make = e.target.closest('.make-host');
-      if (make) { e.stopPropagation(); offerHost(make.dataset.ship); return; }
+      if (make) {
+        e.stopPropagation();
+        /* Handing on a room you LEASED gives the room back: its call is the
+         * note's, which is not yours to hand to anybody. Say so before it
+         * happens rather than after -- it is the same loss as taking a second
+         * lease, and that asks too. */
+        const place = this.here();
+        if (rooms.lease?.place === place) {
+          const what = noteName(rooms.lease.note) ?? rooms.lease.note;
+          const where = roomById(place)?.name ?? 'this room';
+          const go = await ask(`Make ${displayName(make.dataset.ship)} host of ${where}?`, {
+            yes: 'Make host', no: 'Keep the room',
+            detail: `${where} is yours while you hold it for ${what}. Handing hosting on gives the room back, and what is said here stops being saved to that note.`,
+          });
+          if (!go) return;
+        }
+        offerHost(make.dataset.ship);
+        return;
+      }
       const row = e.target.closest('.member-row');
       if (row) this.onShowProfile(row.dataset.ship);
     });
