@@ -72,6 +72,11 @@ export class Rail {
       this.sizes.delete(key);
       if(this.expanded===key)this.expanded=null;
     }
+    /* Shared-media windows own the leading strip slots. Camera and screen
+     * tiles start immediately after them instead of repainting over their
+     * ordering several times a second. */
+    const mediaCount=[...this.strip.children]
+      .filter(el=>el.classList.contains('media-tile')&&!el.hidden&&el.dataset.mode==='popup').length;
     for (const [i,v] of vids.entries()) {
       /* The one you have opened up gets a floor of 320 and twice the width;
        * everything else keeps whatever it was last dragged to. */
@@ -111,7 +116,8 @@ export class Rail {
       el.querySelector('span').textContent=v.label;
       const video=el.querySelector('video');video.muted=true; // Audio belongs to the SFU's volume-controlled elements.
       if(video.srcObject!==v.stream){video.srcObject=v.stream;video.play().catch(()=>{});}
-      if(this.strip.children[i]!==el)this.strip.insertBefore(el,this.strip.children[i]??null);
+      const at=mediaCount+i;
+      if(this.strip.children[at]!==el)this.strip.insertBefore(el,this.strip.children[at]??null);
     }
   }
 

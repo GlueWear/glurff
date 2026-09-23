@@ -3,6 +3,7 @@ import { createPresence } from 'lib/presence';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
 import { createBow } from 'lib/bow';
+import { createPlayerState } from 'lib/player-state';
 import { palStatus } from 'lib/noltbook';
 import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
 /* Boot.
@@ -25,7 +26,9 @@ import { Dms } from 'ui/dms';
 import { Contacts } from 'ui/contacts';
 import { Me } from 'ui/me';
 import { Members } from 'ui/members';
+import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
+import { HOTSPOTS } from 'world/hotspots';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
 
@@ -41,6 +44,7 @@ window.glurff = state;   // debug handle
 window.__game = null;
 window.__huddle = () => R.currentHuddle();
 window.__huddleTick = () => R.updateHuddle(game.self, state.peers);
+let playerStore = null, mediaUI = null;
 
 initApi();
 
@@ -357,7 +361,8 @@ const members = new Members(membersRoot, {
 game.mount.addEventListener('dblclick', (e) => {
   if (game.panned) return;   //  that was a look-around, not a click on somebody
   const ship = game.characterAt(e.clientX, e.clientY);
-  if (ship) card.open(ship);
+  if (ship) { card.open(ship); return; }
+  game.activateHotspot(e.clientX, e.clientY);
 });
 
 const builderRoot = document.createElement('div');
@@ -430,6 +435,7 @@ function applyPresence() {
   for(const ship of state.peers.keys())if(!peers.has(ship))dropPeer(ship,'presence-removed');
   for(const ship of appliedPresence.keys())if(!peers.has(ship))appliedPresence.delete(ship);
   for(const [ship,p] of peers) {
+    globalThis.__players?.store.adopt(ship,p.players);
     const old=appliedPresence.get(ship);
     if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
       onWorldFact('peer-here',{...p,who:ship},true);
@@ -438,7 +444,7 @@ function applyPresence() {
   reconcilePeers();
 }
 /* What we are right now, as presence and rooms both send it. */
-const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,mv:movement?.announce()??null});
+const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
 const presence = createPresence({
   our, session:crypto.randomUUID(),
   social:()=>({pals:nb.pals,dial:nb.dial}),
@@ -461,6 +467,14 @@ const presence = createPresence({
     movement?.presence(allPeers(peers));
   },
 });
+playerStore = createPlayerState({
+  our,
+  send: async event => { await sendWorldAction(event); presence.publish(); },
+  changed: (surface,player,local) => { mediaUI?.stateChanged(surface,player); if(!local)presence.publish(); },
+});
+mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our });
+game.setHotspots(HOTSPOTS.map(h => ({ ...h, onActivate: () => mediaUI.activate(h.id) })));
+window.__players = { store:playerStore, ui:mediaUI };
 setExtraVisible(() => [...R.roomPeers().keys()]);
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
@@ -608,7 +622,9 @@ function onWorldFact(name, p, fromPresence=false) {
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
          ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
-    }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
+    }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else if(event.kind?.startsWith('player-')){
+      if(state.peers.has(p.who) && palStatus(p.who)!=='blocked')globalThis.__players?.store.receive(p.who,event);
+    }else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
     return;
   }
   // Old, unscoped movement/departure packets cannot override tab leases.
@@ -632,6 +648,7 @@ function onWorldFact(name, p, fromPresence=false) {
                       host: newer ? (p.host || null) : prev.host,
                       motionT: newer ? stamp : prev.motionT };
       state.peers.set(p.who, entry);
+      globalThis.__players?.store.adopt(p.who,p.players);
       if (!prev) milestone('visible:' + p.who, { who: p.who });
       /* One world, so everyone visible is drawn -- including people inside
        * rooms, seen from the commons. */

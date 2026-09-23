@@ -16,6 +16,7 @@ import { buildWorld, regionAt, SPAWN, COMMONS, GAME_ROOM, MAIN_SCENE, VATICAN_SC
   ROOMS, normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
   vaticanExitAt, sceneInfo } from 'world/places';
 import { SecretRoomQuest, MAIN_RETURN } from 'world/secret-room';
+import { hotspotAt as findHotspot } from 'world/hotspots';
 
 BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
 
@@ -107,11 +108,13 @@ export class Game {
     this.lastTap = { key: null, at: 0 };
     this.running = false;
     this.ourShip = null;
-    /* Looking around without walking: right-drag moves the view, and your next
+    /* Looking around without walking: left-drag moves the view, and your next
      * step brings it back to you. */
     this.pan = { x: 0, y: 0 };
     this.panning = null;
     this.panned = false;
+    this.hotspots = [];
+    this.hoveredHotspot = null;
   }
 
   async start() {
@@ -152,10 +155,11 @@ export class Game {
       this.panned = false;
     });
     window.addEventListener('mousemove', (e) => {
-      if (!this.panning) return;
+      if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY); return; }
       const dx = e.clientX - this.panning.x, dy = e.clientY - this.panning.y;
+      if(!this.panning.anchored)this.anchorPanToCamera();
       if (Math.abs(dx) + Math.abs(dy) > 3) { this.panned = true; this.mount.style.cursor = 'grabbing'; }
-      this.panning = { x: e.clientX, y: e.clientY };
+      this.panning = { x: e.clientX, y: e.clientY, anchored:true };
       this.pan.x -= (dx * PAN_SPEED) / this.zoom;
       this.pan.y -= (dy * PAN_SPEED) / this.zoom;
       this.centreCamera();
@@ -163,6 +167,7 @@ export class Game {
     const release = () => { this.panning = null; this.mount.style.cursor = ''; };
     window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
     window.addEventListener('blur', release);
+    this.mount.addEventListener('mouseleave', () => this.showHotspot(null));
     window.addEventListener('blur', () => {this.keys.clear();this.running=false;});
     /* Wheel to zoom, which is what everyone reaches for first. */
     this.mount.addEventListener('wheel', (e) => {
@@ -237,6 +242,8 @@ export class Game {
     this.painting = new Sprite(this.mapTextures.get(images.image));
     this.painting.position.set(0, 0);
     this.ground.addChild(this.painting);
+    this.hotspotLayer = new Container();
+    this.ground.addChild(this.hotspotLayer);
     this.overPainting = new Sprite(this.mapTextures.get(images.over));
     this.overPainting.position.set(0, 0);
     this.above.addChild(this.overPainting);
@@ -281,6 +288,7 @@ export class Game {
     this.room = regionAt(this.self.x, this.self.y, next, this.room);
     this.exitWasInside = next === VATICAN_SCENE && vaticanExitAt(this.self.x, this.self.y);
     this.secretRoom.reset();
+    this.showHotspot(null);
     this.scaleCharacter(this.selfSprite, this.characterScale, sceneNameSize(next));
     this.placeCharacter(this.selfSprite, this.self.x, this.self.y, next);
     for (const p of this.peers.values()) {
@@ -512,6 +520,54 @@ export class Game {
     return hits[0][0];
   }
 
+  /* ---------------------------------------------------------- hotspots */
+
+  setHotspots(hotspots) {
+    this.hotspots = (hotspots ?? []).filter(h => h && h.id && h.scene && h.rect);
+    this.showHotspot(null);
+  }
+
+  worldPixelAt(clientX, clientY) {
+    if (!this.app?.view || !this.camera) return null;
+    const r = this.app.view.getBoundingClientRect();
+    return this.camera.toLocal({ x: clientX - r.left, y: clientY - r.top });
+  }
+
+  hotspotAt(clientX, clientY) {
+    return findHotspot(this.hotspots, this.scene, this.worldPixelAt(clientX, clientY));
+  }
+
+  hoverHotspot(clientX, clientY) {
+    if (this.panning) return this.showHotspot(null);
+    this.showHotspot(this.hotspotAt(clientX, clientY));
+  }
+
+  showHotspot(hotspot) {
+    const id = hotspot?.id ?? null;
+    if (this.hoveredHotspot === id) return;
+    this.hoveredHotspot = id;
+    this.hotspotLayer?.removeChildren().forEach(child => child.destroy());
+    if (!hotspot || !this.painting?.texture?.baseTexture || hotspot.scene !== this.scene) {
+      if (this.mount) this.mount.style.cursor = '';
+      return;
+    }
+    const r = hotspot.rect;
+    const texture = new Texture(this.painting.texture.baseTexture, new Rectangle(r.x, r.y, r.w, r.h));
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(.5);
+    sprite.position.set(r.x + r.w / 2, r.y + r.h / 2);
+    sprite.scale.set(1.14);
+    this.hotspotLayer.addChild(sprite);
+    this.mount.style.cursor = 'pointer';
+  }
+
+  activateHotspot(clientX, clientY) {
+    const hotspot = this.hotspotAt(clientX, clientY);
+    if (!hotspot) return false;
+    hotspot.onActivate?.(hotspot);
+    return true;
+  }
+
   /* A wet character: tinted cool and blue for a moment, then shaken off. */
   soak(ship) {
     const ch = ship === this.ourShip ? this.selfSprite : this.peers.get(ship)?.ch;
@@ -733,10 +789,27 @@ export class Game {
     /* Clamp so the camera never shows outside the world, unless the place is
      * smaller than the viewport, in which case centre it. */
     const halfW = vw / (2 * z), halfH = vh / (2 * z);
-    cx = this.world.px <= vw / z ? this.world.px / 2 : Math.max(halfW, Math.min(this.world.px - halfW, cx));
-    cy = this.world.py <= vh / z ? this.world.py / 2 : Math.max(halfH, Math.min(this.world.py - halfH, cy));
+    if(this.pan.x||this.pan.y||this.panned){
+      /* Looking around may pull a painted edge past the viewport instead of
+       * stopping the instant it touches it. Keeping the map centre within its
+       * own bounds still leaves half a viewport visible, so it cannot be lost. */
+      cx=Math.max(0,Math.min(this.world.px,cx));
+      cy=Math.max(0,Math.min(this.world.py,cy));
+    }else{
+      cx = this.world.px <= vw / z ? this.world.px / 2 : Math.max(halfW, Math.min(this.world.px - halfW, cx));
+      cy = this.world.py <= vh / z ? this.world.py / 2 : Math.max(halfH, Math.min(this.world.py - halfH, cy));
+    }
     this.camera.scale.set(z);
     this.camera.position.set(Math.round(vw / 2 - cx * z), Math.round(vh / 2 - cy * z));
+  }
+
+  anchorPanToCamera() {
+    if(!this.camera||!this.app?.renderer)return;
+    const z=this.zoom,vw=this.app.renderer.width,vh=this.app.renderer.height;
+    const charHeight=(FEET-HEAD)*this.characterScale;
+    const baseX=this.self.x*this.tile,baseY=this.self.y*this.tile-charHeight/2;
+    this.pan.x=(vw/2-this.camera.position.x)/z-baseX;
+    this.pan.y=(vh/2-this.camera.position.y)/z-baseY;
   }
 
 }

@@ -28,6 +28,7 @@ const classify = (event) => {
   if (k === 'state') return event.here === null ? 'presence-departure' : 'presence-snapshot';
   if (k === 'query' || k === 'cut' || k === 'cancel') return 'presence-discovery';
   if (typeof k === 'string' && k.startsWith('call-')) return 'call-control';
+  if (typeof k === 'string' && k.startsWith('player-')) return 'player-state';
   if (k === 'room-state') return 'room-state';
   if (typeof k === 'string' && k.startsWith('room-')) return 'room-list';
   if (k === 'shot' || k === 'arrow' || k === 'arrow-hit' || k === 'strike' || k === 'strike-hit') return 'world-event';
