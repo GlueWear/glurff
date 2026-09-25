@@ -12,6 +12,7 @@ import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/place
  * Noltbook that is missing or slow leaves Glurff walkable rather than broken.
  */
 import { initApi, our, closeChannel } from 'lib/api';
+import { watchNoltbookDependency } from 'lib/dependency';
 import { createTabGuard } from 'lib/tab';
 import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, setDial, updateActiveCount, holdHistory, releaseHistory, inGlurff, primeSocial, setExtraVisible, setLeasedNotes, askToJoinNote, joinAsked, joinRequests, answerJoinRequest } from 'lib/noltbook';
 import * as G from 'lib/glurff';
@@ -28,6 +29,7 @@ import { Me } from 'ui/me';
 import { Members } from 'ui/members';
 import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
+import { showNoltbookDependency } from 'ui/dependency';
 import { HOTSPOTS } from 'world/hotspots';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
@@ -47,6 +49,21 @@ window.__huddleTick = () => R.updateHuddle(game.self, state.peers);
 let playerStore = null, mediaUI = null;
 
 initApi();
+
+/* Urbit desks cannot declare runtime desk dependencies. Docket is the source
+ * of truth for installed apps, so offer Noltbook from its official publisher
+ * when it is absent. The modal is intentionally not dismissible: Noltbook is
+ * required for Glurff's identity, rooms, chat and calls. */
+const noltbookDependency = watchNoltbookDependency();
+const closeDependencyPrompt = showNoltbookDependency({
+  watch: noltbookDependency,
+  isAvailable: () => nb.ready,
+  onAvailable: (fn) => onChange(fn, (change) => change.field === 'notes'),
+});
+window.addEventListener('glurff-exit', () => {
+  closeDependencyPrompt();
+  noltbookDependency.close();
+});
 
 /* ONE LIVE TAB PER BROWSER, the newest one -- see lib/tab.js. An older tab left
  * open holds a relay connection and a presence session nobody is watching, which
@@ -437,14 +454,17 @@ function applyPresence() {
   for(const [ship,p] of peers) {
     globalThis.__players?.store.adopt(ship,p.players);
     const old=appliedPresence.get(ship);
-    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
+    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host ||
+      old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
+      old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
   reconcilePeers();
 }
 /* What we are right now, as presence and rooms both send it. */
-const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
+const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
+  huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
 const presence = createPresence({
   our, session:crypto.randomUUID(),
   social:()=>({pals:nb.pals,dial:nb.dial}),
@@ -508,10 +528,16 @@ window.__movement = movement;
 window.__calls = R;
 setMovementDiagnostics(() => movement.stats());
 let announcedHost = null;
+let announcedHuddle = '';
 R.onRooms(() => {
-  if (!watching || announcedHost === R.rooms.host) return;
-  announcedHost = R.rooms.host;
-  movement.moved({ ...game.self, host: announcedHost }, true);
+  if (!watching) return;
+  const summary=R.huddleSummary();
+  const huddleKey=summary?`${summary.session}/${summary.rev}`:'';
+  if(announcedHost!==R.rooms.host){announcedHost=R.rooms.host;movement.moved({ ...game.self, host: announcedHost }, true);}
+  /* Roster changes are rare and need to reach a newly arriving browser even
+   * when nobody moves. Presence is a durable second route beside the direct
+   * host notification. */
+  if(huddleKey!==announcedHuddle){announcedHuddle=huddleKey;presence.publish();}
 });
 
 /* A position that arrived over the movement relay. */
@@ -588,7 +614,7 @@ ticker=setInterval(()=>{
   members.paint();   //  people come and go without a room change
   if(!movement)return;
   let trusted=0;for(const ship of state.peers.keys())if(movement.reliable(ship))trusted++;
-  const next=movement.ready()+'/'+trusted;
+    const next=movement.ready()+'/'+trusted;
   if(next!==positionSignature){positionSignature=next;scheduleWorld();}
 },1000);
 /* Closing the tab stops our relay connection but deliberately does NOT release
@@ -646,6 +672,7 @@ function onWorldFact(name, p, fromPresence=false) {
       const spot = newer ? reported : prev.spot;
       const entry = { spot, rev: p.rev, look: prev?.look ?? null, at: Date.now(),
                       host: newer ? (p.host || null) : prev.host,
+                      huddle: p.huddle ?? null,
                       motionT: newer ? stamp : prev.motionT };
       state.peers.set(p.who, entry);
       globalThis.__players?.store.adopt(p.who,p.players);
@@ -740,7 +767,9 @@ function onWorldFact(name, p, fromPresence=false) {
   R.setMovementResultHandler((name, p) => movement?.result(name, p) ?? false);
   /* Calls are decided on positions; do not start one on positions the movement
    * layer cannot vouch for yet. */
-  R.setPositionGate({ ready: () => movement?.ready() ?? true, reliable: (ship) => movement?.reliable(ship) ?? true });
+  R.setPositionGate({ ready: () => movement?.ready() ?? true,
+    reliable: (ship) => movement?.reliable(ship) ?? true,
+    confidence: (ship) => movement?.confidence(ship) ?? 'live-stationary' });
   await Promise.all([G.watchWorld(onWorldFact), R.initRooms()]);
   watching = true;
   milestone('world-subscribed');

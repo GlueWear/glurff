@@ -134,7 +134,8 @@ export class Rail {
     /* "connected" alone only meant we reached the call server; say so when
      * nobody else is in the call with us. A call that has not connected says
      * WHO it is waiting on rather than repeating "requesting". */
-    const waitingOn = { 'waiting-ship': 'Waiting on your ship…', 'waiting-host': "Host isn't answering" };
+    const waitingOn = { 'waiting-ship': 'Waiting on your ship…', 'waiting-host': "Host isn't answering",
+      transitioning: 'Switching call…' };
     /* Being muted by an admin is the first thing about a call you need to
      * know, so it takes the status line rather than hiding in a tooltip. */
     const status = rooms.mutedByAdmin ? 'Muted by an admin' : rooms.bootedByAdmin ? 'Removed from this call'

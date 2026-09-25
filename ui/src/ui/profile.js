@@ -11,15 +11,43 @@
 import {
   nb, displayName, avatarUrl, palStatus, isContact, dmWith,
   addPal, removePal, blockPal, unblockPal, addContact, removeContact,
-  requestProfile, retryProfile, requestRemoteNotes, onChange,
+  requestProfile, retryProfile, requestRemoteNotes, onChange, profileBio,
+  updateOwnProfile, uploadOwnAvatar,
 } from 'lib/noltbook';
 import { our } from 'lib/api';
+import { bioHtml, externalAvatar } from 'lib/profile-text';
 import { sendNock, sendBlocked } from 'lib/wallet';
 import { paintCharacter } from 'world/paint';
 import * as ob from 'urbit-ob';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const canvasBlob = (canvas, quality) => new Promise((resolve) =>
+  canvas.toBlob(resolve, 'image/jpeg', quality));
+
+async function resizeAvatar(file) {
+  if (!file?.type?.startsWith('image/')) throw new Error('Choose an image file.');
+  const src = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Glurff could not read that image.'));
+      image.src = src;
+    });
+    const scale = Math.min(128 / image.width, 128 / image.height, 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    let blob = await canvasBlob(canvas, .72);
+    if (blob?.size > 51200) blob = await canvasBlob(canvas, .5);
+    if (!blob) throw new Error('Glurff could not prepare that image.');
+    if (blob.size > 51200) throw new Error('The profile picture is still too large. Try a simpler image.');
+    return blob;
+  } finally { URL.revokeObjectURL(src); }
+}
 
 /* Point number and sponsor chain.
  *
@@ -77,16 +105,26 @@ export class ProfileCard {
     this.look = look ?? (() => null);
     this.onEditCharacter = onEditCharacter ?? (() => {});
     this.sending = false;
+    this.editing = false;
+    this.saving = false;
+    this.editError = '';
+    this.avatarFile = null;
+    this.avatarCleared = false;
     this.sprite = document.createElement('canvas');
     this.sprite.className = 'card-sprite';
     this.root.addEventListener('click', (e) => { if (e.target === this.root) this.close(); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.ship) this.close(); });
     /* Profiles and pal status arrive after the card is already on screen. */
-    onChange(() => { if (this.ship) this.paint(); }, c => ['notes', 'profiles', 'pals', 'contacts', 'remoteNotes', 'lookups'].includes(c.field) && (!c.ship || c.ship === this.ship));
+    onChange((change) => {
+      if (this.ship && (!this.editing || change.field === 'profiles')) this.paint();
+    }, c => ['notes', 'profiles', 'pals', 'contacts', 'remoteNotes', 'lookups'].includes(c.field) && (!c.ship || c.ship === this.ship));
   }
 
   open(ship) {
-    if (this.ship !== ship) { this.sending = false; this.status = ''; }
+    if (this.ship !== ship) {
+      this.sending = false; this.status = ''; this.editing = false; this.saving = false;
+      this.editError = ''; this.avatarFile = null; this.avatarCleared = false;
+    }
     this.ship = ship;
     this.root.hidden = false;
     /* Ask for what we do not have. Someone standing next to us in the world is
@@ -100,6 +138,10 @@ export class ProfileCard {
 
   close() {
     this.ship = null;
+    this.editing = false;
+    this.saving = false;
+    this.avatarFile = null;
+    this.avatarCleared = false;
     this.root.hidden = true;
     this.root.innerHTML = '';
   }
@@ -121,6 +163,9 @@ export class ProfileCard {
     const lookup = nb.lookups[ship];
     const dm = dmWith(ship);
     const worn = this.look(ship);
+    const profile = nb.profiles[ship] ?? {};
+    const bio = profileBio(ship);
+    const externalUrl = profile.avatar?.type === 'external' ? profile.avatar.url ?? '' : '';
 
     this.root.innerHTML = `
       <div class="card">
@@ -132,9 +177,9 @@ export class ProfileCard {
             <div class="card-ship">${esc(ship)}</div>
             ${az ? `<div class="dim">${az.rank} &middot; ${esc(az.point)}</div>` : ''}
             ${az?.chain.length ? `<div class="dim">sponsor ${az.chain.map(esc).join(' &rarr; ')}</div>` : ''}
-            ${nb.profiles[ship]?.azimuthAddress ? `<div class="dim wrap">${esc(nb.profiles[ship].azimuthAddress)}</div>` : ''}
           </div>
         </div>
+        ${!this.editing && bio ? `<div class="card-bio"><span class="dim">BIO</span><div>${bioHtml(bio)}</div></div>` : ''}
         ${ship !== our && LOOKUP[lookup] ? `<div class="card-lookup ${LOOKUP[lookup][1] ? 'busy' : 'done'}" data-state="${lookup}"${LOOKUP[lookup][1] ? ' aria-busy="true"' : ' role="button" tabindex="0"'}><span>${LOOKUP[lookup][0]}</span>${LOOKUP[lookup][1] ? '<span class="dots"><i></i><i></i><i></i></span>' : ''}</div>` : ''}
         ${worn ? `<div class="card-me">
           <div class="card-sprite-slot"></div>
@@ -142,7 +187,21 @@ export class ProfileCard {
             ? '<span class="dim">Your character</span><button class="b-edit">EDIT CHARACTER</button>'
             : '<span class="dim">In Glurff now</span>'}</div>
         </div>` : ''}
-        ${ship === our ? '<div class="dim">This is you.</div>' : `
+        ${ship === our ? `${this.editing ? '' : '<div class="card-btns"><button class="b-profile-edit">EDIT PROFILE</button></div>'}
+        ${this.editing ? `<form class="card-profile-form">
+          <label><span>USER NAME</span><input class="profile-name" maxlength="32" value="${esc(profile.displayName ?? '')}" placeholder="set display name…" autocomplete="off"></label>
+          <label><span>BIO</span><textarea class="profile-bio" placeholder="say something about yourself…">${esc(bio)}</textarea></label>
+          <label><span>PROFILE PICTURE URL</span><input class="profile-avatar-url" type="url" value="${esc(externalUrl)}" placeholder="https://…" autocomplete="off"></label>
+          <label class="profile-file"><span>OR UPLOAD A PICTURE</span><input class="profile-avatar-file" type="file" accept="image/*"></label>
+          <div class="profile-picture-state dim">${profile.avatar?.type === 'urbit' ? 'An uploaded picture is currently in use.' : ''}</div>
+          <div class="profile-edit-actions">
+            <button type="button" class="b-profile-clear">REMOVE PICTURE</button>
+            <span class="spacer"></span>
+            <button type="button" class="b-profile-cancel">CANCEL</button>
+            <button type="submit" class="b-profile-save"${this.saving ? ' disabled' : ''}>${this.saving ? 'SAVING…' : 'SAVE'}</button>
+          </div>
+          <div class="profile-edit-status" role="status">${esc(this.editError)}</div>
+        </form>` : ''}` : `
         <div class="card-btns">
           <button class="b-send">SEND $NOCK</button>
           <button class="b-dm">${dm ? 'OPEN DM' : 'DM'}</button>
@@ -183,7 +242,66 @@ export class ProfileCard {
       retry.onclick = () => retryProfile(ship);
       retry.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); retryProfile(ship); } };
     }
-    if (ship === our) return;
+    if (ship === our) {
+      const edit = q('.b-profile-edit');
+      if (edit) edit.onclick = () => {
+        this.editing = true; this.editError = ''; this.avatarFile = null; this.avatarCleared = false;
+        this.paint(); this.root.querySelector('.profile-name')?.focus();
+      };
+      const form = q('.card-profile-form');
+      if (form) {
+        const file = form.querySelector('.profile-avatar-file');
+        const pictureState = form.querySelector('.profile-picture-state');
+        file.onchange = () => {
+          this.avatarFile = file.files?.[0] ?? null;
+          this.avatarCleared = false;
+          if (this.avatarFile) pictureState.textContent = `${this.avatarFile.name} selected.`;
+        };
+        form.querySelector('.b-profile-clear').onclick = () => {
+          this.avatarFile = null; this.avatarCleared = true; file.value = '';
+          form.querySelector('.profile-avatar-url').value = '';
+          pictureState.textContent = 'The profile picture will be removed when you save.';
+        };
+        form.querySelector('.b-profile-cancel').onclick = () => {
+          this.editing = false; this.saving = false; this.editError = '';
+          this.avatarFile = null; this.avatarCleared = false; this.paint();
+        };
+        form.onsubmit = async (event) => {
+          event.preventDefault();
+          if (this.saving) return;
+          const displayName = form.querySelector('.profile-name').value.trim();
+          const bioText = form.querySelector('.profile-bio').value.trim();
+          const typedUrl = form.querySelector('.profile-avatar-url').value.trim();
+          let avatar;
+          if (!this.avatarFile && !this.avatarCleared && typedUrl !== externalUrl) {
+            const safe = externalAvatar(typedUrl);
+            if (typedUrl && !safe) {
+              this.editError = 'Profile picture links must begin with http:// or https://.';
+              form.querySelector('.profile-edit-status').textContent = this.editError;
+              return;
+            }
+            avatar = safe ? { type: 'external', url: safe } : null;
+          } else if (this.avatarCleared) avatar = null;
+          this.saving = true; this.editError = '';
+          const save = form.querySelector('.b-profile-save');
+          save.disabled = true; save.textContent = 'SAVING…';
+          try {
+            const fields = { displayName, bio: bioText };
+            if (this.avatarFile) await uploadOwnAvatar(await resizeAvatar(this.avatarFile), fields);
+            else await updateOwnProfile(avatar === undefined ? fields : { ...fields, avatar });
+            if (this.ship !== ship) return;
+            this.editing = false; this.saving = false; this.avatarFile = null; this.avatarCleared = false;
+            this.paint();
+          } catch (error) {
+            if (this.ship !== ship) return;
+            this.saving = false;
+            this.editError = error?.result?.message || error?.message || 'Noltbook could not update the profile.';
+            this.paint();
+          }
+        };
+      }
+      return;
+    }
     /* SEND opens the amount, and Iris itself asks for approval -- Noltbook is
      * never opened and never involved. */
     q('.b-send').onclick = () => {

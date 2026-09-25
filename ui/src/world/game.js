@@ -7,7 +7,7 @@ import { versioned } from '../lib/build.js';
  * player for control and drags them a tile at a time.
  */
 import { MotionBuffer } from 'lib/motion';
-import { Application, Container, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
 import { CharacterAnimation } from './animation.js';
@@ -23,8 +23,14 @@ BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
 /* How far above the feet a name sits, as a fraction of the character's own
  * height. The art leaves empty rows above the head, so hanging the label off
  * the top of the frame left it floating a whole character clear of the person
- * it names. Half way up puts it on the head, where it belongs. */
-const NAME_HEIGHT = 0.5;
+ * it names. The boxed label needs a little more clearance than bare text. */
+const NAME_HEIGHT = 0.74;
+/* Let labels breathe with the map, but only inside a restrained screen-space
+ * range. This keeps the far view readable without making names dwarf people,
+ * and prevents the closest views from turning them into banners. */
+const NAMEPLATE_MIN_SCREEN_SIZE = 12;
+const NAMEPLATE_MAX_SCREEN_SIZE = 22;
+const NAMEPLATE_SCREEN_GAP = 2;
 
 /* How close to a room you may not enter before it offers to let you in, and
  * how far away you must get before it offers again. Two tiles and three, the
@@ -217,6 +223,8 @@ export class Game {
       Math.abs(v - z) < Math.abs(ZOOMS[best] - z) ? idx : best, 0);
     this.zoom = ZOOMS[i];
     this.camera.scale.set(this.zoom);
+    if (this.selfSprite) this.positionNameplate(this.selfSprite);
+    for (const p of this.peers.values()) this.positionNameplate(p.ch);
   }
 
   /* ------------------------------------------------------------ textures */
@@ -310,18 +318,23 @@ export class Game {
     /* The name rides above the head, in the world rather than in the HUD, so
      * you can tell who is who at a glance. It is the Noltbook display name
      * where one is set -- the raw @p is only a fallback. */
+    const nameplate = new Container(), labelBackground = new Graphics();
     const label = new Text(name ?? '', {
-      fontFamily: 'ui-monospace, monospace',
+      /* A compact fantasy-display face suits the painted world without turning
+       * the nameplate into UI chrome. The fallbacks retain its sturdy shape. */
+      fontFamily: 'Copperplate, "Copperplate Gothic Light", "Trebuchet MS", sans-serif',
+      fontWeight: 'bold',
+      letterSpacing: 0.3,
       fontSize: sceneNameSize(scene),
-      fill: 0xffffff,
-      stroke: 0x000000,
-      strokeThickness: 3,
+      fill: 0xfff6dc,
     });
     label.anchor.set(0.5, 1);
     label.resolution = 2;
-    node.addChild(label);
+    nameplate.addChild(labelBackground, label);
+    node.addChild(nameplate);
 
-    const ch = { node, body, companion, layers, label, look: completeLook(look), dir: 'down', frame: 0,
+    const ch = { node, body, companion, layers, nameplate, labelBackground, label,
+      look: completeLook(look), dir: 'down', frame: 0,
       animation: new CharacterAnimation(), follow: null };
     this.actors.addChild(companion);
     this.scaleCharacter(ch, sceneCharacterScale(scene), sceneNameSize(scene));
@@ -333,11 +346,36 @@ export class Game {
     ch.scale = scale;
     for (const layer of Object.values(ch.layers)) layer.scale.set(scale);
     if (nameSize && ch.label.style.fontSize !== nameSize) ch.label.style.fontSize = nameSize;
-    ch.label.position.set(0, -characterTop(ch.look) * scale * NAME_HEIGHT);
+    this.positionNameplate(ch);
+    this.refreshNameplate(ch);
+  }
+
+  positionNameplate(ch) {
+    const natural = Number(ch.label.style.fontSize) * this.zoom;
+    const compensated = Math.max(NAMEPLATE_MIN_SCREEN_SIZE,
+      Math.min(NAMEPLATE_MAX_SCREEN_SIZE, natural));
+    ch.nameplate.scale.set(compensated / natural);
+    ch.nameplate.position.set(0,
+      -characterTop(ch.look) * ch.scale * NAME_HEIGHT - NAMEPLATE_SCREEN_GAP / this.zoom);
   }
 
   nameCharacter(ch, name) {
-    if (ch.label && ch.label.text !== name) ch.label.text = name ?? '';
+    if (ch.label && ch.label.text !== name) {
+      ch.label.text = name ?? '';
+      this.refreshNameplate(ch);
+    }
+  }
+
+  refreshNameplate(ch) {
+    const visible = Boolean(ch.label.text);
+    ch.nameplate.visible = visible;
+    if (!visible) return;
+    const padX = 4, padY = 1;
+    ch.labelBackground.clear()
+      .beginFill(0x17141f, 0.82)
+      .drawRoundedRect(-ch.label.width / 2 - padX, -ch.label.height - padY,
+        ch.label.width + padX * 2, ch.label.height + padY * 2, 2)
+      .endFill();
   }
 
   dressCharacter(ch, look) {
@@ -370,7 +408,7 @@ export class Game {
     // reaction with their OWN art rather than substituting a human body.
     ch.body.rotation = animation === 'die' && premade && !premade.animations.die
       ? Math.sin(progress*Math.PI)*Math.PI/2 : 0;
-    ch.label.y = -characterTop(ch.look)*ch.scale*NAME_HEIGHT;
+    this.positionNameplate(ch);
   }
 
   animateCharacter(ch, dir, moving, time) {

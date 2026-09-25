@@ -263,6 +263,15 @@ export function createPresence({our, session, social, snapshot, send, changed, t
       const h=p.here;
       if(h?.stamp!==undefined && !Number.isFinite(h.stamp))return;
       if(!h || !h.spot || h.spot.place!==0 || !num(h.spot.x) || !num(h.spot.y) || h.spot.x>1024 || h.spot.y>736 || !['up','down','left','right'].includes(h.spot.dir) || ![undefined,'main','vatican'].includes(h.spot.scene) || !num(h.rev) || (h.host!==null && !ship(h.host)))return;
+      /* A proximity call's host-issued roster may ride the same bounded
+       * snapshot. It contains no credential -- only convergence metadata. */
+      if(h.huddle!=null) {
+        const q=h.huddle;
+        if(!q || !ship(q.host) || !Number.isSafeInteger(q.place) || q.place<1000 || q.place>900999 ||
+          !Number.isSafeInteger(q.epoch) || q.epoch<=0 || !num(q.rev) || typeof q.session!=='string' ||
+          q.session.length<1 || q.session.length>80 || !Array.isArray(q.members) || q.members.length<2 ||
+          q.members.length>32 || !q.members.every(ship) || !q.members.includes(q.host))return;
+      }
       const stamp=stampOf(h);
       if(outdated(who,p.session,stamp)){trace('presence-superseded',{who,reason:'older-session'});return;}
       if(!prev)trace('presence-first',{who,generation:p.generation});

@@ -16,18 +16,19 @@ export class CallController {
     this.changed(phase,reason);
   }
   clearTimers(c=this.current) {if(c)for(const k of ['retry','joining','renew']){this.cancel(c[k]);c[k]=null;}}
-  select(target) {
+  select(target,{preserve=false}={}) {
     if(this.closed)return;
     if(target && this.current?.place===target.place && this.current.host===target.host)return;
     const old=this.current;
+    const keeping=!!(preserve && target && old && this.phase==='connected');
     this.clearTimers();this.current=null;
-    if(old && old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});
-    this.sfu.close(null);
+    if(!keeping && old && old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});
+    if(!keeping)this.sfu.close(null);
     if(!target){this.emit('idle');return;}
     for(const [place,r] of this.hosted)if(r.until<this.now())this.hosted.delete(place);
     this.current={...target,attempt:this.fresh(),mode:'renew-access',tries:0,failures:0,capacityFailures:0,grant:null,
-                  began:this.now(),acceptedHere:false,heardHost:false};
-    this.emit('requesting');this.request();
+                  began:this.now(),acceptedHere:false,heardHost:false,previous:keeping?old:null};
+    this.emit(keeping?'transitioning':'requesting');this.request();
   }
   bounded(pending,key,send) {
     if(this.closed)return false;
@@ -60,7 +61,7 @@ export class CallController {
   stage() {
     const c=this.current;
     if(!c)return 'idle';
-    if(this.phase!=='requesting')return this.phase;
+    if(this.phase!=='requesting' && this.phase!=='transitioning')return this.phase;
     const waited=this.now()-(c.began??this.now());
     if(c.host===this.our)return c.acceptedHere||waited<=OWN_SHIP_MS?'requesting':'waiting-ship';
     if(!c.acceptedHere)return waited<=OWN_SHIP_MS?'requesting':'waiting-ship';
@@ -192,6 +193,10 @@ export class CallController {
       this.scheduleRenew();return;
     }
     if(this.phase==='connecting')return;
+    /* Keep the old conversation audible while the replacement credential is
+     * being minted. Receipt of a usable grant is the commit point. */
+    if(c.previous){const old=c.previous;c.previous=null;
+      if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
     this.emit('connecting');
     this.sfu.connect(p);
     if(this.phase==='connecting')c.joining=this.later(()=>{if(this.current===c && this.phase==='connecting')this.reconnect('join-timeout');},45000);
@@ -202,7 +207,12 @@ export class CallController {
       this.cancel(this.current.joining);this.current.joining=null;this.current.failures=0;
       this.emit('connected');this.scheduleRenew();return;
     }
-    if(phase==='failed' || phase==='closed')this.reconnect(reason||'disconnected');
+    if(phase==='failed' || phase==='closed'){
+      /* While authorising a replacement, SFU status still belongs to the old
+       * socket. If that socket dies there is nothing left to preserve. */
+      if(this.current.previous)this.current.previous=null;
+      this.reconnect(reason||'disconnected');
+    }
   }
   scheduleRenew() {
     const c=this.current;if(!c)return;
@@ -235,9 +245,10 @@ export class CallController {
     c.lastFailure=failure;
     this.trace('call-failed',{place:c.place,attempt:c.attempt,reason:error});
     if(['quota','rate-limited','participant-limit','service-unavailable'].includes(error)) {
-      const live=this.phase==='connected';
+      const live=this.phase==='connected' || !!c.previous;
       this.clearTimers();c.error=error;c.capacityFailures++;
-      this.emit(live?'connected':'blocked',error);
+      if(c.previous && c.capacityFailures>3){this.revertTransition(error);return;}
+      this.emit(c.previous?'transitioning':live?'connected':'blocked',error);
       // Three spaced probes, then an explicit Retry button. A renewal failure
       // does not tear down media that is still flowing.
       if(c.capacityFailures<=3)c.retry=this.later(()=>{
@@ -254,6 +265,7 @@ export class CallController {
       return;
     }
     if(error==='unauthorized') {
+      if(this.revertTransition(error))return;
       this.clearTimers();c.error=error;this.emit('blocked',error);return;
     }
     if(['room-unavailable','room-ended','expired'].includes(error) && c.host===this.our)this.hosted.delete(c.place);
@@ -261,15 +273,26 @@ export class CallController {
   }
   reconnect(reason) {
     const c=this.current;if(!c || this.closed || this.phase==='blocked' || c.reconnecting)return;
-    c.reconnecting=true;this.clearTimers();this.sfu.close(null);
-    c.failures++;this.emit('retrying',reason);
-    if(c.failures>4){c.reconnecting=false;c.error=reason;this.emit('blocked',reason);return;}
+    const preserving=!!c.previous;
+    c.reconnecting=true;this.clearTimers();if(!preserving)this.sfu.close(null);
+    c.failures++;this.emit(preserving?'transitioning':'retrying',reason);
+    if(c.failures>4){c.reconnecting=false;if(this.revertTransition(reason))return;c.error=reason;this.emit('blocked',reason);return;}
     c.retry=this.later(()=>{
       if(this.current!==c)return;
       c.reconnecting=false;c.attempt=this.fresh();c.tries=0;c.mode='renew-access';c.grant=null;
       c.began=this.now();c.acceptedHere=false;c.heardHost=false;
-      this.emit('requesting');this.request();
+      this.emit(preserving?'transitioning':'requesting');this.request();
     },Math.min(30000,2000*2**(c.failures-1)));
+  }
+  revertTransition(reason) {
+    const c=this.current,old=c?.previous;
+    if(!old)return false;
+    this.clearTimers(c);
+    this.trace('call-transition-reverted',{place:c.place,host:c.host,reason});
+    this.current=old;
+    this.emit('connected');
+    this.scheduleRenew();
+    return true;
   }
   restored() {if(this.current && this.phase!=='connected' && this.phase!=='connecting' && this.phase!=='blocked')this.request();}
   retry() {
@@ -277,5 +300,7 @@ export class CallController {
     if(!target)return;
     this.select(null);this.select(target);
   }
+  diagnostics(){const c=this.current;return c?{place:c.place,host:c.host,phase:this.phase,
+    attempt:c.attempt,preserving:!!c.previous,previous:c.previous?`${c.previous.place}/${c.previous.host}`:null}:null;}
   close() {this.select(null);this.closed=true;this.admissions.clear();this.hosted.clear();}
 }

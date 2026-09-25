@@ -82,7 +82,7 @@ let movementResult=null;
 export const setMovementResultHandler=fn=>{movementResult=fn;};
 /* Whether positions are good enough to decide calls on, supplied by the
  * movement layer. The defaults keep this module usable on its own. */
-let positionGate={ready:()=>true,reliable:()=>true};
+let positionGate={ready:()=>true,reliable:()=>true,confidence:()=> 'live-stationary'};
 export const setPositionGate=gate=>{positionGate={...positionGate,...gate};};
 /* The room's guest list and who can see into it; see lib/roommates. Its view
  * of us -- our state, and who already sees us through presence -- is supplied
@@ -379,7 +379,11 @@ function removeRemoteStream(id,ship) {
 
 export function initRooms() {
   mates=createMates();
-  if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),picker:rooms.picker});
+  if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),picker:rooms.picker,
+    huddle:huddle?{state:huddle.state,host:huddle.host,place:huddle.place,session:huddle.session,
+      epoch:huddle.epoch,rev:huddle.rev,members:[...huddle.members],pending:huddlePending?.key??null,
+      recovery:huddleRecovery?.tries??0}:null,
+    call:controller?.diagnostics?.()??null});
   sfu=new SfuSession({our,
     /* WHOEVER THE CALL SERVER GAVE US. Gating this on `visiblePeers` made a
      * call stream depend on world visibility: a legitimate participant we
@@ -507,7 +511,7 @@ export function initRooms() {
     controller.result(name,p);
   });
 }
-function selectCall(place,host) {
+function selectCall(place,host,{preserve=false}={}) {
   /* A LEASED ROOM: the call is the note's, so Glurff opens nothing. Noltbook
    * decides who may join it -- membership of the note -- and the note owner's
    * ship mints for everybody, whether or not they are here. */
@@ -529,9 +533,9 @@ function selectCall(place,host) {
   /* Removed from this call: standing in the room is not a way back in. The bar
    * lifts when an admin allows us back, or when the call is a new one. */
   if(barred(place,host)){releaseMedia();controller?.select(null);rooms.host=host;changed();return;}
-  releaseMedia();rooms.host=host;
+  if(!preserve)releaseMedia();rooms.host=host;
   rooms.timings={requested:performance.now(),role:host===our?'host':'guest'};
-  controller?.select({place,host});
+  controller?.select({place,host},{preserve});
   /* In a room or a huddle, we are on its host's list -- or keep the list, if the
    * host is us. */
   if(isListPlace(place) && host)mates?.follow(place,host);
@@ -544,7 +548,7 @@ function selectCall(place,host) {
  * "still requesting" becomes "your ship has not taken this" and then "the host
  * is not answering". Re-read it every second while a call is trying. */
 let stageTimer=null;
-const TRYING=new Set(['requesting','waiting-ship','waiting-host','retrying']);
+const TRYING=new Set(['requesting','waiting-ship','waiting-host','retrying','transitioning']);
 function refreshStage() {
   const next=controller?.stage()??'idle';
   if(next!==rooms.stage){rooms.stage=next;changed();}
@@ -553,6 +557,9 @@ function refreshStage() {
 }
 export function receiveCallEvent(who,event){
   /* The ACTOR is the ship the agent says sent this, never a field in it. */
+  if(event?.kind==='call-huddle-roster' || event?.kind==='call-huddle-end' || event?.kind==='call-huddle-sync'){
+    receiveHuddleEvent(who,event);return;
+  }
   if(typeof event?.kind==='string' && event.kind.startsWith('call-mod-')){moderation?.receive(who,event);return;}
   if(HANDOFF.has(event?.kind)){receiveHandoff(who,event);return;}
   if(event?.kind==='call-leave' && isListPlace(event.place))mates?.left(who,event.place);
@@ -561,13 +568,113 @@ export function receiveCallEvent(who,event){
 export function recoverCall(){controller?.restored();}
 export function retryCall(){controller?.retry();}
 export const currentHuddle=()=>huddle;
+export const huddleSummary=()=>huddle?{host:huddle.host,place:huddle.place,session:huddle.session,
+  epoch:huddle.epoch,rev:huddle.rev,members:[...huddle.members].sort()}:null;
 
-/* A huddle forms or ends only once the people in it have been in or out of
- * range for a moment. Walking up to somebody along the two-tile edge used to
- * form and end one three times in fifteen seconds, each of which is a call
- * being set up and torn down. */
-export const HUDDLE_SETTLE_MS=1500;
+/* Passers-by do not open calls. Adding somebody to a conversation is quicker
+ * than ending one: leaving earshot already silences them at once in sfu.js, so
+ * keeping the roster for a few seconds costs no privacy and prevents a late
+ * movement packet from tearing a healthy call apart. */
+export const HUDDLE_FORM_MS=3000;
+export const HUDDLE_JOIN_MS=2000;
+export const HUDDLE_LEAVE_MS=5000;
+/* Kept for callers/tests that used the old single threshold. */
+export const HUDDLE_SETTLE_MS=HUDDLE_FORM_MS;
 let huddlePending=null, huddleTimer=null, huddleSelf=null;
+let huddleRecovery=null;
+const safeShip=s=>typeof s==='string' && /^~[a-z-]{3,70}$/.test(s);
+const huddleSession=()=>({epoch:Date.now()*1000+Math.floor(Math.random()*1000),
+  session:globalThis.crypto?.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`});
+function readHuddleRecord(m){
+  if(!m || !safeShip(m.host) || !Number.isSafeInteger(m.place) || m.place!==huddlePlace(m.host) ||
+    !Number.isSafeInteger(m.epoch) || m.epoch<=0 || !Number.isSafeInteger(m.rev) || m.rev<0 ||
+    typeof m.session!=='string' || !m.session.length || m.session.length>80 || !Array.isArray(m.members) ||
+    m.members.length<2 || m.members.length>32 || !m.members.every(safeShip))return null;
+  const members=[...new Set(m.members)].sort();
+  if(members.length!==m.members.length || !members.includes(m.host))return null;
+  return {host:m.host,place:m.place,epoch:m.epoch,session:m.session,rev:m.rev,members};
+}
+function sendHuddle(kind,record,targets=record.members){
+  const body={kind,...huddleSummaryOf(record)};
+  for(const who of targets)if(who!==our)Promise.resolve(G.sendPresence(who,body)).catch(()=>{});
+}
+const huddleSummaryOf=r=>({host:r.host,place:r.place,epoch:r.epoch,session:r.session,rev:r.rev,
+  members:[...r.members].sort()});
+function clearHuddle(reason='ended',notify=false){
+  const before=huddle;if(!before)return;
+  if(notify && before.host===our)sendHuddle('call-huddle-end',before,before.members);
+  diagnostic('huddle',{reason,place:before.place,host:before.host,count:0,detail:before.session});
+  huddle=null;huddlePending=null;huddleRecovery=null;rooms.host=null;booted=null;
+  releaseMedia();controller?.select(null);mates?.leave();changed();
+}
+function useHuddle(record,reason='roster',preserve=false){
+  const before=huddle;
+  huddle={...record,key:huddleKey(record.members),state:preserve?'transitioning':'active',authorityAt:Date.now()};
+  huddlePending=null;
+  diagnostic('huddle',{reason,place:record.place,host:record.host,count:record.members.length,
+    detail:`${record.session}/${record.rev}`});
+  const changedCall=!before || before.place!==record.place || before.host!==record.host;
+  if(changedCall)selectCall(record.place,record.host,{preserve:preserve && rooms.voice==='connected'});
+  if(huddle.state!=='active')huddle.state='active';
+  changed();
+}
+function hostHuddle(members,reason='formed'){
+  const token=huddleSession();
+  const record={...token,rev:1,host:our,place:huddlePlace(our),members:[...members].sort()};
+  useHuddle(record,reason,!!huddle);
+  sendHuddle('call-huddle-roster',record);
+}
+function updateHostedHuddle(members,reason='changed'){
+  const before=huddle;if(!before || before.host!==our)return;
+  const old=[...before.members];
+  const record={...before,rev:before.rev+1,members:[...members].sort(),authorityAt:Date.now(),state:'active'};
+  huddle={...record,key:huddleKey(record.members)};
+  mates?.keepOnly?.(who=>record.members.includes(who));
+  sendHuddle('call-huddle-roster',record,new Set([...old,...record.members]));
+  diagnostic('huddle',{reason,place:record.place,host:our,count:record.members.length,
+    detail:`${record.session}/${record.rev}`});
+  changed();
+}
+function recordIsNewer(record,current=huddle){
+  if(!current)return true;
+  if(record.session===current.session)return record.rev>current.rev;
+  if(record.host===current.host)return record.epoch>current.epoch;
+  /* Competing sessions converge on the deterministic host when both proposed
+   * rosters describe the same group. A deliberate handoff is trusted too. */
+  if(huddleHandoff?.host===record.host)return true;
+  if(!lastPeers.has(current.host))return true;
+  const union=new Set([...current.members,...record.members]);
+  return record.members.includes(current.host) && [...union].sort()[0]===record.host;
+}
+function locallyNearRoster(record){
+  if(record.host===our)return true;
+  const us=huddleSelf;if(!us)return false;
+  return record.members.some(who=>{
+    if(who===our)return false;
+    const p=lastPeers.get(who)?.spot;
+    return p && roomOfPeer(who,p)===COMMONS && Math.hypot(p.x-us.x,p.y-us.y)<=3;
+  });
+}
+function receiveHuddleEvent(who,event){
+  if(who===our || !safeShip(who))return;
+  if(event.kind==='call-huddle-sync'){
+    if(huddle?.host===our && huddle.members.includes(who))sendHuddle('call-huddle-roster',huddle,[who]);
+    return;
+  }
+  const record=readHuddleRecord(event);if(!record || record.host!==who)return;
+  if(event.kind==='call-huddle-end'){
+    if(huddle?.host===who && huddle.session===record.session && event.rev>=huddle.rev)clearHuddle('host-ended');
+    return;
+  }
+  if(!record.members.includes(our)){
+    if(huddle?.host===who && huddle.session===record.session && record.rev>huddle.rev)
+      clearHuddle('roster-left');
+    return;
+  }
+  if(!locallyNearRoster(record))return;
+  if(!recordIsNewer(record))return;
+  useHuddle(record,'authoritative',!!huddle && huddle.host!==record.host);
+}
 function recheckHuddle(ms) {
   clearTimeout(huddleTimer);
   huddleTimer=setTimeout(()=>{huddleTimer=null;if(huddleSelf)updateHuddle(huddleSelf,lastPeers);},Math.max(50,ms));
@@ -583,22 +690,50 @@ export function updateHuddle(self,peers) {
   if(!huddle && !positionGate.ready())return;
   const near={[our]:{x:self.x,y:self.y}},hosts={};
   for(const [who,p] of peers)if(roomOfPeer(who,p.spot)===COMMONS && (positionGate.reliable(who) || huddle?.members.includes(who))){near[who]=p.spot;hosts[who]=p.host??null;}
+  /* The host's presence snapshot is the durable copy of its roster. Direct
+   * events normally arrive first; this repairs a lost event or a late join. */
+  const authority=huddle?.host?peers.get(huddle.host)?.huddle:null;
+  if(authority)receiveHuddleEvent(huddle.host,{kind:'call-huddle-roster',...authority});
   /* Membership agreed with what the people near us say they are in; see
    * agreedMembers in lib/huddle. */
   const together=agreedMembers(our,near,hosts,huddle?.members??[],huddle?.host??null);
   const mine=clusterPeers(near,together).find(c=>c.includes(our));
   const key=mine?huddleKey(mine):null;
+  /* A guest follows the host's roster. Position can prove the host has really
+   * disappeared, but delayed movement never edits an established call. */
+  if(huddle && huddle.host!==our){
+    if(peers.has(huddle.host)){huddlePending=null;return;}
+    const now=Date.now(),pendingKey=`failover/${key??''}`;
+    if(huddlePending?.key!==pendingKey)huddlePending={key:pendingKey,since:now};
+    const held=now-huddlePending.since;
+    if(held<HUDDLE_LEAVE_MS){recheckHuddle(HUDDLE_LEAVE_MS-held);return;}
+    const old=huddle;huddle=null;huddlePending=null;
+    if(!mine){clearTimeout(huddleTimer);rooms.host=null;releaseMedia();controller?.select(null);mates?.leave();changed();return;}
+    const host=electHost(mine,null,hosts,false);
+    if(host===our)hostHuddle(mine,'failover');
+    else {rooms.host=null;releaseMedia();controller?.select(null);mates?.leave();
+      G.sendPresence(host,{kind:'call-huddle-sync',host,place:huddlePlace(host)}).catch(()=>{});changed();}
+    diagnostic('huddle',{reason:'host-missing',place:old.place,host:old.host,count:mine.length});
+    return;
+  }
   if((huddle?.key??null)===key){huddlePending=null;return;}
-  /* Something changed. Wait for it to hold still before acting on it. */
+  /* An unreliable member freezes a live host roster. In particular, a final
+   * stationary packet can be old and healthy, while an old moving packet is a
+   * stalled route; neither is authority to remove somebody. */
+  if(huddle?.host===our && huddle.members.some(who=>who!==our &&
+    ['delayed','stalled'].includes(positionGate.confidence(who))))return;
+  /* Something changed. Wait for the appropriate transition to hold still. */
   const now=Date.now();
-  if(huddlePending?.key!==key)huddlePending={key,since:now};
+  const removed=huddle?.members.some(who=>!mine?.includes(who));
+  const wait=!huddle?HUDDLE_FORM_MS:removed?HUDDLE_LEAVE_MS:HUDDLE_JOIN_MS;
+  const pendingKey=`${huddle?'active':'candidate'}/${key??''}`;
+  if(huddlePending?.key!==pendingKey)huddlePending={key:pendingKey,since:now};
   const held=now-huddlePending.since;
-  if(held<HUDDLE_SETTLE_MS){recheckHuddle(HUDDLE_SETTLE_MS-held);return;}
+  if(held<wait){recheckHuddle(wait-held);return;}
   huddlePending=null;
-  if(!mine){if(huddle){diagnostic('huddle',{reason:'ended',place:huddle.place,host:huddle.host,count:0});huddle=null;rooms.host=null;booted=null;releaseMedia();controller?.select(null);mates?.leave();changed();}return;}
+  if(!mine){if(huddle)clearHuddle('ended',true);return;}
   // Presence determines the same elected host on both ships. Timeouts never
   // create a competing host while that participant remains in the huddle.
-  const before=huddle;
   /* The call is the host's (see huddlePlace): somebody joining or leaving
    * changes who is in it, not which call it is, so nobody reconnects. */
   /* A huddle handed to somebody stays theirs while they are in it. Without
@@ -609,10 +744,12 @@ export function updateHuddle(self,peers) {
    * is what lets two browsers notice they disagree and settle on the same
    * answer; see electHost. A handoff we are running is trusted over it. */
   const host=electHost(mine,huddleHandoff?.host??huddle?.host??null,hosts,!!huddleHandoff);
-  huddle={key,members:mine,host,place:huddlePlace(host)};
-  diagnostic('huddle',{reason:before?'changed':'formed',place:huddle.place,host:huddle.host,count:mine.length,
-    detail:together.size>(before?.members.length??0)?'agreed':'distance'});
-  selectCall(huddle.place,huddle.host);changed();
+  if(!huddle){
+    if(host===our)hostHuddle(mine,'formed');
+    else G.sendPresence(host,{kind:'call-huddle-sync',host,place:huddlePlace(host)}).catch(()=>{});
+    return;
+  }
+  updateHostedHuddle(mine,'changed');
 }
 const occupantsIn=room=>[our,...[...lastPeers].filter(([who,p])=>roomOfPeer(who,p.spot)===room).map(([s])=>s)].sort();
 /* THE DOOR. The copies of a room that people we can see are in, where a copy
@@ -835,9 +972,11 @@ function receiveHandoff(who,event){
     if(scope==='huddle'){
       huddleHandoff={host:who,at:Date.now()};
       moderation?.enter(null);
-      huddle={...huddle,host:who,place:huddlePlace(who)};
       controller?.hosted.delete(place);
-      selectCall(huddle.place,who);changed();return;
+      /* The recipient mints the new authoritative session. Everyone else gets
+       * the ordinary moved notice and then its roster. */
+      huddle={...huddle,host:who,place:huddlePlace(who),state:'transitioning'};
+      selectCall(huddlePlace(who),who,{preserve:true});changed();return;
     }
     /* HANDING A LEASED ROOM ON GIVES THE ROOM BACK.
      *
@@ -878,8 +1017,9 @@ function receiveHandoff(who,event){
     if(scope==='huddle'){
       huddleHandoff={host,at:Date.now()};
       moderation?.enter(null);
-      huddle={...huddle,host,place:huddlePlace(host)};
-      selectCall(huddle.place,host);changed();return;
+      if(host===our){hostHuddle(h.members,'handed');return;}
+      huddle={...huddle,host,place:huddlePlace(host),state:'transitioning'};
+      selectCall(huddlePlace(host),host,{preserve:true});changed();return;
     }
     handoffs.set(place,host);
     moderation?.enter(null);
@@ -895,13 +1035,30 @@ export const hostName=room=>{const h=hostOf(room);return h?displayName(h):null;}
  * reads the diagnostics. */
 let aloneTimer=null;
 function watchAlone(){
-  if(!(rooms.voice==='connected' && !rooms.others)){clearTimeout(aloneTimer);aloneTimer=null;return;}
+  if(!(rooms.voice==='connected' && !rooms.others)){clearTimeout(aloneTimer);aloneTimer=null;huddleRecovery=null;return;}
   if(aloneTimer)return;
   aloneTimer=setTimeout(()=>{
     aloneTimer=null;
     if(rooms.voice!=='connected' || rooms.others)return;
     diagnostic('call-alone',{place:controller?.current?.place??0,host:rooms.host??'',
-      count:huddle?.members.length??occupantsOf(rooms.here).length,context:huddle?.key??''});
+      count:huddle?.members.length??occupantsOf(rooms.here).length,
+      context:huddle?`${huddle.session}/${huddle.rev}`:''});
+    /* A huddle of one on the SFU asks its authority what the current session is.
+     * The reply repairs a stale host/place without inventing a competing call. */
+    if(huddle && huddle.members.length>1){
+      if(!huddleRecovery || huddleRecovery.session!==huddle.session)
+        huddleRecovery={session:huddle.session,tries:0};
+      if(huddleRecovery.tries<3){
+        huddleRecovery.tries++;
+        if(huddle.host===our)sendHuddle('call-huddle-roster',huddle);
+        else G.sendPresence(huddle.host,{kind:'call-huddle-sync',host:huddle.host,place:huddle.place,
+          session:huddle.session,epoch:huddle.epoch,rev:huddle.rev}).catch(()=>{});
+        /* A third synchronized-but-empty result is worth one clean retry of the
+         * same target. Earlier attempts never disturb a working socket. */
+        if(huddleRecovery.tries===3)controller?.retry();
+        watchAlone();
+      }
+    }
   },20000);
 }
 function releaseMedia() {

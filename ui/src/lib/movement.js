@@ -81,6 +81,11 @@ export function createMovement({
   let startedAt = null;
   let readyLatched = false;
   const firstSeen = new Map();                //  ship -> local ms first visible
+  /* Receipt time and the sender's last motion flag are separate from presence.
+   * A stationary peer is allowed to be quiet forever; a peer whose last packet
+   * still says "moving" is not. Treating both as merely "on the relay" let a
+   * thirty-second-old moving position split an otherwise healthy huddle. */
+  const peerMotion = new Map();                //  ship -> {at,moving}
   const counts = { fallback: 0, applied: 0, ignored: 0, grants: 0, stale: 0, knocks: 0, opens: 0 };
 
   const quietly = (p) => { try { Promise.resolve(p).catch(() => {}); } catch {} };
@@ -101,6 +106,7 @@ export function createMovement({
       /* The relay is transport, never permission. */
       if (!visible(ship)) { counts.ignored++; return false; }
       counts.applied++;
+      peerMotion.set(ship, { at: now(), moving: meta?.moving === true });
       apply(ship, spot, meta);
       return true;
     },
@@ -290,6 +296,19 @@ export function createMovement({
     }
   }
 
+  function confidence(ship) {
+    if (relay.live() && relay.has(ship)) {
+      const motion = peerMotion.get(ship);
+      if (!motion) return 'delayed';
+      if (!motion.moving) return 'live-stationary';
+      return now() - motion.at <= 3000 ? 'live-moving' : 'stalled';
+    }
+    const first = firstSeen.get(ship);
+    if (session.role() === 'degraded' || (first !== undefined && now() - first >= PEER_GRACE_MS))
+      return 'slow-fallback';
+    return 'absent';
+  }
+
   return {
     start() {
       if (started) return;
@@ -338,6 +357,7 @@ export function createMovement({
         if (m?.mv) lastMv.set(ship, { mv: m.mv, at: m.at ?? now() }); else lastMv.delete(ship);
       }
       for (const ship of heardShips) if (!seen.has(ship)) { session.forget(ship); firstSeen.delete(ship); lastMv.delete(ship); }
+      for (const ship of peerMotion.keys()) if (!seen.has(ship)) peerMotion.delete(ship);
       heardShips = seen;
     },
     /* Positions are good enough to START calls on: the relay is carrying them,
@@ -351,11 +371,9 @@ export function createMovement({
       return readyLatched;
     },
     /* Whether our picture of this ship's position is current. */
+    confidence,
     reliable(ship) {
-      if (relay.live() && relay.has(ship)) return true;
-      if (session.role() === 'degraded') return true;
-      const first = firstSeen.get(ship);
-      return first !== undefined && now() - first >= PEER_GRACE_MS;
+      return ['live-stationary','live-moving','slow-fallback'].includes(confidence(ship));
     },
     result,
     announce: () => session.announce(),
@@ -369,6 +387,7 @@ export function createMovement({
       grantExpires: relay.expires(),
       authorizedViewers:[...presence.viewers()],
       ready: readyLatched,
+      confidence:Object.fromEntries([...heardShips].sort().map((ship)=>[ship,confidence(ship)])),
     }),
   };
 }

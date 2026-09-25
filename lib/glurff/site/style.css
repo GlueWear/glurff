@@ -226,6 +226,11 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .card-ship { color: #7fd6c3; }
 .card-id .wrap { word-break: break-all; }
 .card-id .warn { color: #e0a44a; }
+.card-bio { display: flex; flex-direction: column; gap: .25rem; line-height: 1.45;
+  overflow-wrap: anywhere; white-space: normal; }
+.card-bio-link, .card-bio-link:visited { color: #e0a44a; text-decoration: underline;
+  text-underline-offset: 2px; }
+.card-bio-link:hover, .card-bio-link:focus { color: #ffc44d; }
 .card-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
 .card-btns button { flex: 1 1 auto; }
 .card-btns .danger { border-color: #a3524b; color: #d98b83; }
@@ -235,6 +240,20 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .card-note { display: flex; gap: .4rem; overflow: hidden; }
 .card-note .n { color: #e0a44a; white-space: nowrap; }
 .card-note .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-profile-form { display: flex; flex-direction: column; gap: .55rem;
+  border-top: 1px solid #2a3244; padding-top: .65rem; }
+.card-profile-form label { display: flex; flex-direction: column; gap: .2rem;
+  color: #9aa7bd; font-size: 10px; letter-spacing: .05em; }
+.card-profile-form input:not([type="file"]), .card-profile-form textarea {
+  width: 100%; box-sizing: border-box; background: rgba(15,19,29,.9); color: #c9d4e4;
+  border: 1px solid #2a3244; border-radius: 3px; padding: .4rem; font: 12px Arial,sans-serif; }
+.card-profile-form textarea { min-height: 76px; resize: vertical; }
+.card-profile-form input:focus, .card-profile-form textarea:focus { outline: none; border-color: #7fd6c3; }
+.profile-file input { font: 11px Arial,sans-serif; color: #c9d4e4; }
+.profile-edit-actions { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+.profile-edit-actions .spacer { flex: 1; }
+.profile-edit-actions .b-profile-clear { color: #d98b83; border-color: #a3524b; }
+.profile-edit-status { min-height: 1.2em; color: #e0a44a; font-size: 11px; }
 
 .builder { position:fixed; z-index:20; left:50%; top:50%; transform:translate(-50%,-50%);
   width:min(560px,94vw); max-height:90vh; overflow:auto; background:#202938; border:1px solid #718096;
@@ -325,6 +344,12 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .ask-detail { line-height: 1.4; font-size: 12px; }
 .ask-row { display: flex; gap: .4rem; justify-content: flex-end; }
 .ask-row .ask-yes { border-color: #7fd6c3; color: #7fd6c3; }
+.dependency-status { min-height: 1.4em; line-height: 1.4; color: #e0a44a; }
+.dependency-manual { display: block; padding: .45rem .55rem; border: 1px solid #2a3244;
+  border-radius: 3px; background: rgba(10,12,18,.75); color: #c9d4e4;
+  white-space: pre-wrap; user-select: all; }
+.dependency-manual[hidden] { display: none; }
+.dependency .ask-row { flex-wrap: wrap; }
 
 /* ---- the lease: a room bound to one of your notes ---------------------- */
 /* Inside the room's own menu, above the people in it. */

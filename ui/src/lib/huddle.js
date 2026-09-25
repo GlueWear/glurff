@@ -17,6 +17,13 @@
 export const JOIN_RADIUS = 2;
 export const LEAVE_RADIUS = 3;
 
+/* Timing belongs to proximity policy, alongside its radii. Formation filters
+ * passers-by; established calls get a longer departure grace because distance
+ * already mutes audio immediately. */
+export const HUDDLE_FORM_MS = 3000;
+export const HUDDLE_JOIN_MS = 2000;
+export const HUDDLE_LEAVE_MS = 5000;
+
 /* How long a non-authority waits for its credential before concluding the
  * elected host is not going to produce one. */
 export const GRANT_TIMEOUT_MS = 25000;

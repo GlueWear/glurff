@@ -65,6 +65,7 @@ export const nb = {
   search: null,   //  newest message-search answer: {reqId, query, hits, capped}
   active: {},     //  gossip note id -> rows of members active on it, from Noltbook
 };
+const avatarRevisions = new Map();
 if (typeof window !== 'undefined') window.nb = nb;   // debug handle
 
 /* State changes stay synchronous; visual subscribers schedule their own paint.
@@ -292,10 +293,17 @@ export function applyFact(name, p) {
       if (nb.dialReady && nb.dial === p) return;
       nb.dial = p; nb.dialReady = true; field = 'dial'; break;
     case 'profile-list':
-      for (const row of p) if (row?.ship) nb.profiles[row.ship] = row.profile ?? {};
+      for (const row of p) if (row?.ship) {
+        nb.profiles[row.ship] = row.profile ?? {};
+        if (row.profile?.avatar?.type === 'urbit' && !avatarRevisions.has(row.ship))
+          avatarRevisions.set(row.ship, Date.now());
+        else if (row.profile?.avatar?.type !== 'urbit') avatarRevisions.delete(row.ship);
+      }
       field = 'profiles'; break;
     case 'profile-updated':
       nb.profiles[p.ship] = p.profile ?? {};
+      if (p.profile?.avatar?.type === 'urbit') avatarRevisions.set(p.ship, Date.now());
+      else avatarRevisions.delete(p.ship);
       if (lookupActive(p.ship)) { settleLookup(p.ship); nb.lookups[p.ship] = 'ok'; }
       field = 'profiles'; break;
     case 'gossip-active-updated':
@@ -314,7 +322,17 @@ export function applyFact(name, p) {
 /* ------------------------------------------------------------- selectors */
 
 export const displayName = (ship) => nb.profiles[ship]?.displayName || ship;
-export const avatarUrl = (ship) => nb.profiles[ship]?.avatar?.url || null;
+export const avatarUrl = (ship) => {
+  const avatar = nb.profiles[ship]?.avatar;
+  if (!avatar) return null;
+  if (avatar.type === 'urbit') {
+    const base = `/apps/noltbook/user-avatar/${encodeURIComponent(ship)}`;
+    const revision = avatarRevisions.get(ship);
+    return revision ? `${base}?v=${revision}` : base;
+  }
+  return avatar.url || null;
+};
+export const profileBio = (ship) => nb.profiles[ship]?.azimuthAddress || '';
 export const palStatus = (ship) => nb.pals[ship] ?? 'none';
 export const isContact = (ship) => !!nb.contacts[ship];
 
@@ -526,6 +544,30 @@ export const blockPal = (ship) => nbApi('block-pal', { ship });
 export const unblockPal = (ship) => nbApi('unblock-pal', { ship });
 export const addContact = (ship) => nbApi('add-contact', { ship });
 export const removeContact = (ship) => nbApi('remove-contact', { ship });
+
+/* Noltbook calls this stored field `azimuthAddress`; its current UI presents
+ * it as Bio. Use the same field and partial API so edits in either app are one
+ * profile, while wallet fields Glurff does not expose remain untouched. */
+export const updateOwnProfile = ({ displayName: name, bio, avatar } = {}) => {
+  const data = {};
+  if (name !== undefined) data.displayName = String(name).trim() || null;
+  if (bio !== undefined) data.azimuthAddress = String(bio).trim() || null;
+  if (avatar !== undefined) data.avatar = avatar;
+  return nbApi('update-profile', data);
+};
+
+export async function uploadOwnAvatar(blob, profile = {}) {
+  const response = await fetch('/apps/noltbook/upload-avatar', {
+    method: 'POST', body: blob, credentials: 'include',
+  });
+  if (!response.ok) {
+    const message = response.status === 413 ? 'The profile picture is too large.'
+      : response.status === 503 ? 'Noltbook could not store the profile picture.'
+      : 'Noltbook rejected the profile picture.';
+    throw new Error(message);
+  }
+  return updateOwnProfile({ ...profile, avatar: { type: 'urbit', url: '' } });
+}
 
 /* Someone we have never seen. The profile itself comes back as an ordinary
  * `profile-updated`; the reqId only reports whether they were reachable. */
