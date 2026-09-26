@@ -1,20 +1,17 @@
 import { diagnostic, setMovementDiagnostics, milestone } from 'lib/diagnostics';
-import { createPresence } from 'lib/presence';
+import { createMemberPresence } from 'lib/member-presence';
+import { WORLD_ID } from 'lib/world-config';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
 import { createBow } from 'lib/bow';
 import { createPlayerState } from 'lib/player-state';
 import { palStatus } from 'lib/noltbook';
 import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
-/* Boot.
- *
- * The world comes up first and stays up. Noltbook is wired in beside it, so a
- * Noltbook that is missing or slow leaves Glurff walkable rather than broken.
- */
+/* Artwork loads alongside the official note. Connecting waits for membership. */
 import { initApi, our, closeChannel } from 'lib/api';
 import { watchNoltbookDependency } from 'lib/dependency';
 import { createTabGuard } from 'lib/tab';
-import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, setDial, updateActiveCount, holdHistory, releaseHistory, inGlurff, primeSocial, setExtraVisible, setLeasedNotes, askToJoinNote, joinAsked, joinRequests, answerJoinRequest } from 'lib/noltbook';
+import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest } from 'lib/noltbook';
 import * as G from 'lib/glurff';
 import { Game } from 'world/game';
 import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
@@ -30,6 +27,7 @@ import { Members } from 'ui/members';
 import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
 import { showNoltbookDependency } from 'ui/dependency';
+import { showWorldMembership } from 'ui/world-membership';
 import { HOTSPOTS } from 'world/hotspots';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
@@ -60,8 +58,10 @@ const closeDependencyPrompt = showNoltbookDependency({
   isAvailable: () => nb.ready,
   onAvailable: (fn) => onChange(fn, (change) => change.field === 'notes'),
 });
+const closeMembershipPrompt = showWorldMembership();
 window.addEventListener('glurff-exit', () => {
   closeDependencyPrompt();
+  closeMembershipPrompt();
   noltbookDependency.close();
 });
 
@@ -248,6 +248,7 @@ const game = new Game(document.getElementById('stage'), {
     /* The zoom is yours: walking through a door used to take it away from you. */
     hud.setRoom(room);
     reportPosition(game.self, true);
+    presence.publish(); // Room context must travel even when movement uses the relay.
   },
   /* A room leased to somebody's secret note is shut: the one place in the
    * world where you cannot simply walk in. */
@@ -299,8 +300,8 @@ const bow = createBow({
 game.bow = bow;
 
 const events = createRoomEvents({our,room:()=>state.room,peers:()=>[...state.peers].filter(([ship,p])=>
-  R.roomOf(ship,p.spot)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
-  rooms:isChattyRoom,gameRoom:GAME_ROOM});
+  R.roomOf(ship,p.spot,p.chatPlace)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
+  rooms:isChattyRoom,gameRoom:GAME_ROOM,trace:diagnostic});
 const hudRoot = document.getElementById('hud');
 const hud = new Hud(hudRoot, { events });
 const railRoot = document.createElement('div');
@@ -320,7 +321,6 @@ new CallPanels(panelRoot, { members: () => R.callMembers() });
 /* The recorder draws the call's own tiles; the rail owns them. */
 R.setCallTiles(() => rail.recordableTiles());
 /* Members of a note a room is leased to see each other in the world. */
-setLeasedNotes(() => R.leasedNotes());
 
 /* THE TOP OF THE SCREEN, in three places. Left: contacts, search, and who is here with
  * you. Middle: how far your reach goes. Right: you -- your picture and your
@@ -368,7 +368,7 @@ const members = new Members(membersRoot, {
    * exactly who a proximity huddle would form from. */
   people: () => (state.room === COMMONS
     ? [our, ...[...state.peers].filter(([ship, p]) =>
-        R.roomOf(ship, p.spot) === COMMONS).map(([ship]) => ship)]
+        R.roomOf(ship, p.spot, p.chatPlace) === COMMONS).map(([ship]) => ship)]
     : [our, ...R.callPeers()]),
   onShowProfile: (ship) => card.open(ship),
 });
@@ -442,19 +442,19 @@ let watching = false;
 let pendingPeers = null;
 let presencePeers = new Map();
 const appliedPresence = new Map();
-/* Everyone we may draw: the people presence reaches, and the people a room lets
- * us see (lib/roommates). Where both know somebody, presence wins. */
-const allPeers = (fromPresence = presencePeers) => new Map([...R.roomPeers(), ...fromPresence]);
+/* Direct live member presence is the sole source of avatars. Room/call lists
+ * coordinate rooms but never introduce someone into the world. */
+const allPeers = (fromPresence = presencePeers) => new Map([...fromPresence].filter(([ship]) => worldMember(ship)));
 function applyPresence() {
   if (pendingPeers) { presencePeers = pendingPeers; pendingPeers = null; }
   const peers = allPeers();
-  nb.discovered=Object.fromEntries([...presencePeers].map(([ship,p])=>[ship,{hops:p.path.length-1,at:p.at}]));
+  setWorldPresence(peers.keys());
   for(const ship of state.peers.keys())if(!peers.has(ship))dropPeer(ship,'presence-removed');
   for(const ship of appliedPresence.keys())if(!peers.has(ship))appliedPresence.delete(ship);
   for(const [ship,p] of peers) {
     globalThis.__players?.store.adopt(ship,p.players);
     const old=appliedPresence.get(ship);
-    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host ||
+    if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.chatPlace!==p.chatPlace ||
       old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
       old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
       onWorldFact('peer-here',{...p,who:ship},true);
@@ -463,17 +463,16 @@ function applyPresence() {
   reconcilePeers();
 }
 /* What we are right now, as presence and rooms both send it. */
-const here = () => ({stamp:Date.now(),spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
+const here = () => ({stamp:Date.now(),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
   huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
-const presence = createPresence({
+const presence = createMemberPresence({
   our, session:crypto.randomUUID(),
-  social:()=>({pals:nb.pals,dial:nb.dial}),
+  members: worldMembers,
+  blocked: ship => palStatus(ship) === 'blocked',
   /* The room list we are on rides our presence answer, so somebody who arrives
    * after a room filled up still learns who is in it. */
   snapshot:()=>({...here(),room:R.roomSummary()}),
   send:G.sendPresence,
-  /* Only pals in Glurff are asked, once, when they arrive; see lib/presence. */
-  targeted:true,
   trace:(type,d)=>{diagnostic(type,d);if(type==='presence-first' || (type==='presence-discover' && !d.count))releaseHistory();},
   changed: peers => {
     pendingPeers=peers;
@@ -495,7 +494,6 @@ playerStore = createPlayerState({
 mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our });
 game.setHotspots(HOTSPOTS.map(h => ({ ...h, onActivate: () => mediaUI.activate(h.id) })));
 window.__players = { store:playerStore, ui:mediaUI };
-setExtraVisible(() => [...R.roomPeers().keys()]);
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
   /* Our own list changed: what rides our presence answer changed with it. */
@@ -506,19 +504,17 @@ R.onRoommates((why) => {
 movement = createMovement({
   our,
   agent: { claim: G.claimMovement, release: G.releaseMovement, open: G.openMovement, knock: G.knockMovement },
-  /* Positions go to everyone who may see us: presence's viewers, and our room
-   * audience. The slow path reaches each the way they reach us. */
+  /* Direct presence authorizes the movement audience and its slow fallback. */
   presence: {
-    viewers: () => { const out = presence.viewers(); for (const s of R.roomAudience()) out.add(s); return out; },
-    publishTo: (ships) => { G.asFallback(() => presence.publishTo(ships)); R.publishRoom(ships); },
+    viewers: () => presence.viewers(),
+    publishTo: (ships) => { G.asFallback(() => presence.publishTo(ships)); },
   },
   /* state.peers holds exactly the people presence lets us see; reconcilePeers
    * removes anyone who stops being visible. The relay adds nobody. */
   visible: (ship) => state.peers.has(ship),
   apply: applyRelayPosition,
-  /* Noltbook says these people are in here with us. Their movement session is
-   * worth a few seconds' wait before starting one of our own beside it. */
-  expected: () => [...inGlurff()],
+  /* Installed but offline members must never delay a movement session. */
+  expected: () => [...presence.peers().keys()],
   trace: diagnostic,
 });
 window.__movement = movement;
@@ -571,7 +567,7 @@ function scheduleWorld() {
 function dropPeer(ship,reason='visibility') {
   diagnostic('peer-removed',{who:ship,reason,hidden:document.hidden});
   const p=state.peers.get(ship);
-  if(p)R.clearHost(ship,R.roomOf(ship,p.spot));
+  if(p)R.clearHost(ship,R.roomOf(ship,p.spot,p.chatPlace));
   R.forgetPeerRoom(ship);
   state.peers.delete(ship);game.dropPeer(ship);R.rooms.streams.delete(ship);
 }
@@ -579,20 +575,32 @@ function reconcilePeers() {
   const allowed = new Set(visiblePeers());
   for(const ship of state.peers.keys())if(!allowed.has(ship))dropPeer(ship);
   for(const ship of R.rooms.streams.keys())if(!state.peers.has(ship))R.rooms.streams.delete(ship);
-  if(presenceStarted)updateActiveCount(state.peers.size+1);
   R.refresh(state.peers);
   R.updateHuddle(game.self,state.peers);
   R.setPositions(game.self,state.peers);
+  if(presenceStarted)void updateActiveCount(state.peers.size+1);
 }
 let presenceStarted=false;
 function socialReady() {
-  if(!watching || !nb.palsReady || !nb.dialReady)return;
+  if(!watching || !liveTab)return;
+  if(!worldJoined()) {
+    void stopActiveStatus();
+    if(presenceStarted) {
+      presenceStarted=false;
+      presence.stop();
+      movement?.stop('membership');
+      setWorldPresence([]);
+      if(worldReady)applyPresence();
+    }
+    return;
+  }
   if(!presenceStarted){
     presenceStarted=true;milestone('presence-started');presence.start();movement?.start();
-    /* Our own "In Glurff" now: it is what tells pals to ask for us. */
-    updateActiveCount(state.peers.size+1);
+    releaseHistory();
+    if(worldReady)R.enterRoom(game.room);
   }
   else presence.update();
+  void updateActiveCount(state.peers.size+1);
 }
 /* Calls wait for positions the movement layer can vouch for (see rooms.js).
  * When that changes and nobody moves, nothing else re-evaluates the room or
@@ -603,9 +611,8 @@ let positionSignature='';
 let claimSignature='';
 ticker=setInterval(()=>{
   presence.tick();
+  if(presenceStarted)void updateActiveCount(state.peers.size+1);
   R.tickRoom();
-  /* Introduce the people who can see us to our room-mates; see lib/roommates. */
-  if(presenceStarted)R.introduceRoom(presence.viewers());
   if(presenceStarted && movement) {
     const mv=movement.announce();
     const next=mv?`${mv.host}/${mv.term}/${mv.live}`:'';
@@ -619,32 +626,17 @@ ticker=setInterval(()=>{
 },1000);
 /* Closing the tab stops our relay connection but deliberately does NOT release
  * a movement room we host: our ship keeps admitting the people still in it. */
-window.addEventListener('glurff-exit',()=>{R.closeTab();movement?.stop('exit');presence.stop();});
+window.addEventListener('glurff-exit',()=>{presence.stop();R.closeTab();movement?.stop('exit');stopWorld();});
 window.addEventListener('glurff-reconnect',()=>{if(presenceStarted){presence.start();movement?.restored();}});
 window.addEventListener('glurff-restored',()=>{R.recoverCall();if(presenceStarted){presence.start(true);movement?.restored();}});
 window.addEventListener('online',()=>{if(presenceStarted){presence.start(true);movement?.restored();}});
 window.addEventListener('visibilitychange',()=>{if(!document.hidden && presenceStarted){presence.start();movement?.restored();}});
 
-/* REACH: how many hops out you can be seen and can see. It is Noltbook's dial
- * -- the same setting, the same poke -- said in the word it means here: a
- * reach of two is two hops of the pal graph away. */
-const reach = document.createElement('label');
-reach.className = 'reach';
-reach.innerHTML = 'Reach <select aria-label="How far your reach goes" title="How many hops out you can see and be seen"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select><span role="status"></span>';
-topMid.appendChild(reach);
-const reachSelect = reach.querySelector('select');
-onChange(() => { reachSelect.value = String(nb.dial); }, c => c.field === 'dial');
-reachSelect.onchange = async () => {
-  reachSelect.disabled = true;
-  try { await setDial(reachSelect.value); reach.querySelector('span').textContent=''; }
-  catch { reachSelect.value=String(nb.dial); reach.querySelector('span').textContent='Could not change reach'; }
-  finally { reachSelect.disabled=false; }
-};
-
-
 function onWorldFact(name, p, fromPresence=false) {
   if(name==='presence-event') {
-    try {const event=JSON.parse(p.body);if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){if(spriteLabEnabled())bow.receive(p.who,event);}else if(event.kind==='emote'){
+    if(!worldMember(p.who))return;
+    try {const event=JSON.parse(p.body);if(event.world!==WORLD_ID)return;
+    if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){if(spriteLabEnabled())bow.receive(p.who,event);}else if(event.kind==='emote'){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
          ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
@@ -658,7 +650,7 @@ function onWorldFact(name, p, fromPresence=false) {
   if (p.who && !visiblePeers().includes(p.who)) return;
   switch (name) {
     case 'room-event':
-      try { events.receive(p.who,p.place,JSON.parse(p.body)); } catch {}
+      try { const event=JSON.parse(p.body);if(event.world===WORLD_ID)events.receive(p.who,p.place,event); } catch {}
       break;
     case 'peer-here': {
       const reported = { place: p.spot.place, x: p.spot.x / G.SUB, y: p.spot.y / G.SUB,
@@ -671,6 +663,7 @@ function onWorldFact(name, p, fromPresence=false) {
       const newer = !prev || !Number.isFinite(prev.motionT) || stamp > prev.motionT;
       const spot = newer ? reported : prev.spot;
       const entry = { spot, rev: p.rev, look: prev?.look ?? null, at: Date.now(),
+                      chatPlace: p.chatPlace,
                       host: newer ? (p.host || null) : prev.host,
                       huddle: p.huddle ?? null,
                       motionT: newer ? stamp : prev.motionT };
@@ -683,6 +676,7 @@ function onWorldFact(name, p, fromPresence=false) {
       /* Their character arrives on request, not on every beat -- it is far
        * bigger than a position. Ask once, when the revision moves. */
       if (!prev || prev.rev !== p.rev) G.fetchLook(p.who);
+      if (!prev && !nb.profiles[p.who]) requestProfile(p.who).catch(() => {});
       break;
     }
     case 'peer-gone':
@@ -742,24 +736,12 @@ function onWorldFact(name, p, fromPresence=false) {
 (async function boot() {
   window.__game = game;
   game.ourShip = our;
-  /* Startup runs side by side, not in a line. Presence needs only the world's
-   * subscriptions and Noltbook's pals and dial. It used to wait for every sprite
-   * to download, then for the subscriptions, and only then ask Noltbook -- so
-   * nobody could see you until all of the artwork had arrived. Peers found while
-   * the artwork loads are drawn as soon as the world is built. */
-  onChange((c) => { milestone(c.field + '-ready'); socialReady(); if (worldReady) reconcilePeers(); }, c => ['pals', 'dial'].includes(c.field));
-  /* Noltbook's list of pals in Glurff: arrivals are asked, leavers dropped. */
-  onChange(() => { milestone('glurff-list'); presence.present(inGlurff()); }, c => c.field === 'active' && c.noteId === COMMONS_NOTE);
-  /* Last time's pal and in-Glurff lists, so the first hello does not wait for
-   * Noltbook. Replaced by the real lists the moment they arrive. */
-  if (primeSocial()) milestone('social-primed');
-  /* Noltbook beside the world, never in front of it. */
+  /* Membership and artwork load together. Pals are read only for blocks and
+   * social features; changing friendship or gossip reach cannot cut a call. */
+  onChange((c) => { milestone(c.field + '-ready'); socialReady(); if (worldReady) reconcilePeers(); }, c => ['world', 'pals'].includes(c.field));
   const social = initNoltbook()
     .then(async () => {
       await hud.setRoom(COMMONS);
-      /* Install the commons note only when Noltbook says it is genuinely
-       * absent -- its receiver REPLACES the note and clears its messages.
-       * Rooms install theirs the same way, the first time somebody walks in. */
     })
     .catch((e) => console.error('Noltbook unavailable; social features are off', e));
   await game.start();

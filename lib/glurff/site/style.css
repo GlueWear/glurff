@@ -302,7 +302,9 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 
 /* Imageboard palette, with precisely three recent posts in the compact view. */
 .chat-content {display:flex;flex-direction:column;gap:5px;min-height:0;}
-.chat-toggle {align-self:flex-end;}
+.chat-toggle {align-self:flex-end;display:flex;align-items:center;gap:6px;}
+.chat-unread {display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;border-radius:50%;background:#a32721;color:#fff;font:bold 11px/1 Arial,sans-serif;}
+.chat-unread[hidden] {display:none;}
 .stream {max-height:none;gap:5px;display:block;}
 .stream:hover {max-height:40vh;}
 .stream:not(:hover) .line:not(.recent) {display:none;}

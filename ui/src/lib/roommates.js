@@ -8,8 +8,9 @@
  * it, and a guest who crashes drops off when they leave the call or stop
  * renewing. The host sends the list to everyone on it whenever it changes.
  *
- * EVERYONE ON THE LIST SEES EVERYONE ELSE ON IT, pals or not: they are in the
- * same call already.
+ * Room lists coordinate calls and leases. They never grant world membership:
+ * every sender, recipient and listed participant is checked against the
+ * shared world's membership independently of friendship.
  *
  * AT LEAST ONE PERSON YOU CAN SEE IN A ROOM, AND YOU KNOW EVERYBODY IN IT.
  *   - Everyone in a room carries its list in their presence answer, so somebody
@@ -47,7 +48,7 @@ export const INTRO_LEASE_MS = 300000;
 export const MEMBER_REFRESH_MS = 20000;
 /* How long something not yet vouched for is held. */
 export const HOLD_MS = 30000;
-const MODES = new Set(['open', 'pals', 'ask', 'locked']);
+const MODES = new Set(['open', 'ask', 'locked']);
 const MAX_INTRODUCED = 512, MAX_HELD = 64;
 
 const isShip = (s) => typeof s === 'string' && /^~[a-z-]{3,70}$/.test(s);
@@ -92,7 +93,7 @@ function readList(m) {
 }
 
 export function createRoommates({ our, send, now = Date.now, trace = () => {}, changed = () => {},
-  blocked = () => false, pal = () => false, here = () => null,
+  blocked = () => false, member = () => true, here = () => null,
   /* The room we are standing in. A list for anywhere else is not ours to take. */
   standing = () => null,
   /* Who already sees us through presence. They get nothing from a room that
@@ -115,9 +116,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   const invites = new Map();
   let sequence = 0;
   let saidMembers = 0;
+  const eligible = ship => isShip(ship) && member(our) && member(ship) && !blocked(ship);
+  const guestsOf = r => [...r.guests].filter(eligible);
 
   const emit = (to, message) => {
-    if (to === our || blocked(to)) return;
+    if (to === our || !eligible(to)) return;
     try { Promise.resolve(send(to, message)).catch(() => {}); } catch {}
   };
   const notify = (why) => { try { changed(why); } catch {} };
@@ -125,7 +128,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   /* ------------------------------------------------------- visibility */
 
   function allowed(ship, place, hostShip) {
-    if (!isShip(ship) || ship === our || blocked(ship)) return false;
+    if (ship === our || !eligible(ship) || !eligible(hostShip)) return false;
     if (list && list.place === place && list.host === hostShip && list.guests.has(ship)) return true;
     for (const r of reports.values()) {
       if (r.share && r.place === place && r.host === hostShip && r.guests.has(ship)) return true;
@@ -133,9 +136,9 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     return false;
   }
   function introValid(v) {
-    if (!list || list.place !== v.place || list.host !== v.host) return false;
+    if (!list || !eligible(list.host) || list.place !== v.place || list.host !== v.host) return false;
     const t = now();
-    for (const [via, at] of v.via) if (list.guests.has(via) && t - at < INTRO_LEASE_MS) return true;
+    for (const [via, at] of v.via) if (eligible(via) && list.guests.has(via) && t - at < INTRO_LEASE_MS) return true;
     return false;
   }
 
@@ -145,8 +148,8 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     const out = new Set();
     let seen;
     try { seen = watchers(); } catch { seen = new Set(); }
-    if (list) for (const s of list.guests) if (s !== our && !blocked(s) && !seen.has(s)) out.add(s);
-    for (const [v, i] of viewers) if (introValid(i) && !blocked(v) && !seen.has(v)) out.add(v);
+    if (list) for (const s of list.guests) if (s !== our && eligible(s) && !seen.has(s)) out.add(s);
+    for (const [v, i] of viewers) if (introValid(i) && eligible(v) && !seen.has(v)) out.add(v);
     return out;
   }
 
@@ -162,10 +165,10 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   /* Drop whatever our lists no longer justify, and admit whatever they now do. */
   function reconcile() {
     for (const [s, st] of states) if (!allowed(s, st.place, st.host)) states.delete(s);
-    for (const [v, i] of viewers) if (!introValid(i) || list?.guests.has(v)) viewers.delete(v);
+    for (const [v, i] of viewers) if (!eligible(v) || !introValid(i) || list?.guests.has(v)) viewers.delete(v);
     const t = now();
     for (const [key, h] of held) {
-      if (t - h.at >= HOLD_MS) { held.delete(key); continue; }
+      if (!eligible(h.from) || (h.kind === 'intro' && !eligible(h.m.viewer)) || t - h.at >= HOLD_MS) { held.delete(key); continue; }
       if (h.kind === 'state' && allowed(h.from, h.m.place, h.m.host)) { held.delete(key); acceptState(h.from, h.m); }
       else if (h.kind === 'intro' && list && list.place === h.m.place && list.host === h.m.host && list.guests.has(h.from)) {
         held.delete(key); acceptIntro(h.from, h.m);
@@ -235,7 +238,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
 
   /* We host this room. We are the first guest on our own list. */
   function host(place, { mode = 'open', share = true, note = null } = {}) {
-    if (!isRoom(place) || hosted?.place === place) return;
+    if (!eligible(our) || !isRoom(place) || hosted?.place === place) return;
     leave();
     lastSent = '';
     hosted = { place, rev: 1, mode: MODES.has(mode) ? mode : 'open', share,
@@ -251,9 +254,9 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   /* Somebody asked us for this room's call. That is asking to be on the list,
    * and the answer follows the room's mode. Asking again renews. */
   function admit(who, place) {
-    if (!hosted || hosted.place !== place || !isShip(who) || blocked(who)) return false;
+    if (!hosted || hosted.place !== place || !eligible(who)) return false;
     if (who === our) return true;
-    const ok = hosted.mode === 'open' || (hosted.mode === 'pals' && pal(who));
+    const ok = hosted.mode === 'open';
     if (!ok) return false;
     const g = hosted.guests.get(who);
     if (g) { g.at = now(); return true; }
@@ -288,7 +291,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
 
   /* We are in this room, following this host. Its list arrives from the host. */
   function follow(place, hostShip) {
-    if (!isRoom(place) || !isShip(hostShip)) return;
+    if (!isRoom(place) || !eligible(hostShip)) return;
     if (hostShip === our) { host(place); return; }
     if (!hosted && following?.place === place && following.host === hostShip) return;
     leave();
@@ -327,7 +330,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     const present = new Set();
     for (const [ship, m] of peers) {
       const r = readList(m?.room);
-      if (!r || ship === our) continue;
+      if (!r || ship === our || !eligible(ship) || !eligible(r.host)) continue;
       present.add(ship);
       const old = reports.get(ship);
       if (!old || old.rev !== r.rev || old.host !== r.host || old.place !== r.place) moved = true;
@@ -343,11 +346,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
    * every couple of minutes while it still holds. */
   function introduce(ourViewers) {
     if (!list || !list.share) return;
-    const mates = [...list.guests].filter((s) => s !== our);
+    const mates = [...list.guests].filter((s) => s !== our && eligible(s));
     const wanted = new Set();
     const t = now();
     for (const v of ourViewers) {
-      if (!isShip(v) || v === our || list.guests.has(v) || blocked(v)) continue;
+      if (!eligible(v) || v === our || list.guests.has(v)) continue;
       for (const mate of mates) {
         const key = mate + '/' + v;
         wanted.add(key);
@@ -387,7 +390,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   }
 
   function receive(from, m) {
-    if (!isShip(from) || from === our || blocked(from) || !m || typeof m.kind !== 'string') return;
+    if (!eligible(from) || from === our || !m || typeof m.kind !== 'string') return;
     switch (m.kind) {
       case 'room-roster': {
         const r = readList(m);
@@ -427,7 +430,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         return;
       }
       case 'room-intro': {
-        if (!isRoom(m.place) || !isShip(m.host) || !isShip(m.viewer) || m.viewer === our || blocked(m.viewer)) return;
+        if (!isRoom(m.place) || !eligible(m.host) || !eligible(m.viewer) || m.viewer === our) return;
         if (!list || list.place !== m.place || list.host !== m.host || !list.guests.has(from)) { hold('intro', from, m); return; }
         if (list.guests.has(m.viewer)) return;
         acceptIntro(from, m);
@@ -440,7 +443,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         return;
       }
       case 'room-state': {
-        if (!isRoom(m.place) || !isShip(m.host) || !num(m.sequence) || !validHere(m.here)) return;
+        if (!isRoom(m.place) || !eligible(m.host) || !num(m.sequence) || !validHere(m.here)) return;
         if (!allowed(from, m.place, m.host)) { hold('state', from, m); return; }
         acceptState(from, m);
         return;
@@ -464,7 +467,35 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
 
   /* ------------------------------------------------------------ upkeep */
 
+  /* A roster removal revokes existing routes as well as future admission.
+   * Called on world membership changes, independently of position updates. */
+  function refreshMembership() {
+    let touched = false;
+    if ((!eligible(our) && (hosted || following || list)) || (following && !eligible(following.host))) {
+      leave(); touched = true;
+    }
+    if (hosted) {
+      for (const ship of hosted.guests.keys()) if (ship !== our && !eligible(ship)) {
+        hosted.guests.delete(ship); touched = true;
+      }
+      if (touched) { hosted.rev++; publishList(); }
+    }
+    for (const [ship, r] of reports) if (!eligible(ship) || !eligible(r.host)) {
+      reports.delete(ship); touched = true;
+    }
+    for (const [place, invite] of invites) if (!eligible(invite.host)) {
+      invites.delete(place); touched = true;
+    }
+    for (const key of introduced.keys()) if (key.split('/').some(s => !eligible(s))) {
+      introduced.delete(key); touched = true;
+    }
+    const count = states.size + viewers.size + held.size;
+    reconcile();
+    if (touched || count !== states.size + viewers.size + held.size) notify('membership');
+  }
+
   function tick() {
+    refreshMembership();
     const t = now();
     if (hosted) {
       let dropped = false;
@@ -498,7 +529,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   }
 
   return {
-    host, admit, left, inCall, follow, leave, heard, introduce, publish, receive, tick, audience,
+    host, admit, left, inCall, follow, leave, heard, introduce, publish, receive, tick, audience, refreshMembership,
     /* The people we can see because of a room, with their latest state. */
     peers() {
       const out = new Map();
@@ -506,9 +537,9 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
       return out;
     },
     /* What rides our presence answer: the list we are on, if it may be shared. */
-    summary: () => (list && list.share
+    summary: () => (list && eligible(list.host) && list.share
       ? { place: list.place, host: list.host, rev: list.rev, mode: list.mode,
-          guests: [...list.guests].sort(),
+          guests: guestsOf(list).sort(),
           ...(list.note && list.vis !== 'secret' ? { note: list.note } : {}),
           ...(list.vis ? { vis: list.vis } : {}) }
       : null),
@@ -519,12 +550,13 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     instances(place) {
       const out = new Map();
       const put = (host, count, note, vis) => {
+        if (!eligible(host)) return;
         const had = out.get(host);
         out.set(host, { count: Math.max(had?.count ?? 0, count),
           note: note ?? had?.note ?? null, vis: vis ?? had?.vis ?? null });
       };
-      for (const r of reports.values()) if (r.share && r.place === place) put(r.host, r.guests.size, r.note, r.vis);
-      if (list?.place === place) put(list.host, list.guests.size, list.note, list.vis);
+      for (const [ship,r] of reports) if (eligible(ship) && r.share && r.place === place) put(r.host, guestsOf(r).length, r.note, r.vis);
+      if (list?.place === place) put(list.host, guestsOf(list).length, list.note, list.vis);
       return out;
     },
     /* Bind or unbind the room we are hosting. The list's revision moves, so
@@ -536,7 +568,8 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
      * from the note itself. */
     setMembers(ships) {
       if (!hosted) return false;
-      const want = new Set([our, ...(ships ?? []).filter(isShip)]);
+      if (!eligible(our)) return false;
+      const want = new Set([our, ...(ships ?? []).filter(eligible)]);
       const same = want.size === hosted.guests.size && [...want].every((s) => hosted.guests.has(s));
       for (const who of [...hosted.guests.keys()]) if (!want.has(who)) {
         hosted.guests.delete(who);
@@ -609,6 +642,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
      * open it is. A secret room answers `{note: null, vis: 'secret'}`: closed,
      * and nothing else. */
     leaseOf(place, host) {
+      if (!eligible(host)) return { note: null, vis: null };
       if (list?.place === place && list.host === host) return { note: list.note ?? null, vis: list.vis ?? null };
       /* BEFORE THE PRESENCE SUMMARY, not after it. Both describe the same
        * lease, but a SECRET room's summary carries no note -- it cannot, it
@@ -622,9 +656,9 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
       return { note: null, vis: null };
     },
     /* Whoever invited us into this room, for finding its host from outside. */
-    invitedTo(place) { return invites.get(place)?.host ?? null; },
+    invitedTo(place) { const host = invites.get(place)?.host; return host && eligible(host) ? host : null; },
     noteOf(place, host) { return this.leaseOf(place, host).note; },
-    current: () => (list ? { place: list.place, host: list.host, rev: list.rev, guests: [...list.guests].sort(),
+    current: () => (list && eligible(list.host) ? { place: list.place, host: list.host, rev: list.rev, guests: guestsOf(list).sort(),
       note: list.note ?? null } : null),
     guests: () => (hosted ? hosted.guests.size : list?.guests.size ?? 0),
     stats: () => ({ hosting: hosted?.place ?? null, following: following ? `${following.place}/${following.host}` : null,

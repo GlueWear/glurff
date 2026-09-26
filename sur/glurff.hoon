@@ -51,6 +51,7 @@
 ::  How many rooms the painted map has, and which of them is Rumors.
 ++  last-room  `@ud`15
 ++  rumors-room  `@ud`13
+++  vatican-room  `@ud`900
 ::  The note for a place, the commons included. `~` means "none of ours": the
 ::  Rumors room, and anywhere that is not a room.
 ::  The note a place's chat is, for the ONE place that has a fixed one: the

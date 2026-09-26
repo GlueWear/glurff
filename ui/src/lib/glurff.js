@@ -2,12 +2,12 @@
  *
  * Every action carries the peer set, because the agent keeps no membership of
  * its own -- it is a fan-out with almost no memory, and the client is what
- * decides who should hear us. That set comes from Noltbook's pal list at the
- * user's current dial, so visibility follows the graph Noltbook already owns.
+ * decides who should hear us. That set is the official world's live members.
  */
 import { latestSender } from 'lib/motion';
 import { api, poke, subscribe, our } from 'lib/api';
 import { glurffAudience } from 'lib/noltbook';
+import { WORLD_ID } from 'lib/world-config';
 import { trafficStart, recordCallQuota } from 'lib/diagnostics';
 
 /* Every Urbit poke is counted by what it is FOR. "presence-event" alone covered
@@ -71,7 +71,7 @@ export const dress = (look) => act('dress', { look });
  * the fan-out; arrows themselves are never streamed or persisted. */
 export const sendWorldEffect = (peers, event) => peers.length ?
   tracked('world-event', poke('glurff','glurff-action',
-    {op:'presence-event',peers,body:JSON.stringify(event)})) : Promise.resolve();
+    {op:'presence-event',peers,body:JSON.stringify({...event,world:WORLD_ID})})) : Promise.resolve();
 export const fetchLook = (who) => act('fetch-look', { who });
 export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });
@@ -125,14 +125,6 @@ export const openMovement = (place, session, ttl) =>
 export const knockMovement = (host, place) =>
   tracked('movement-control', poke('glurff', 'glurff-action', { op: 'knock', host, place, peers: [] }));
 
-/* Materialise a place's chat note -- the commons, or a room. Only ever call
- * this when the note is genuinely absent AND Noltbook's note list has arrived:
- * the receiver REPLACES the note and clears its messages, so asking for one
- * that already exists destroys that room's history.
- *
- * The place is a key into a table of fixed ids in the agent, never an id. */
-export const installNote = (place) => tracked('note-install', poke('glurff', 'glurff-commons', place));
-
 export const watchWorld = (onFact) => subscribe('glurff', '/world', onFact);
 export const watchCallAccess = (onFact) => subscribe('glurff', '/call-access', (name,p) => {
   // Diagnostics share the existing owner-local channel but never reach either
@@ -142,11 +134,14 @@ export const watchCallAccess = (onFact) => subscribe('glurff', '/call-access', (
 });
 
 /* Ordinary room messages and games: transient relay, never Noltbook notes. */
-export const sendRoomEvent = (place, event, peers) =>
-  tracked('room-event', poke('glurff','glurff-action',{op:'room-event',place,body:JSON.stringify(event),peers}));
+export const sendRoomEvent = (place, event, peers) => {
+  const body=JSON.stringify({...event,world:WORLD_ID});
+  if(new TextEncoder().encode(body).length>8192)return Promise.reject(new Error('Message too long'));
+  return tracked('room-event', poke('glurff','glurff-action',{op:'room-event',place,body,peers}));
+};
 
 const sendPresenceNow=(who,event,kind=classify(event))=>
-  tracked(kind,poke('glurff','glurff-action',{op:'presence-event',peers:[who],body:JSON.stringify(event)}));
+  tracked(kind,poke('glurff','glurff-action',{op:'presence-event',peers:[who],body:JSON.stringify({...event,world:WORLD_ID})}));
 /* At most one in-flight snapshot plus its newest replacement per route. */
 const snapshots=latestSender(sendPresenceNow);
 if(typeof window!=='undefined')window.addEventListener('glurff-exit',()=>snapshots.close());

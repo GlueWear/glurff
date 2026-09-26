@@ -1,5 +1,8 @@
 import { createGossip } from 'lib/gossip';
 import { mergeMessages, messageKey } from 'lib/timeline';
+import { createWorldMembership } from 'lib/world-membership';
+import { WORLD_HOST, WORLD_NOTE } from 'lib/world-config';
+import { diagnostic } from 'lib/diagnostics';
 import { tabLease, ACTIVE_TTL, ACTIVE_REFRESH_MS, TAB_REFRESH_MS } from 'lib/activity';
 /* The Noltbook seam.
  *
@@ -16,15 +19,14 @@ import { api, poke, subscribe, our } from 'lib/api';
 /* Posts made through Glurff are stamped `via` this desk, which is what makes
  * them read as "via Glurff" in Noltbook. */
 export const GLURFF_APP = { desk: 'glurff', title: 'Glurff' };
+const glurffApp = () => ({ ...GLURFF_APP, publisher: our });
 
-/* Fixed in the desk, mirrored here. See sur/glurff.hoon for why the commons
- * note is installed rather than created. */
-// Fresh shared identity; each ship installs its own locally owned copy.
-// New icon on a fresh note: previous commons notes and histories stay intact.
-export const COMMONS_NOTE = 'glurff-commons-v3';
+/* The Commons is the distributor's existing shared note. Never install or
+ * replace it locally; old gossip notes and their histories remain untouched. */
+export const COMMONS_NOTE = WORLD_NOTE;
 export const RUMORS_NOTE = 'ars-rumors';
 /* Rooms have no notes of their own: their chat is session-only, in the browser
- * (see lib/room-events.js and ui/hud.js). The commons is a gossip note, and the
+ * (see lib/room-events.js and ui/hud.js). The commons is a shared group, and the
  * war room is Rumors, Noltbook's own anonymous note. */
 /* The war room is the Rumors room: anonymous, and Noltbook's own note. */
 export const RUMORS_ROOM = 13;
@@ -41,7 +43,7 @@ export const nb = {
   dial: 0,
   palsReady: false,
   dialReady: false,
-  discovered: {}, // Ephemeral presence routes, populated by Glurff discovery.
+  world: { phase: 'waiting', joined: false, members: [], reason: '' },
   notes: {},      //  id -> note
   messages: {},   //  noteId -> [message]
   pals: {},       //  ship -> status
@@ -75,13 +77,56 @@ export const onChange = (fn, accepts = () => true) => {
   const record = {fn, accepts}; listeners.add(record);
   return () => listeners.delete(record);
 };
-const changed = (field, noteId = null, ship = null) => {
-  const change = {field, noteId, ship};
+const changed = (field, noteId = null, ship = null, message = null) => {
+  const change = {field, noteId, ship, message};
   for (const {fn, accepts} of listeners) {
     try { if (accepts(change)) fn(change); } catch (e) { console.error(e); }
   }
 };
+const liveWorldPeers = new Set();
+let memberShips = new Set();
+let membership = null;
+const createMembership = () => createWorldMembership({
+  our, host: WORLD_HOST, noteId: WORLD_NOTE,
+  requestJoin: data => nbApi('request-join', data, { timeout: 10000 }),
+  refresh: () => refreshNotes(),
+  trace: diagnostic,
+  changed: state => {
+    nb.world = state;
+    memberShips = new Set(state.members);
+    for (const ship of liveWorldPeers) if (!worldMember(ship)) liveWorldPeers.delete(ship);
+    changed('world', WORLD_NOTE);
+  },
+});
+export const worldStatus = () => nb.world;
+/* The pal list is read only for blocks here, never for friendship/reach. */
+export const worldJoined = () => nb.world.joined && nb.palsReady;
+export const worldBanned = ship => (nb.notes[WORLD_NOTE]?.creator === WORLD_HOST &&
+  (nb.notes[WORLD_NOTE]?.removed ?? []).includes(ship));
+export const worldMember = ship => worldJoined() && memberShips.has(ship) &&
+  nb.pals[ship] !== 'blocked' && !worldBanned(ship);
+export const worldMembers = () => [...memberShips].filter(worldMember);
+export const retryWorld = () => membership?.retry();
+export const stopWorld = () => membership?.stop();
+export const setWorldPresence = ships => {
+  liveWorldPeers.clear();
+  for (const ship of ships) if (ship !== our && worldMember(ship)) liveWorldPeers.add(ship);
+};
 const deleted = new Set(), views = new Map(), visibilityRevisions = new Map();
+/* Noltbook gives a local browser at most 300 messages on first subscription.
+ * The complete response to fetch-note-history arrives as another message-list
+ * on the same note path, so this state distinguishes it from a capped opening
+ * snapshot. */
+const NOTE_SNAPSHOT_LIMIT = 300;
+const historyState = new Map();
+const noteHistory = noteId => {
+  let state = historyState.get(noteId);
+  if (!state) {
+    state = { mayHaveMore: false, loading: false, fetchedAll: false, timer: null };
+    historyState.set(noteId, state);
+  }
+  return state;
+};
 let socialRevision = 0;
 /* Chat history can be held back while the world starts. Only main.js holds it,
  * so anything loading this module on its own behaves exactly as before. Live
@@ -99,8 +144,9 @@ function receiveMessages(noteId, incoming) {
   if (!noteId) return false;
   const rows = incoming.filter(m => !deleted.has(noteId + '/' + messageKey(m)) && !deleted.has(noteId + '/id:' + m.id));
   const old = nb.messages[noteId] ?? [];
-  nb.messages[noteId] = mergeMessages(old, rows, gossip.retained(noteId, rows));
-  gossip.content(noteId, rows);
+  const gossiped = noteId !== COMMONS_NOTE && (noteId === 'cover' || nb.notes[noteId]?.type === 'gossip');
+  nb.messages[noteId] = mergeMessages(old, rows, gossiped ? gossip.retained(noteId, rows) : null);
+  if (gossiped) gossip.content(noteId, rows);
   return nb.messages[noteId] !== old;
 }
 
@@ -120,7 +166,7 @@ export function nbApi(action, data = {}, { attribute = false, timeout = 20000 } 
   if (!resultsLive) return Promise.reject(new Error('nbApi before /api/results'));
   const requestId = nextRequestId++;
   const json = { action, requestId, data };
-  if (attribute) json.app = GLURFF_APP;
+  if (attribute) json.app = glurffApp();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(requestId);
@@ -147,7 +193,7 @@ function settle(r) {
 /* ------------------------------------------------------------ state feed */
 
 export function applyFact(name, p) {
-  let field, noteId = null, ship = p?.ship ?? null, joinsChanged = false;
+  let field, noteId = null, ship = p?.ship ?? null, joinsChanged = false, liveMessage = null;
   switch (name) {
     case 'note-list': {
       nb.notes = Object.fromEntries((p.notes ?? p).map(n => [n.id, n]));
@@ -157,6 +203,12 @@ export function applyFact(name, p) {
       nb.notes[p.id] = p; field = 'notes'; noteId = p.id;
       pendingJoins.delete(p.id);   //  we are in it now
       break;
+    case 'note-type-updated': {
+      const n = nb.notes[p.id];
+      if (!n) return;
+      nb.notes[p.id] = { ...n, type: p.type };
+      field = 'notes'; noteId = p.id; break;
+    }
     /* A note's call: who is in it, and which incarnation it is. */
     case 'call-snap':
       if (!p?.noteId) return;
@@ -202,10 +254,17 @@ export function applyFact(name, p) {
       }
       field = 'notes'; noteId = p.id; break;
     }
-    case 'message-list':
+    case 'message-list': {
       noteId = p.noteId;
-      if (!receiveMessages(noteId, p.messages ?? [])) return;
+      const incoming = p.messages ?? [];
+      const history = noteHistory(noteId);
+      if (history.loading) {
+        history.loading = false; history.fetchedAll = true; history.mayHaveMore = false;
+        clearTimeout(history.timer); history.timer = null;
+      } else if (!history.fetchedAll) history.mayHaveMore = incoming.length >= NOTE_SNAPSHOT_LIMIT;
+      if (!receiveMessages(noteId, incoming)) return;
       field = 'messages'; break;
+    }
     case 'new-message':
     case 'gossip-message':
     case 'message-edited':
@@ -213,6 +272,7 @@ export function applyFact(name, p) {
       const m = p.message ?? p.msg ?? p; noteId = m.noteId ?? p.noteId;
       if (name === 'gossip-message' && Number.isFinite(p.hops)) gossip.envelope(noteId, m, p.hops);
       if (!receiveMessages(noteId, [m])) return;
+      if (name === 'new-message' || name === 'gossip-message') liveMessage = m;
       field = 'messages'; break;
     }
     case 'message-deleted': {
@@ -252,10 +312,21 @@ export function applyFact(name, p) {
     case 'note-activity-list':
       for (const a of p.activities ?? p) nb.activity[a.noteId] = a.activity;
       field = 'activity'; break;
-    case 'note-sidebar-signal':
-      nb.activity[p.noteId] = Date.now();
-      if (p.author !== our) nb.unreadAt[p.noteId] = Date.now();
-      field = 'activity'; noteId = p.noteId; break;
+    case 'note-sidebar-signal': {
+      /* A control signal represents a hidden call marker. It must not move a
+       * conversation, change its preview, or light an unread dot. */
+      if (!p?.noteId || p.kind === 'control') return;
+      noteId = p.noteId;
+      const at = Number.isFinite(p.time) ? p.time : Date.now();
+      const newest = at >= (nb.activity[noteId] ?? 0);
+      nb.activity[noteId] = Math.max(nb.activity[noteId] ?? 0, at);
+      if (p.author && p.author !== our)
+        nb.unreadAt[noteId] = Math.max(nb.unreadAt[noteId] ?? 0, at);
+      const note = nb.notes[noteId];
+      if (note && newest) nb.notes[noteId] = { ...note, lastAuthor: p.author ?? note.lastAuthor,
+        ...(p.preview == null ? {} : { lastPreview: p.preview }) };
+      field = 'activity'; break;
+    }
     case 'remote-note-list': nb.remoteNotes[p.ship] = p.notes ?? []; field = 'remoteNotes'; break;
     case 'join-request-list': {
       const requests = Array.isArray(p) ? p : p?.requests ?? [];
@@ -274,6 +345,8 @@ export function applyFact(name, p) {
     case 'join-denied':
     case 'join-removed':
       if (!p?.noteId) return;
+      if (p.noteId === WORLD_NOTE && p.host === WORLD_HOST)
+        membership?.deny(name === 'join-removed' ? 'removed' : 'denied');
       pendingJoins.delete(p.noteId); field = 'joinStatus'; noteId = p.noteId; break;
     case 'profile-lookup-result': {
       /* Only the answer to the lookup we have out; a late one changes nothing. */
@@ -313,9 +386,8 @@ export function applyFact(name, p) {
     default: return;
   }
   if (field === 'pals' || field === 'dial') { socialRevision++; gossip.socialChanged(); }
-  //  Keep this browser's copy of who to greet first up to date; see saveSocial.
-  if (field === 'pals' || field === 'dial' || (field === 'active' && noteId === COMMONS_NOTE)) saveSocial();
-  changed(field, noteId, ship);
+  if (field === 'notes') membership?.update({ ready: nb.ready, notes: nb.notes });
+  changed(field, noteId, ship, liveMessage);
   if (joinsChanged) changed('joinRequests', noteId);
 }
 
@@ -451,66 +523,17 @@ export const knownShips = () => [...new Set([
   ...Object.keys(nb.profiles),
 ])].filter((s) => s !== our);
 
-/* Direct pals plus live routes discovered by Glurff. Dial zero means one
- * graph edge; chat envelopes are deliberately not a presence directory. */
-/* A discovered peer is visible for as long as presence keeps it: nb.discovered
- * is rebuilt from presence's own list, so no clock is needed here. */
-/* Plus anyone a room lets us see (lib/roommates): somebody on the same room list,
- * or on the list of a room somebody we can see is in. */
-let extraVisible = () => [];
-export const setExtraVisible = (fn) => { extraVisible = fn; };
-const roomVisible = () => { try { return extraVisible().filter((s) => nb.pals[s] !== 'blocked'); } catch { return []; } };
-
-/* MEMBERS OF A LEASED ROOM'S NOTE SEE EACH OTHER.
- *
- * Being in somebody's note is a relationship, and the world should show it: if
- * you are a member of the note a room is leased to, you see the people in that
- * room whether or not any of you are pals. The other side of it is real and
- * deliberate -- joining a note means the other members can see where you are
- * standing while you are in that room.
- *
- * Only the notes a room is actually leased to. Being in somebody's note does
- * not put them in your world; leasing a room to it does. */
-let leasedNotes = () => [];
-export const setLeasedNotes = (fn) => { leasedNotes = fn; };
-const noteVisible = () => {
-  try {
-    const out = [];
-    for (const id of leasedNotes()) {
-      const n = nb.notes[id];
-      if (!n || !(n.users ?? []).includes(our)) continue;   //  only notes we are in
-      for (const s of n.users ?? []) if (s !== our && nb.pals[s] !== 'blocked') out.push(s);
-    }
-    return out;
-  } catch { return []; }
-};
-export const visiblePeers = () =>
-  [...new Set([...Object.keys(nb.pals).filter(s => ['mutual','requesting'].includes(nb.pals[s])),
-    ...Object.entries(nb.discovered).filter(([s,d]) => nb.dial > 0 && d.hops <= nb.dial + 1 && nb.pals[s] !== 'blocked').map(([s])=>s),
-    ...roomVisible(), ...noteVisible()])].filter(s=>s!==our);
-
-/* Pals in Glurff right now. Noltbook announces it: each member's app sets
- * "active" on their copy of the commons, and Noltbook tells their pals when that
- * starts and stops -- including when a tab stops refreshing. Null until
- * Noltbook has said anything. */
-export const glurffListKnown = () => COMMONS_NOTE in nb.active;
-export const inGlurff = () => new Set((nb.active[COMMONS_NOTE] ?? [])
-  .filter((r) => r?.desk === GLURFF_APP.desk && typeof r.setBy === 'string' && r.setBy !== our)
-  .map((r) => r.setBy));
-/* Who hears our world actions -- room claims, looks, games. The people in
- * Glurff, and anyone we can already see; never every pal. Before Noltbook's list
- * arrives there is nothing better than the visible pal set. */
-export const glurffAudience = () => {
-  if (!glurffListKnown()) return visiblePeers();
-  const inApp = inGlurff();
-  return visiblePeers().filter((s) => inApp.has(s) || nb.discovered[s]);
-};
+/* Presence alone says who is running Glurff. Room rosters, contacts and other
+ * notes never expand this set. Membership changes are applied on every read. */
+export const visiblePeers = () => [...liveWorldPeers].filter(worldMember);
+export const glurffAudience = visiblePeers;
 
 export const setDial = value => nbAction('set-dial', {dial:Math.max(0,Math.min(3,Number(value)))});
 
 export function messagesFor(noteId) {
   const rows = nb.messages[noteId] ?? [];
-  if (noteId !== COMMONS_NOTE && noteId !== 'cover' && nb.notes[noteId]?.type !== 'gossip') return rows;
+  if (noteId === COMMONS_NOTE) return worldJoined() ? rows.filter(m => nb.pals[m.author] !== 'blocked') : [];
+  if (noteId !== 'cover' && nb.notes[noteId]?.type !== 'gossip') return rows;
   const rev = `${socialRevision}/${visibilityRevisions.get(noteId) ?? 0}`, old = views.get(noteId);
   if (old?.rows === rows && old.rev === rev) return old.visible;
   const filtered = rows.filter(m => gossip.visible(noteId, m));
@@ -520,9 +543,11 @@ export function messagesFor(noteId) {
 
 /* ---------------------------------------------------------------- actions */
 
-export const postMessage = (noteId, text, replyToEid = null) =>
-  nbApi('post-message', replyToEid ? { noteId, text, replyToEid } : { noteId, text },
+export const postMessage = (noteId, text, replyToEid = null) => {
+  if (noteId === COMMONS_NOTE && !worldJoined()) return Promise.reject(new Error('Join Glurff before chatting.'));
+  return nbApi('post-message', replyToEid ? { noteId, text, replyToEid } : { noteId, text },
         { attribute: true });
+};
 export const openDm = (ship) => nbApi('find-or-create-dm', { ship }).then((r) => r?.noteId ?? null);
 export const markRead = (noteId) => {
   /* Move the local read mark now. The fact comes back too, but the dot has to
@@ -616,6 +641,8 @@ export const grantApp = () => nbApi('set-app-grant', { desk: 'glurff', enabled: 
 /* ------------------------------------------------------------------ boot */
 
 export async function initNoltbook() {
+  membership ??= createMembership();
+  membership.start();
   await api.subscribe({
     app: 'noltbook',
     path: '/api/results',
@@ -626,6 +653,7 @@ export async function initNoltbook() {
   });
   resultsLive = true;
   await subscribe('noltbook', '/notes', applyFact);
+  membership.update({ ready: nb.ready, notes: nb.notes });
   grantApp().catch(() => {});
   return nb;
 }
@@ -669,14 +697,29 @@ let roomNotes = [], roomHistory = 3, watchesClosed = false;
 const extraNotes = new Map();
 const WATCH_GRACE_MS = 5000;
 const updateWanted = () => {
-  gossip.setWanted([...noteSubs.keys(), ...roomNotes, ...extraNotes.keys()]);
-  for(const id of noteSubs.keys())gossip.setHistory(id,extraNotes.has(id)?100:roomNotes.includes(id)?roomHistory:0);
+  const gossiped = id => id !== COMMONS_NOTE && (id === 'cover' || nb.notes[id]?.type === 'gossip');
+  gossip.setWanted([...noteSubs.keys(), ...roomNotes, ...extraNotes.keys()]
+    .filter(gossiped));
+  for(const id of noteSubs.keys())if(gossiped(id))gossip.setHistory(id,extraNotes.has(id)?100:roomNotes.includes(id)?roomHistory:0);
 };
 export function setChatHistory(size) {
   roomHistory=Math.max(0,Math.min(500,Math.trunc(size)));
   updateWanted();
 }
 export const chatHistoryCount=id=>Math.min(500,Math.max(messagesFor(id).length,gossip.available(id)));
+export const hasEarlierMessages = id => !!id && noteHistory(id).mayHaveMore;
+export function loadEarlierMessages(noteId) {
+  const history = noteHistory(noteId);
+  const gossiped = noteId === 'cover' || nb.notes[noteId]?.type === 'gossip';
+  if (!noteId || gossiped || history.loading || history.fetchedAll || !history.mayHaveMore)
+    return Promise.resolve(false);
+  history.loading = true;
+  clearTimeout(history.timer);
+  history.timer = setTimeout(() => { history.loading = false; history.timer = null; }, 10000);
+  return nbAction('fetch-note-history', { noteId }).then(() => true, error => {
+    history.loading = false; clearTimeout(history.timer); history.timer = null; throw error;
+  });
+}
 function retireWatch(id,record) {
   if(record.closing)return record.closing;
   clearTimeout(record.timer);
@@ -744,72 +787,53 @@ export async function subscribeNote(noteId) {
   };
 }
 
-/* LAST TIME'S LISTS, KEPT IN THIS BROWSER.
- *
- * Nobody can see anybody until Noltbook has said who our pals are and which of
- * them are in Glurff. That is usually fast and sometimes seconds, and those are
- * seconds of an empty world. The previous page's answer is a good guess for the
- * gap: only the pals who were in Glurff within the last few minutes are kept,
- * so the guess is small and recent, and Noltbook's real lists replace it
- * outright as soon as they arrive.
- *
- * This browser only. Nothing is sent anywhere, and nothing here is trusted for
- * anything but who to say hello to first. */
-const SOCIAL_MS=10*60*1000;
-const socialKey=()=>'glurff-social/'+our;
-let socialSavedAt=-Infinity;
-function saveSocial(force=false) {
-  if(typeof window==='undefined')return;
-  if(!force && Date.now()-socialSavedAt<30000)return;
-  socialSavedAt=Date.now();
-  try {
-    const here=[...inGlurff()];
-    const pals=Object.fromEntries(here.filter(s=>nb.pals[s]).map(s=>[s,nb.pals[s]]));
-    window.localStorage?.setItem(socialKey(),JSON.stringify({at:Date.now(),dial:nb.dial,inGlurff:here,pals}));
-  } catch {}
-}
-export function primeSocial() {
-  if(typeof window==='undefined' || nb.palsReady)return false;
-  let saved;
-  try {saved=JSON.parse(window.localStorage?.getItem(socialKey())??'null');} catch {return false;}
-  if(!saved || !Number.isFinite(saved.at) || Date.now()-saved.at>SOCIAL_MS)return false;
-  const here=(saved.inGlurff??[]).filter(s=>typeof s==='string' && /^~[a-z-]{3,70}$/.test(s) && s!==our).slice(0,64);
-  if(!here.length)return false;
-  nb.pals={...Object.fromEntries(here.filter(s=>['mutual','requesting'].includes(saved.pals?.[s])).map(s=>[s,saved.pals[s]]))};
-  nb.palsReady=true;
-  nb.dial=Math.max(0,Math.min(3,Number(saved.dial)||0));nb.dialReady=true;
-  nb.active[COMMONS_NOTE]=here.map(ship=>({desk:GLURFF_APP.desk,label:'In Glurff',setBy:ship}));
-  socialRevision++;gossip.socialChanged();
-  changed('pals');changed('dial');changed('active',COMMONS_NOTE);
-  return true;
-}
-if(typeof window!=='undefined')window.addEventListener('glurff-exit',()=>saveSocial(true));
-
-let activeAt=-Infinity, activeBusy=false;
-let activeLease=null, activeClosed=false, leaseAt=-Infinity;
+/* Each member of the official shared note owns one [ship, desk] active row.
+ * This is deliberately separate from calls: opening Glurff publishes it even
+ * when the member is standing alone, and the TTL cleans up a crashed tab. */
+let activeAt = -Infinity, activeBusy = false, activeSet = false;
+let activeLease = null, activeClosed = false, leaseAt = -Infinity;
+const activeMember = () => resultsLive && worldJoined() &&
+  (nb.notes[COMMONS_NOTE]?.users ?? []).includes(our);
 function touchActiveTab() {
-  if(typeof window==='undefined')return;
-  if(!activeLease) {
+  if (typeof window === 'undefined') return;
+  if (!activeLease) {
     let storage;
-    try {storage=window.localStorage;} catch {}
-    activeLease=tabLease(storage,'glurff-active/'+our+'/',crypto.randomUUID());
-    window.addEventListener('glurff-exit',()=>{
-      activeClosed=true;
-      if(activeLease.close() && nb.notes[COMMONS_NOTE]?.creator===our) {
-        // api.js queues this in the ordered departure beacon, before delete.
-        poke('noltbook','noltbook-api',{action:'clear-note-active',requestId:nextRequestId++,data:{noteId:COMMONS_NOTE},app:GLURFF_APP}).catch(()=>{});
-      }
-    });
+    try { storage = window.localStorage; } catch {}
+    activeLease = tabLease(storage, `glurff-active/${our}/`, crypto.randomUUID());
   }
-  if(Date.now()-leaseAt>=TAB_REFRESH_MS){leaseAt=Date.now();activeLease.touch();}
+  if (Date.now() - leaseAt >= TAB_REFRESH_MS) {
+    leaseAt = Date.now(); activeLease.touch();
+  }
 }
+function clearActiveRow(exit = false) {
+  const lease = activeLease;
+  activeLease = null; leaseAt = -Infinity; activeAt = -Infinity;
+  const shouldClear = activeSet && (!lease || lease.close());
+  activeSet = false;
+  if (!shouldClear) return Promise.resolve(false);
+  /* api.js queues the exit variant into its ordered departure beacon. */
+  if (exit) return poke('noltbook', 'noltbook-api', { action: 'clear-note-active',
+    requestId: nextRequestId++, app: glurffApp(), data: { noteId: COMMONS_NOTE } })
+    .then(() => true, () => false);
+  if (!resultsLive) return Promise.resolve(false);
+  return nbApi('clear-note-active', { noteId: COMMONS_NOTE }, { attribute: true, timeout: 7000 })
+    .then(() => true, error => {
+      console.warn('Could not clear Glurff active status:', error.message); return false;
+    });
+}
+export function stopActiveStatus() { return clearActiveRow(false); }
 export async function updateActiveCount(count) {
-  if(activeClosed)return;
+  if (activeClosed || !activeMember()) return;
   touchActiveTab();
-  const note=nb.notes[COMMONS_NOTE];
-  if(!resultsLive || note?.creator!==our || activeBusy || Date.now()-activeAt<ACTIVE_REFRESH_MS)return;
-  activeAt=Date.now();activeBusy=true;
-  try {await nbApi('set-note-active',{noteId:COMMONS_NOTE,label:'In Glurff',count,ttl:ACTIVE_TTL},{attribute:true,timeout:7000});}
-  catch(e){console.warn('Glurff active badge unavailable:',e.message);}
-  finally {activeBusy=false;}
+  if (activeBusy || Date.now() - activeAt < ACTIVE_REFRESH_MS) return;
+  activeAt = Date.now(); activeBusy = true; activeSet = true;
+  try {
+    await nbApi('set-note-active', { noteId: COMMONS_NOTE, label: 'in Glurff',
+      count: Math.max(1, Math.min(999, Math.trunc(count) || 1)), ttl: ACTIVE_TTL },
+      { attribute: true, timeout: 7000 });
+  } catch (error) { console.warn('Glurff active status unavailable:', error.message); }
+  finally { activeBusy = false; }
 }
+if (typeof window !== 'undefined') window.addEventListener('glurff-exit', () => {
+  activeClosed = true; void clearActiveRow(true);
+});

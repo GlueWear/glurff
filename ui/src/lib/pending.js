@@ -14,6 +14,10 @@ export function createPending({ now = Date.now, keepMs = 300000 } = {}) {
   let next = 0, revision = 0;
   const count = (messages, text) => messages.reduce((n, m) => n + (m?.text === text ? 1 : 0), 0);
   function arrived(p, messages) {
+    // A remote group host replaces the sender's provisional EID. Its exact
+    // original @da message ID and author survive that trip; text is not an ID.
+    if (p.forwarded && p.msgId && p.author && messages.some(m =>
+      m.author === p.author && m.msgIdRaw === p.msgId)) return true;
     if (p.eid) return messages.some((m) => m?.meta?.eid === p.eid);
     if (!p.byText) return false;
     const n = count(messages, p.text);
@@ -22,9 +26,9 @@ export function createPending({ now = Date.now, keepMs = 300000 } = {}) {
   return {
     /* `before` is what the note held when we posted, so an older identical
      * rumor is not mistaken for this one. */
-    add(note, text, parent = null, before = [], { byText = false } = {}) {
+    add(note, text, parent = null, before = [], { byText = false, author = null } = {}) {
       const id = `pending:${++next}`;
-      posts.set(id, { id, note, text, parent, at: now(), sent: false, sentAt: 0, eid: null, byText, before: count(before, text) });
+      posts.set(id, { id, note, text, parent, author, at: now(), sent: false, sentAt: 0, eid: null, byText, before: count(before, text) });
       revision++;
       return id;
     },
@@ -33,6 +37,8 @@ export function createPending({ now = Date.now, keepMs = 300000 } = {}) {
       if (!p) return;
       p.sent = true; p.sentAt = now();
       p.eid = typeof result?.eid === 'string' && result.eid ? result.eid : null;
+      p.forwarded = result?.code === 'forwarded';
+      p.msgId = typeof result?.msgId === 'string' ? result.msgId : null;
       revision++;
     },
     failed(id) { if (posts.delete(id)) revision++; },

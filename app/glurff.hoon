@@ -7,9 +7,7 @@
 ::  WHAT IT IS NOT
 ::  It stores no message, no contact list, no call roster and no chat history.
 ::  Those are Noltbook's, reached from the browser over the same Eyre channel
-::  that serves this page. This agent NEVER modifies the %noltbook desk, and the
-::  only thing it ever pokes there is a packet Noltbook already accepts from any
-::  agent (see %glurff-commons below).
+::  that serves this page. This agent never modifies the %noltbook desk.
 ::
 ::  PRESENCE IS STATELESS
 ::  An incoming claim goes straight out as a fact to our own client and is
@@ -18,11 +16,11 @@
 ::  migrate, sweep or leak.
 ::
 ::  ON `peers`: COOPERATIVE, NOT ENFORCED
-::  The peer set is asserted by our own client from Noltbook's pal list. We
-::  cannot verify the pal graph without reaching into %noltbook, and a ship that
-::  IS visible can claim any position it likes. Hygiene, not access control.
+::  The browser derives its audience from the official shared note's members
+::  and their direct live presence. The transport authenticates the sending
+::  ship; it does not prove that a member's claimed position is physically true.
 /-  g=glurff, gc=glurff-calls
-/+  default-agent, dbug, verb, server, glurff-site, glurff-icon
+/+  default-agent, dbug, verb, server, glurff-site
 /$  c1  %json  %glurff-action
 /$  c2  %json  %glurff-room
 /$  c3  %json  %glurff-commons
@@ -59,19 +57,6 @@
       sprite-lab=?
   ==
 +$  card  card:agent:gall
-::
-::  The packet Noltbook accepts to install a gossip note with a GIVEN id. Shaped
-::  to nest under `remote:noltbook`; their mark is noun-only, so this can never
-::  be reached from a browser.
-+$  gossip-invite
-  $:  %remote-gossip-invite
-      note-id=@ta
-      name=@t
-      creator=@p
-      users=(set @p)
-      headline=(unit @t)
-      icon-url=(unit @t)
-  ==
 --
 ::
 =|  state-2
@@ -212,36 +197,12 @@
         (call-ctx:hc place i.who session)
     ==
   ::
-  ::  Materialise one of the world's fixed chat notes. See sur/glurff for why
-  ::  these are installed rather than created.
-  ::
-  ::  The CLIENT decides the note is absent: Noltbook's receiver REPLACES the
-  ::  note and clears its messages, so asking for one that already exists would
-  ::  throw away the commons' history.
+  ::  Legacy clients used this to install a local gossip Commons. The official
+  ::  world now joins ~nolset's existing group through Noltbook's API. Keep the
+  ::  mark as a no-op so an old tab cannot overwrite any previous chat history.
       %glurff-commons
     ?>  =(src.bowl our.bowl)
-    =/  place=@ud  !<(@ud vase)
-    ::  The id comes from the table in /sur, never from the caller. A place we
-    ::  have no note for -- Rumors, or anywhere that is not a room -- installs
-    ::  nothing rather than inventing an id.
-    ?.  (lte place last-room:g)  [~ this]
-    =/  spec  (note-for:g place)
-    ?~  spec  [~ this]
-    :_  this
-    :~  :*  %pass  /commons-install
-            %agent  [our.bowl %noltbook]  %poke
-            %noltbook-remote
-            !>  ^-  gossip-invite
-            :*  %remote-gossip-invite
-                id.u.spec
-                name.u.spec
-                our.bowl
-                (sy ~[our.bowl])
-                `headline.u.spec
-                `glurff-icon
-            ==
-        ==
-    ==
+    [~ this]
   ::
   ::  ---- from another ship ----
   ::
@@ -534,7 +495,7 @@
     (spray peers.act [%presence-event body.act])
   ::
       %room-event
-    ?.  ?&((gth place.act 0) (lte place.act last-room:g) !=(rumors-room:g place.act) (lte (met 3 body.act) 8.192))
+    ?.  ?&((gth place.act 0) ?|((lte place.act last-room:g) =(place.act vatican-room:g)) !=(rumors-room:g place.act) (lte (met 3 body.act) 8.192))
       `state
     :_  state
     (spray peers.act [%room-event place.act body.act])
@@ -568,7 +529,7 @@
     :_(state ~[(fact [%presence-event who body.rem])])
   ::
       %room-event
-    ?.  ?&((gth place.rem 0) (lte place.rem last-room:g) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
+    ?.  ?&((gth place.rem 0) ?|((lte place.rem last-room:g) =(place.rem vatican-room:g)) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
       `state
     :_(state ~[(fact [%room-event who place.rem body.rem])])
   ::

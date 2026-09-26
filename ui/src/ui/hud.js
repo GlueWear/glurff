@@ -1,9 +1,10 @@
-import { chatLines, thread, recentLines } from 'lib/timeline';
+import { chatLines, thread, recentLines, messageKey, isCallControl } from 'lib/timeline';
 import { createPending } from 'lib/pending';
+import { createChatUnread } from 'lib/chat-unread';
 import { our } from 'lib/api';
 import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
-  displayName, noteName, watchNotes, setChatHistory, chatHistoryCount, onChange } from 'lib/noltbook';
-import { installNote } from 'lib/glurff';
+  displayName, noteName, noteUrl, watchNotes, setChatHistory, chatHistoryCount,
+  hasEarlierMessages, loadEarlierMessages, onChange } from 'lib/noltbook';
 import { roomById, GAME_ROOM } from 'world/places';
 import { render as renderText } from 'ui/media';
 import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
@@ -13,12 +14,13 @@ export class Hud {
   constructor(root, { events } = {}) {
     this.root = root;
     this.events = events;
-    events?.onChange(() => { if (!this.noteFor(this.room)) this.invalidate(); });
+    this.unread = createChatUnread(our);
+    events?.onChange(message => {
+      if (this.noteFor(this.room)) return;
+      if (message) this.unread.receive(message.eid, message.who);
+      this.invalidate();
+    });
     this.room = 0;
-    /* Notes we have already asked for this session. Installing REPLACES a note
-     * and clears its messages, so this is the belt to the note-list's braces:
-     * one request per note, ever, no matter how the state moves under us. */
-    this.installed = new Set();
     this.rows = new Map(); this.models = new Map();
     /* Our Commons and Rumors posts, shown before Noltbook confirms them. */
     this.pending = createPending();
@@ -38,9 +40,13 @@ export class Hud {
     onRooms(() => this.retune());
     onRoommates(() => this.retune());
     onChange(change => {
+      if (change.message && !isCallControl(change.message.text))
+        this.unread.receive(messageKey(change.message), change.message.author);
       if (change.field === 'profiles') this.profileRevision++;
+      if (change.field === 'world' && nb.world.joined && this.room === 0)
+        watchNotes(COMMONS_NOTE).catch(() => {});
       this.invalidate();
-    }, change => ['notes', 'profiles', 'pals', 'dial'].includes(change.field) ||
+    }, change => ['world', 'notes', 'profiles', 'pals', 'dial'].includes(change.field) ||
       (['messages', 'visibility'].includes(change.field) && change.noteId === this.noteFor(this.room)));
   }
 
@@ -58,16 +64,14 @@ export class Hud {
   }
 
   async setRoom(room) {
+    this.unread.reset();
     this.room = room;
     this.historySize = 100;
     this.replyTo = null;
     const note = this.noteFor(room);
     this.boundNote = note;
-    if (note) {
-      this.maybeInstall(note, room);
-    }
     setChatHistory(this.chatOpen?(this.expanded?this.historySize:3):0);
-    const watching=note?watchNotes(note):watchNotes();
+    const watching=note && (note!==COMMONS_NOTE || nb.world.joined)?watchNotes(note):watchNotes();
     this.paint(); // Cached chat must not wait for a network subscription ACK.
     await watching.catch(() => {});
   }
@@ -79,30 +83,11 @@ export class Hud {
   retune() {
     const note = this.noteFor(this.room);
     if (note === this.boundNote) return;
+    this.unread.reset();
     this.boundNote = note;
     this.replyTo = null;
-    if (note) this.maybeInstall(note, this.room);
-    (note ? watchNotes(note) : watchNotes()).catch(() => {});
+    (note && (note!==COMMONS_NOTE || nb.world.joined) ? watchNotes(note) : watchNotes()).catch(() => {});
     this.invalidate();
-  }
-
-  /* Materialise a room's note the first time somebody walks in.
-   *
-   * Only when Noltbook's note list has actually arrived and says it is
-   * missing: the receiver REPLACES a note and clears its messages, so asking
-   * for one that exists throws away that room's history. Rumors is Noltbook's
-   * own note and is never installed. */
-  maybeInstall(note, room) {
-    if (!note || note === RUMORS_NOTE) return;
-    if (!nb.ready || nb.notes[note] || this.installed.has(note)) return;
-    this.installed.add(note);
-    const install=async()=>{
-      if(nb.notes[note])return;
-      await installNote(room);
-      await new Promise(resolve=>{const timer=setTimeout(()=>{off();resolve();},5000);const off=onChange(()=>{if(nb.notes[note]){clearTimeout(timer);off();resolve();}});});
-    };
-    const job=navigator.locks?navigator.locks.request('glurff-commons-install',install):install();
-    job.catch(()=>{this.root.querySelector('.error').textContent='Could not prepare commons chat. Reload to retry.';});
   }
 
   /* Threaded replies are Noltbook's, so a reply here is a real reply there --
@@ -139,7 +124,7 @@ export class Hud {
   build() {
     this.root.innerHTML = `
       <div class="chat">
-        <button class="chat-toggle" aria-expanded="false">Open chat</button>
+        <button class="chat-toggle" aria-expanded="false"><span class="chat-toggle-label">Open chat</span><span class="chat-unread" hidden></span></button>
         <div class="chat-content" hidden>
         <div class="where"></div>
         <div class="game-controls"><button type="button">Roll 3 dice</button></div>
@@ -151,7 +136,7 @@ export class Hud {
       </div>`;
     this.chatOpen=false;
     setChatHistory(0);
-    this.setOpen=open=>{this.chatOpen=open;setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();else this.paint();};
+    this.setOpen=open=>{this.chatOpen=open;this.unread.open(open);setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
     this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
     this.stream = this.root.querySelector('.stream');
     this.stream.addEventListener('mouseenter', () => {
@@ -163,9 +148,14 @@ export class Hud {
     });
     this.stream.addEventListener('scroll', () => {
       const note=this.noteFor(this.room);
-      if (this.expanded && this.stream.scrollTop < 30 && this.historySize < (note?chatHistoryCount(note):this.lines().length)) {
-        this.historySize += 100; setChatHistory(this.historySize); this.paint();
+      if (!this.expanded || this.stream.scrollTop >= 30) return;
+      const available=note?chatHistoryCount(note):this.lines().length;
+      if (this.historySize < available) {
+        this.historySize = Math.min(500, this.historySize + 100);
+        setChatHistory(this.historySize); this.paint();
       }
+      if (note && this.historySize >= available && hasEarlierMessages(note))
+        loadEarlierMessages(note).catch(error => console.warn('Could not load earlier chat:', error.message));
     });
     this.stream.addEventListener('click', e => {
       const el = e.target.closest('.line'); if (!el) return;
@@ -216,7 +206,7 @@ export class Hud {
       /* In the Commons and Rumors the post shows at once, grey until our ship
        * confirms it was sent. Rumors carry no eid, so they match by text. */
       const shown = note === COMMONS_NOTE || note === RUMORS_NOTE
-        ? this.pending.add(note, v, parent, messagesFor(note), { byText: note === RUMORS_NOTE }) : null;
+        ? this.pending.add(note, v, parent, messagesFor(note), { byText: note === RUMORS_NOTE, author: our }) : null;
       if (shown) this.invalidate();
       const action = note ? postMessage(note,v,parent) : this.events.chat(v,parent);
       this.root.querySelector('.error').textContent='';
@@ -235,15 +225,24 @@ export class Hud {
 
   paint() {
     if (!this.stream) return;
+    const badge = this.root.querySelector('.chat-unread');
+    if (badge) {
+      const count = this.unread.count();
+      badge.hidden = !count;
+      badge.textContent = String(count);
+      this.root.querySelector('.chat-toggle').setAttribute('aria-label', this.chatOpen ? 'Close chat' : `Open chat${count ? `, ${count} unread messages` : ''}`);
+    }
     const r = this.room === 0 ? {name: 'The Commons'} : roomById(this.room);
     const note = this.noteFor(this.room);
-    this.maybeInstall(note, this.room);
     const leased = this.room !== 0 && note !== RUMORS_NOTE && !!note;
     const title = leased ? noteName(note) ?? r?.name ?? '' : r?.name ?? '';
     const kind = note === RUMORS_NOTE ? 'anonymous'
       : leased ? 'chat saved to noltbook'
       : note ? 'saved' : 'chat is not saved';
-    const label = `${title} <span class="dim">${kind}</span>`;
+    const saved = this.room === 0
+      ? `<a class="dim" href="${noteUrl(COMMONS_NOTE)}" target="_blank" rel="noopener noreferrer">saved in Noltbook ↗</a>`
+      : `<span class="dim">${kind}</span>`;
+    const label = `${title} ${saved}`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
     this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
     if (!this.chatOpen) return;

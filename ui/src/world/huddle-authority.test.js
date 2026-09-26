@@ -33,6 +33,7 @@ function pair(){
       G:{watchCallAccess:()=>Promise.resolve(),claimRoom:async()=>{},releaseRoom:async()=>{},
         sendPresence:async(to,event)=>queue.push({from:our,to,event:structuredClone(event)}),
         callOperation:async(op,place,who,attempt)=>operations.push({op,place,who,attempt})}});
+    Object.assign(context,{worldMember:ship=>ship===our||clients.has(ship),worldBanned:()=>false});
     vm.runInContext(source+'\nglobalThis.app={initRooms,refresh,updateHuddle,currentHuddle,receiveCallEvent,receiveRoomEvent,setPositionGate,closeTab};',context);
     const client={app:context.app,operations};clients.set(our,client);return client;
   };
