@@ -66,6 +66,22 @@
       %-  pairs
       :~  ['place' (numb place.u.lease.upd)]
           ['note' s+(crip (trip note.u.lease.upd))]
+          ['gen' (numb gen.u.lease.upd)]
+      ==
+    ::
+        %seat-ok
+      %+  frond  'seat-ok'
+      %-  pairs
+      :~  ['place' (numb place.upd)]
+          ['gen' (numb gen.upd)]
+      ==
+    ::
+        %lease-gone
+      %+  frond  'lease-gone'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['gen' (numb gen.upd)]
       ==
     ::
         %peer-hosting

@@ -80,6 +80,10 @@ export const lockRoom = (place, mode) => act('lock', { place, mode });
  * it back. It lives in the agent so it outlives the tab. */
 export const takeLease = (place, note) => act('lease', { place, note });
 export const dropLease = () => act('unlease', {});
+/* Our tab's seat in somebody's leased room. `host` owns the lease; our agent
+ * carries it to theirs, which is the authority on who is in the room. */
+export const seat = (host, place, gen, tab, what) =>
+  act('seat', { host, place, gen, tab, what });
 export const knock = (host, place) => act('knock', { host, place });
 export const splash = (target) => act('splash', { target });
 export const roll = (place, stage) => act('roll', { place, ...stage });

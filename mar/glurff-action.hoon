@@ -122,6 +122,16 @@
       [%lease peers (num 'place' 0) `@ta`(need (str 'note'))]
     ?:  =('unlease' op)
       [%unlease peers ~]
+    ?:  =('seat' op)
+      =/  w=?(%enter %renew %leave)
+        =/  v  (str 'what')
+        ?~  v  %renew
+        ?:  =('enter' u.v)  %enter
+        ?:  =('leave' u.v)  %leave
+        %renew
+      :*  %seat  peers  (slav %p (need (str 'host')))  (num 'place' 0)
+          (num 'gen' 0)  `@t`(need (str 'tab'))  w
+      ==
     ?:  =('roll' op)
       =/  st=roll-stage:g
         =/  h  (str 'hash')

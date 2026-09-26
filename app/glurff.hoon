@@ -56,10 +56,22 @@
       lease=(unit lease:g)
       sprite-lab=?
   ==
+::  state-3 replaces the permanent lease with an occupancy-tracked one. The
+::  lease itself is unchanged in spirit -- one room, one note, one per ship --
+::  but this agent now knows who is in the room and ends the lease when the last
+::  of them goes, whether or not the owner's browser is still running.
++$  state-3
+  $:  %3
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-2
+=|  state-3
 =*  state  -
 ^-  agent:gall
 =<
@@ -83,19 +95,34 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
-  =/  now-state=(unit state-2)
-    =/  res  (mule |.(!<(state-2 old)))
+  =/  now-state=(unit state-3)
+    =/  res  (mule |.(!<(state-3 old)))
     ?:(?=(%| -.res) ~ `p.res)
-  =/  parsed=(unit state-2)
+  ::  An older lease was permanent and had no occupancy at all. It is carried
+  ::  over rather than dropped -- a live lease is somebody's room and must not
+  ::  disappear because we reloaded -- and it starts at generation 1 with no
+  ::  seats. The first person to walk in takes the first seat; until then the
+  ::  timer below gives it the ordinary grace period rather than ending it
+  ::  instantly on an agent reload.
+  =/  lift
+    |=  [was=(unit lease:g) when=@da]
+    ^-  (unit held:g)
+    ?~  was  ~
+    `[place.u.was note.u.was 1 ~ `when ~]
+  =/  parsed=(unit state-3)
     ?^  now-state  now-state
+    =/  res  (mule |.(!<(state-2 old)))
+    ?.  ?=(%| -.res)
+      =/  was=state-2  p.res
+      `[%3 look.was rev.was hosting.was (lift lease.was now.bowl) sprite-lab.was]
     =/  res  (mule |.(!<(state-1 old)))
     ?.  ?=(%| -.res)
       =/  was=state-1  p.res
-      `[%2 look.was rev.was hosting.was lease.was %.n]
+      `[%3 look.was rev.was hosting.was (lift lease.was now.bowl) %.n]
     =/  res  (mule |.(!<(state-0 old)))
     ?:  ?=(%| -.res)  ~
     =/  was=state-0  p.res
-    `[%2 look.was rev.was hosting.was ~ %.n]
+    `[%3 look.was rev.was hosting.was ~ %.n]
   ?~  parsed  on-init
   :_  this(state u.parsed)
   [(bind:glurff-site) calls-watch:hc]
@@ -251,7 +278,7 @@
     :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev sprite-lab])]
         ::  The lease outlives the tab, so a fresh page is told about it at
         ::  once rather than finding out when somebody walks in.
-        [%give %fact ~ %glurff-update !>(`update:g`[%our-lease lease])]
+        [%give %fact ~ %glurff-update !>(`update:g`[%our-lease (shown:hc lease)])]
     ==
   ::
       [%call-access ~]
@@ -302,9 +329,61 @@
   ?:  ?=([%eyre %bound *] sign-arvo)
     ~?  !accepted.sign-arvo  [%glurff-eyre-bind-rejected binding.sign-arvo]
     `this
+  ::  THE LEASE CLOCK. This is what makes a lease end when the room empties even
+  ::  though the owner's browser is shut: nobody has to be watching for it.
+  ?:  ?&(?=([%lease ~] wire) ?=([%behn %wake *] sign-arvo))
+    ?~  lease  ((slog leaf+"glurff: lease wake with no lease" ~) `this)
+    =/  h=held:g  u.lease(armed ~)
+    =.  h  (sweep:hc h)
+    ~>  %slog.[0 leaf+"glurff: lease wake, seats {<~(wyt by seats.h)>}"]
+    ?:  ?&  =(0 ~(wyt by seats.h))
+            ?=(^ empty.h)
+            (gte now.bowl (add u.empty.h seat-grace:g))
+        ==
+      ::  Empty for the whole grace period. The room goes back to being an
+      ::  ordinary room. Our own browser hears the fact; the ships that were in
+      ::  the room hear it directly, because their picture of the lease came
+      ::  from a roster that may no longer have anybody publishing it.
+      :_  this(lease ~)
+      %+  weld
+        (spray:hc (sitters:hc u.lease) [%lease-gone place.h gen.h])
+      ~[(fact:hc [%our-lease ~])]
+    =^  cards  h  (arm:hc h (due:hc h))
+    [cards this(lease `h)]
   (on-arvo:def wire sign-arvo)
 ::
-++  on-peek   on-peek:def
+::  THE LEASE, READABLE. Occupancy is decided here and nowhere else, so there
+::  has to be a way to see it without guessing:
+::
+::    > .^(json %gx /=glurff=/lease/json)
+::
+::  Seats, their last renewal, when the room fell empty and what the timer is
+::  waiting for. Ships and times only; nothing secret rides on this.
+++  on-peek
+  |=  =path
+  ^-  (unit (unit cage))
+  ?.  ?=([%x %lease ~] path)  (on-peek:def path)
+  :^  ~  ~  %json
+  !>  ^-  json
+  ?~  lease  ~
+  =/  h=held:g  u.lease
+  %-  pairs:enjs:format
+  :~  ['place' (numb:enjs:format place.h)]
+      ['note' s+(crip (trip note.h))]
+      ['gen' (numb:enjs:format gen.h)]
+      ['now' s+(scot %da now.bowl)]
+      ['empty' ?~(empty.h ~ s+(scot %da u.empty.h))]
+      ['armed' ?~(armed.h ~ s+(scot %da u.armed.h))]
+      :-  'seats'
+      :-  %a
+      %+  turn  ~(tap by seats.h)
+      |=  [s=seat:g last=@da]
+      %-  pairs:enjs:format
+      :~  ['who' s+(scot %p who.s)]
+          ['tab' s+tab.s]
+          ['last' s+(scot %da last)]
+      ==
+  ==
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def
 --
@@ -336,6 +415,86 @@
       %agent  [who %glurff]  %poke
       %glurff-remote  !>(rem)
   ==
+::  ---- OCCUPANCY: a lease lasts as long as somebody is in the room ----
+::
+::  This lives in the agent and not in the browser on purpose. The lease has to
+::  survive its owner closing Glurff, so the thing that decides when it ends
+::  cannot be a timer in their tab.
+::
+::  Every tab in the room holds a seat and renews it on a slow cadence. A seat
+::  nobody renews expires, which is how a crash is noticed without anybody
+::  reporting it. When the last seat goes the room is given a grace period
+::  before the lease ends, so stepping in and out of a doorway cannot end a
+::  lease that people are still using.
+::
+::  The lease as the world sees it: no seats, no bookkeeping.
+::  Everybody whose tab is in the room, once each. Taken before a lease is
+::  cleared, because afterwards there is nobody left to tell.
+++  sitters
+  |=  h=held:g
+  ^-  (list @p)
+  ~(tap in (~(gas in *(set @p)) (turn ~(tap by seats.h) |=([s=seat:g *] who.s))))
+++  shown
+  |=  h=(unit held:g)
+  ^-  (unit lease:g)
+  ?~  h  ~
+  `[place.u.h note.u.h gen.u.h]
+::  One timer, never a pile of them: the outstanding one is cancelled first.
+++  arm
+  |=  [h=held:g at=@da]
+  ^-  [(list card) held:g]
+  =/  off=(list card)
+    ?~  armed.h  ~
+    ~[[%pass /lease %arvo %b %rest u.armed.h]]
+  :-  (snoc off [%pass /lease %arvo %b %wait at])
+  h(armed `at)
+::  Forget seats nobody renewed, and note when the room fell empty.
+++  sweep
+  |=  h=held:g
+  ^-  held:g
+  =/  live=(map seat:g @da)
+    %-  ~(gas by *(map seat:g @da))
+    %+  skim  ~(tap by seats.h)
+    |=  [s=seat:g last=@da]
+    ::  A stamp in the future is clock skew between two ships, not an expired
+    ::  seat -- and `sub` would underflow and crash the agent rather than say so.
+    ?:  (gte last now.bowl)  &
+    (lth (sub now.bowl last) seat-ttl:g)
+  =.  seats.h  live
+  ?.  =(0 ~(wyt by live))  h(empty ~)
+  ?~(empty.h h(empty `now.bowl) h)
+::  When to look again: the soonest seat expiry, or the end of the grace.
+++  due
+  |=  h=held:g
+  ^-  @da
+  ?:  =(0 ~(wyt by seats.h))
+    (add ?~(empty.h now.bowl u.empty.h) seat-grace:g)
+  =/  soonest=@da
+    %+  roll  ~(val by seats.h)
+    |=  [l=@da acc=@da]
+    ?:(=(*@da acc) l (min acc l))
+  (add soonest seat-ttl:g)
+::  Somebody's tab took, kept, or gave up a seat. A sender may only ever touch
+::  its OWN seat: no guest can release a lease, and no guest can evict another.
+++  seat-change
+  |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
+  ^-  (quip card state-3)
+  ?~  lease  `state
+  =/  h=held:g  u.lease
+  ?.  =(place place.h)  `state
+  ::  A message about a lease that has since been replaced is about a lease that
+  ::  no longer exists. An enter may say 0 for "whichever is current", because a
+  ::  newcomer has no way to know the generation yet.
+  ?.  |(=(gen gen.h) &(=(0 gen) ?=(%enter what)))  `state
+  =/  key=seat:g  [who tab]
+  =.  seats.h
+    ?:  ?=(%leave what)  (~(del by seats.h) key)
+    (~(put by seats.h) key now.bowl)
+  =.  h  (sweep h)
+  =^  cards  h  (arm h (due h))
+  :_  state(lease `h)
+  ?.  &(?=(%enter what) !=(who our.bowl))  cards
+  (snoc cards (tell who [%seated-ok place gen.h tab]))
 ++  fact
   |=  upd=update:g
   ^-  card
@@ -424,7 +583,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-2)
+  ^-  (quip card state-3)
   ?-    -.act
       %move
     :_  state
@@ -460,13 +619,39 @@
       %lease
     ?.  ?&((gth place.act 0) (lte place.act last-room:g))  `state
     ?:  =(0 (met 3 note.act))  `state
-    =/  held=(unit lease:g)  `[place.act note.act]
-    :_  state(lease held)
-    ~[(fact [%our-lease held])]
+    ::  A NEW GENERATION, always. Taking a lease -- even re-pointing this room
+    ::  at a different note -- makes every seat and every message still in
+    ::  flight about the old one meaningless, which is exactly what the
+    ::  generation is for.
+    =/  gen=@ud  .+((fall (bind lease |=(h=held:g gen.h)) 0))
+    =/  prev=(unit @da)  ?~(lease ~ armed.u.lease)
+    =/  h=held:g  [place.act note.act gen ~ `now.bowl prev]
+    =^  cards  h  (arm h (due h))
+    :_  state(lease `h)
+    (snoc cards (fact [%our-lease (shown `h)]))
   ::
       %unlease
+    ?~  lease  `state
     :_  state(lease ~)
-    ~[(fact [%our-lease ~])]
+    ;:  weld
+      ?~  armed.u.lease  ~
+      ~[[%pass /lease %arvo %b %rest u.armed.u.lease]]
+      ::  The people standing in the room are told by name. Releasing by hand
+      ::  used to rely on our own browser republishing the roster, which is no
+      ::  use to anybody once that browser is closed.
+      (spray (sitters u.lease) [%lease-gone place.u.lease gen.u.lease])
+      ~[(fact [%our-lease ~])]
+    ==
+  ::
+    ::  Our own tab, or a guest's, sitting in a leased room. Ours is handled
+    ::  here; a guest's is carried to the owner's agent, which is the authority.
+      %seat
+    ?.  ?&((gth place.act 0) (lte place.act last-room:g))  `state
+    ?:  =(0 (met 3 tab.act))  `state
+    ?:  =(host.act our.bowl)
+      (seat-change our.bowl place.act gen.act tab.act what.act)
+    :_  state
+    ~[(tell host.act [%seated place.act gen.act tab.act what.act])]
   ::
       %sprite-lab
     :_  state(sprite-lab enabled.act)
@@ -509,7 +694,7 @@
 ::
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-2)
+  ^-  (quip card state-3)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])
@@ -527,6 +712,19 @@
       %presence-event
     ?.  (lte (met 3 body.rem) 8.192)  `state
     :_(state ~[(fact [%presence-event who body.rem])])
+  ::
+    ::  A guest reporting where it is sitting. Only its own seat can move.
+      %seated
+    ?:  =(0 (met 3 tab.rem))  `state
+    (seat-change who place.rem gen.rem tab.rem what.rem)
+  ::
+    ::  The owner telling us which generation our seat was admitted to.
+      %seated-ok
+    :_(state ~[(fact [%seat-ok place.rem gen.rem])])
+  ::
+    ::  A lease we were sitting in has ended. Only its owner may say so.
+      %lease-gone
+    :_(state ~[(fact [%lease-gone who place.rem gen.rem])])
   ::
       %room-event
     ?.  ?&((gth place.rem 0) ?|((lte place.rem last-room:g) =(place.rem vatican-room:g)) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))

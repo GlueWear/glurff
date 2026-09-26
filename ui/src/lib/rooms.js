@@ -190,12 +190,26 @@ function admitsToRoom(who,place){
  * You hold at most one. Taking another replaces it, and the UI asks first. */
 export function setLease(lease, { reselect = true } = {}) {
   const next = lease && Number.isSafeInteger(lease.place) && typeof lease.note === 'string'
-    ? { place: lease.place, note: lease.note } : null;
+    ? { place: lease.place, note: lease.note, gen: Number.isSafeInteger(lease.gen) ? lease.gen : 0 }
+    : null;
+  /* The GENERATION counts as a difference. Re-leasing the same room to the same
+   * note mints a new one, and every seat and in-flight message about the old
+   * one is now about a lease that no longer exists -- so our own seat has to be
+   * retaken rather than silently renewed against a dead generation. */
   const same = (rooms.lease?.place ?? null) === (next?.place ?? null) &&
-               (rooms.lease?.note ?? null) === (next?.note ?? null);
+               (rooms.lease?.note ?? null) === (next?.note ?? null) &&
+               (rooms.lease?.gen ?? 0) === (next?.gen ?? 0);
   if (same) return;
   const was = rooms.lease;
   rooms.lease = next;
+  /* Our seat was in the old incarnation. Let it go rather than renew it into a
+   * generation the owner's agent will refuse. */
+  if (seated && (was?.gen ?? 0) !== (next?.gen ?? 0)) dropSeat();
+  /* TAKING A ROOM IS OCCUPYING IT. The owner is an occupant like anybody else,
+   * and their seat must not wait on the call being selected -- that needs
+   * trustworthy positions, and the lease is what keeps the room theirs whether
+   * or not a call has started. */
+  if (next && next.place === rooms.here) takeSeat(rooms.here, our);
   diagnostic('room-lease', { place: next?.place ?? 0, reason: next ? 'held' : 'released' });
   /* Our own list carries it, so everyone who can see us learns of it. */
   if (mates && rooms.here !== COMMONS && rooms.host === our) republishLease();
@@ -210,11 +224,99 @@ export function setLease(lease, { reselect = true } = {}) {
   }
   changed();
 }
+/* ------------------------------------------------- our seat in a leased room */
+
+/* A LEASE LASTS AS LONG AS SOMEBODY IS IN THE ROOM.
+ *
+ * The owner's agent is the authority on that, not any browser -- the whole
+ * point is that the lease survives the owner closing Glurff. Each tab in the
+ * room registers a seat with that agent and renews it slowly; a seat nobody
+ * renews expires, which is how a crash is noticed without anybody reporting
+ * it. See the occupancy section of app/glurff.hoon.
+ *
+ * The tab id is per TAB and not per ship: two tabs, or a reload whose old seat
+ * has not yet expired, must not be mistaken for each other. */
+const TAB = (typeof crypto !== 'undefined' && crypto.randomUUID)
+  ? crypto.randomUUID() : String(Math.random()).slice(2);
+export const seatTab = () => TAB;
+/* Renewed well inside the agent's seat TTL, so one dropped poke is not an
+ * eviction. Kept in step with the agent's own seat-renew. */
+const SEAT_RENEW_MS = 15000;
+let seated = null;        //  {host, place, gen} -- the seat we are holding
+let seatTimer = null;
+
+/* The generation the owner's agent admitted us to, which is the one our
+ * renewals and our eventual leave must name. */
+export function seatAdmitted(place, gen) {
+  if (!seated || seated.place !== place || !Number.isSafeInteger(gen) || gen <= 0) return;
+  seated.gen = gen;
+}
+
+function sendSeat(what) {
+  if (!seated) return;
+  G.seat(seated.host, seated.place, seated.gen ?? 0, TAB, what).catch(() => {});
+}
+
+/* Take a seat in this leased room, or keep the one we have. Idempotent: the
+ * same room and owner is a renewal, not a second seat. */
+function takeSeat(place, host) {
+  if (!isRoom(place) || !host) return;
+  const gen = leaseAt(place, host).gen ?? 0;
+  if (seated && seated.place === place && seated.host === host) {
+    /* The roster may have told us the generation only after we sat down. */
+    if (gen > 0 && !seated.gen) seated.gen = gen;
+    return;
+  }
+  dropSeat();
+  seated = { host, place, gen };
+  sendSeat('enter');
+  seatTimer = setInterval(() => sendSeat('renew'), SEAT_RENEW_MS);
+  diagnostic('room-seat', { place, host, gen, reason: 'enter' });
+}
+
+/* Give up our seat. Only ours: this can never release somebody else's lease. */
+function dropSeat() {
+  if (seatTimer) { clearInterval(seatTimer); seatTimer = null; }
+  if (!seated) return;
+  const was = seated;
+  sendSeat('leave');
+  seated = null;
+  diagnostic('room-seat', { place: was.place, host: was.host, gen: was.gen ?? 0, reason: 'leave' });
+}
+export const seatHeld = () => (seated ? { ...seated } : null);
+
+/* THE LEASE WE WERE SITTING IN HAS ENDED, and its owner said so directly --
+ * which is the only way we could hear it once their browser is closed. Forget
+ * the note, give up the seat, and let the room become an ordinary room with an
+ * ordinary Glurff call. */
+export function leaseGone(host, place, gen) {
+  if (!isRoom(place) || !host) return false;
+  const forgot = mates?.leaseGone?.(host, place, gen) ?? false;
+  if (seated && seated.place === place && seated.host === host) dropSeat();
+  if (!forgot) return false;
+  diagnostic('room-lease', { place, host, reason: 'gone' });
+  /* Standing in it: move to what the room now is, rather than waiting for
+   * somebody to walk out and back in. */
+  if (rooms.here === place) {
+    if (noteCall?.note()) noteCall.leave();
+    controller?.select(null);
+    selectCall(place, roomHost(place));
+  }
+  changed();
+  return true;
+}
+/* A tab closing says goodbye if it can, but NOTHING depends on it arriving:
+ * the seat expires on the agent's own clock either way. This only makes an
+ * ordinary departure quick. */
+if (typeof window !== 'undefined')
+  window.addEventListener('glurff-exit', () => { try { dropSeat(); } catch {} });
+
 function republishLease() {
   const note = rooms.lease?.place === rooms.here ? rooms.lease.note : null;
   /* The note's own visibility travels with it: it is what tells everybody
    * else whether this room is open, asks first, or is closed. */
-  mates?.setNote?.(note, note ? noteVisibility(note) : null);
+  mates?.setNote?.(note, note ? noteVisibility(note) : null,
+    note ? (rooms.lease?.gen ?? 0) : 0);
   if (rooms.here === COMMONS) return;
   if (note) {
     /* THE ROOM'S LIST IS THE NOTE'S MEMBERS.
@@ -245,7 +347,11 @@ export function leaseNote(place = rooms.here, host = rooms.host) {
 export function leaseAt(place = rooms.here, host = null) {
   if (!isRoom(place)) return { note: null, vis: null };
   if (rooms.lease?.place === place)
-    return { note: rooms.lease.note, vis: noteVisibility(rooms.lease.note) };
+    /* WITH ITS GENERATION. Without it our own seat entered as generation 0 --
+     * which the agent allows only for an enter -- so every renewal afterwards
+     * was refused and the owner's own seat expired and stayed expired. */
+    return { note: rooms.lease.note, vis: noteVisibility(rooms.lease.note),
+             gen: rooms.lease.gen ?? 0 };
   /* WHOEVER HOLDS IT, not whoever we happen to be following. A stranger who
    * walks into a room somebody else leased is not on that host's list and may
    * not be following them at all -- but the room is still leased, and saying
@@ -594,9 +700,15 @@ function selectCall(place,host,{preserve=false}={}) {
     /* Hosting our own leased room: the list carries the lease, so anybody who
      * can see us knows which note this room is. */
     if(host===our)republishLease();
+    /* Being in the room is what keeps the lease alive; see takeSeat. This runs
+     * for the owner too -- they are an occupant like anybody else, and the
+     * lease must not depend on their browser in particular. */
+    takeSeat(place,rooms.host??host);
     noteCall?.enter(bound);
     refreshStage();return;
   }
+  /* Not a leased room any more, or never was: our seat goes back. */
+  dropSeat();
   if(noteCall?.note())noteCall.leave();
   if(controller?.current?.place===place && controller.current.host===host)return;
   /* Removed from this call: standing in the room is not a way back in. The bar
@@ -713,7 +825,10 @@ function recordIsNewer(record,current=huddle){
   /* Competing sessions converge on the deterministic host when both proposed
    * rosters describe the same group. A deliberate handoff is trusted too. */
   if(huddleHandoff?.host===record.host)return true;
-  if(!lastPeers.has(current.host))return true;
+  /* Our own ship is deliberately absent from `lastPeers`. Do not mistake that
+   * for a vanished authority: doing so lets the local host adopt any competing
+   * session while every guest deterministically keeps the local host. */
+  if(current.host!==our && !lastPeers.has(current.host))return true;
   const union=new Set([...current.members,...record.members]);
   return record.members.includes(current.host) && [...union].sort()[0]===record.host;
 }
@@ -917,6 +1032,7 @@ export function enterRoom(room) {
   changed();
 }
 export function leaveRoom() {
+  dropSeat();
   noteCall?.leave();
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
   clearHandoff();mates?.leave();chosen.clear();booted=null;

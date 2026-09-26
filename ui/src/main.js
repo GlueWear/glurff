@@ -712,6 +712,17 @@ function onWorldFact(name, p, fromPresence=false) {
       R.setLease(p ?? null);
       hud.setRoom(state.room);
       break;
+    /* The lease owner's agent telling us which generation our seat joined, so
+     * our renewals and our leave name the lease we are actually in. */
+    case 'seat-ok':
+      R.seatAdmitted(p?.place ?? 0, p?.gen ?? 0);
+      break;
+    /* The owner of a room we were in has given it back. Their browser may be
+     * closed, so this is the only thing that can tell us. */
+    case 'lease-gone':
+      R.leaseGone(p?.who ?? null, p?.place ?? 0, p?.gen ?? 0);
+      hud.setRoom(state.room);
+      break;
     case 'peer-hosting':
       /* Somebody is holding a room. Without this both people walking into an
        * empty room each claim it, mint their own Galene room, and hear

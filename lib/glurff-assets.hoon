@@ -7,7 +7,7 @@
   ^-  (list [@t asset])
   :~
     ['/apps/glurff/' /lib/glurff/site/index/html 595 'text/html; charset=utf-8']
-    ['/apps/glurff/assets/index-c97eb4ee.js' /lib/glurff/site/assets/index-c97eb4ee/js 1.076.686 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-21dd7115.js' /lib/glurff/site/assets/index-21dd7115/js 1.078.815 'application/javascript; charset=utf-8']
     ['/apps/glurff/characters/beard.png' /lib/glurff/site/characters/beard/png 15.745 'image/png']
     ['/apps/glurff/characters/body.png' /lib/glurff/site/characters/body/png 7.111 'image/png']
     ['/apps/glurff/characters/bottom.png' /lib/glurff/site/characters/bottom/png 4.948 'image/png']

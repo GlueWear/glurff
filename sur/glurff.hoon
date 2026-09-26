@@ -149,6 +149,10 @@
       ::  take a room for one of our own notes, or give it back. One at a time.
       [%lease peers=(list @p) =place note=@ta]
       [%unlease peers=(list @p) ~]
+      ::  Take, keep or give up a seat in somebody's leased room. `host` is the
+      ::  lease owner; our own agent forwards it to theirs. gen 0 on an enter
+      ::  means "whichever is current" -- the owner answers with the real one.
+      [%seat peers=(list @p) host=@p =place gen=@ud tab=@t what=?(%enter %renew %leave)]
       ::  Owner-local development switch. Deliberately absent from the JSON
       ::  parser: it is changed from Dojo, not from the public UI.
       [%sprite-lab peers=(list @p) enabled=?]
@@ -167,7 +171,37 @@
 ::  Only the note's own creator may bind it, which is what keeps this simple:
 ::  the ship that would have to mint for the call is the ship that took the
 ::  lease. The note id is Noltbook's own, not one of ours.
-+$  lease  [=place note=@ta]
+::  A lease carries a GENERATION. Taking a lease, releasing one, or pointing it
+::  at a different note mints a new one, so a message about the lease that was
+::  in flight when it changed can be recognised as stale and dropped instead of
+::  acting on a lease it was never about.
++$  lease  [=place note=@ta gen=@ud]
+::  seat: one browser tab sitting in a leased room. A ship may have several --
+::  two tabs, or a reload that has not yet expired -- and each is tracked
+::  separately, so one closing does not evict the other.
++$  seat  [who=@p tab=@t]
+::  held: the lease as its OWNER's agent keeps it. The agent is the authority on
+::  who is in the room, because the owner's browser cannot be: the whole point
+::  is that the lease outlives them closing Glurff.
+::
+::  `empty` is when the room last became unoccupied, so a walk back and forth
+::  through a doorway cannot end a lease that somebody is still using. `armed`
+::  is the timer we have outstanding, kept so it can be cancelled rather than
+::  left to pile up.
++$  held
+  $:  =place
+      note=@ta
+      gen=@ud
+      seats=(map seat @da)
+      empty=(unit @da)
+      armed=(unit @da)
+  ==
+::  A seat is renewed on this cadence, expires after this long without one, and
+::  an empty room is given this long to prove it is really empty. The TTL spans
+::  two missed renewals, so one dropped poke is not an eviction.
+++  seat-renew  ~s15
+++  seat-ttl    ~s45
+++  seat-grace  ~s5
 ::  Cee-lo without a server. Each client publishes a hash, then the secret; the
 ::  seed is every secret combined, so no player can bias the result unless all
 ::  of them collude, and a lie is caught because the reveal must match.
@@ -194,6 +228,19 @@
       [%rolled =place stage=roll-stage]
       [%room-event =place body=@t]
       [%presence-event body=@t]
+      ::  OCCUPANCY. A guest's agent tells the lease owner's agent that one of
+      ::  its tabs is in the room, is still in it, or has left it. Only the
+      ::  sender's own seats can be touched: no guest can release a lease.
+      [%seated =place gen=@ud tab=@t what=?(%enter %renew %leave)]
+      ::  the owner's answer, so a guest learns which generation it joined and
+      ::  can renew and leave against that one rather than guessing.
+      [%seated-ok =place gen=@ud tab=@t]
+      ::  THE LEASE IS OVER. The owner's own browser hears this as a local fact,
+      ::  but the people in the room are on other ships -- and the owner's
+      ::  browser may be shut, which is the whole point of occupancy. So the
+      ::  agent tells the occupants directly, or they go on believing the room
+      ::  is still the note.
+      [%lease-gone =place gen=@ud]
   ==
 ::
 ::  agent -> our own client, as facts on /world.
@@ -212,5 +259,10 @@
       [%presence-event who=@p body=@t]
       ::  the lease we hold, on startup and whenever it changes. `~` is none.
       [%our-lease lease=(unit lease)]
+      ::  the generation our seat was actually admitted to, so renewals and the
+      ::  eventual leave are about the lease we joined and no other.
+      [%seat-ok =place gen=@ud]
+      ::  the owner of a lease we were in saying it is over
+      [%lease-gone who=@p =place gen=@ud]
   ==
 --

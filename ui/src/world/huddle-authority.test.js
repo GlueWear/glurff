@@ -43,7 +43,7 @@ function pair(){
     if(m.event.kind.startsWith('call-'))c.app.receiveCallEvent(m.from,m.event);
     else if(m.event.kind.startsWith('room-'))c.app.receiveRoomEvent(m.from,m.event);}
     assert.ok(n<100,'control messages stay bounded');};
-  return {clock,a,b,peers,drain};
+  return {clock,a,b,make,peers,drain};
 }
 
 test('the elected host publishes one authoritative huddle session to its guest',async()=>{
@@ -67,6 +67,31 @@ test('the elected host publishes one authoritative huddle session to its guest',
     assert.equal(bh.rev,ah.rev);
     assert.deepEqual([...bh.members],['~aaa','~bbb']);
   }finally{p.a.app.closeTab();p.b.app.closeTab();}
+});
+
+test('a three-person authority keeps the deterministic session when a competing host appears',async()=>{
+  const p=pair(),c=p.make('~ccc');
+  await Promise.all([p.a.app.initRooms(),p.b.app.initRooms(),c.app.initRooms()]);
+  try{
+    const peer=(x,host=null)=>({spot:{x,y:10,dir:'down',scene:'main'},host});
+    const ap=new Map([['~bbb',peer(11)],['~ccc',peer(10.5)]]);
+    p.a.app.refresh(ap);p.a.app.updateHuddle({x:10,y:10},ap);
+    p.clock.t+=3001;p.a.app.updateHuddle({x:10,y:10},ap);
+    const authoritative=p.a.app.currentHuddle();
+    assert.ok(authoritative);
+    assert.equal(authoritative.host,'~aaa');
+
+    /* This is the race seen with three real ships: another participant also
+     * formed a session before hearing ours. Since ~aaa is the deterministic
+     * host, its own browser must not treat itself as a missing peer and yield. */
+    p.a.app.receiveCallEvent('~bbb',{
+      kind:'call-huddle-roster',host:'~bbb',place:H.huddlePlace('~bbb'),
+      epoch:authoritative.epoch+1,session:'competing-three-person-session',rev:1,
+      members:['~aaa','~bbb','~ccc'],
+    });
+    assert.equal(p.a.app.currentHuddle().host,'~aaa');
+    assert.equal(p.a.app.currentHuddle().session,authoritative.session);
+  }finally{p.a.app.closeTab();p.b.app.closeTab();c.app.closeTab();}
 });
 
 test('stalled movement freezes an established roster; confirmed distance ends it after grace',async()=>{
