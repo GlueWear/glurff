@@ -15,9 +15,8 @@ import { rooms, onRooms, offerHost, answerHostOffer, canHandOff, mayHandTo, choo
          leaseHolder, onRoommates } from 'lib/rooms';
 import { roomById, COMMONS } from 'world/places';
 import { ask } from 'ui/ask';
+import { esc } from 'ui/html';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Members {
   constructor(root, { people, here, onShowProfile = () => {} }) {

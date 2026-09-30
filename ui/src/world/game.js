@@ -7,6 +7,8 @@ import { versioned } from '../lib/build.js';
  * player for control and drags them a tile at a time.
  */
 import { MotionBuffer } from 'lib/motion';
+import { Space, SPACE_COLOR } from './space.js';
+import { bubbleText, WAVE_MS } from './bubbles.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
@@ -80,7 +82,9 @@ export const ZOOMS = [0.5, 1, 2, 3, 4, 5];
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor } = {}) {
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved } = {}) {
+    /* A clock in the sky was dragged somewhere new: (id, x, y, width, height). */
+    this.onClockMoved = onClockMoved ?? (() => {});
     /* Is this room shut to us? A room leased to somebody's secret note is. */
     this.isClosed = isClosed ?? (() => false);
     /* Public/private note rooms are visible but stop non-members at the door;
@@ -125,7 +129,7 @@ export class Game {
 
   async start() {
     this.app = new Application({
-      background: 0x141820,
+      background: SPACE_COLOR,
       resizeTo: this.mount,
       antialias: false,
       autoDensity: true,
@@ -133,6 +137,10 @@ export class Game {
     });
     this.mount.appendChild(this.app.view);
 
+    /* Outer space, behind everything: what used to be flat black past the
+     * edges of the maps. See world/space. */
+    this.space = new Space();
+    this.app.stage.addChild(this.space.node);
     this.camera = new Container();
     this.ground = new Container();
     this.actors = new Container();   //  depth-sorted, so people walk behind things
@@ -142,6 +150,8 @@ export class Game {
     this.above = new Container();
     this.camera.addChild(this.ground, this.actors, this.above);
     this.app.stage.addChild(this.camera);
+    /* The clocks come in front of the map while they are being arranged. */
+    this.app.stage.addChild(this.space.front);
 
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
@@ -157,10 +167,20 @@ export class Game {
      * somebody still opens them. */
     this.mount.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
+      /* Arranging the clocks: a press on one picks it up instead. */
+      if (this.space?.arranging) {
+        const p = this.screenPoint(e), hit = this.space.clockAt(p.x, p.y);
+        if (hit) { this.clockDrag = { id: hit.id, dx: hit.dx, dy: hit.dy }; this.mount.style.cursor = 'grabbing'; return; }
+      }
       this.panning = { x: e.clientX, y: e.clientY };
       this.panned = false;
     });
     window.addEventListener('mousemove', (e) => {
+      if (this.clockDrag) {
+        const p = this.screenPoint(e);
+        this.space.drag(this.clockDrag.id, p.x - this.clockDrag.dx, p.y - this.clockDrag.dy);
+        return;
+      }
       if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY); return; }
       const dx = e.clientX - this.panning.x, dy = e.clientY - this.panning.y;
       if(!this.panning.anchored)this.anchorPanToCamera();
@@ -170,7 +190,14 @@ export class Game {
       this.pan.y -= (dy * PAN_SPEED) / this.zoom;
       this.centreCamera();
     });
-    const release = () => { this.panning = null; this.mount.style.cursor = ''; };
+    const release = () => {
+      if (this.clockDrag) {
+        this.clockDrag = null;
+        const d = this.space.drop();
+        if (d) this.onClockMoved(d.id, d.x, d.y, this.space.size.w, this.space.size.h);
+      }
+      this.panning = null; this.mount.style.cursor = '';
+    };
     window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
     window.addEventListener('blur', release);
     this.mount.addEventListener('mouseleave', () => this.showHotspot(null));
@@ -230,11 +257,23 @@ export class Game {
   /* ------------------------------------------------------------ textures */
 
   async load() {
-    /* Both paintings are ready before walking begins, so discovering the
-     * secret room is a transition rather than a loading screen. */
-    const maps = [MAP_IMAGE, OVER_IMAGE, VATICAN_IMAGE, VATICAN_OVER_IMAGE];
+    /* The world you start in is ready before walking begins. The SECRET
+     * scene's painting -- about 370 KB nobody needs at startup -- follows in
+     * the background, and is normally in long before anybody finds the way
+     * in; if not, the scene fills in as it arrives rather than blocking. */
+    const maps = [MAP_IMAGE, OVER_IMAGE], later = [VATICAN_IMAGE, VATICAN_OVER_IMAGE];
     await Assets.load([...maps.map(versioned), ...allTextures()]);
     this.mapTextures = new Map(maps.map(url => [url, Texture.from(versioned(url))]));
+    this.laterMaps = Assets.load(later.map(versioned)).then(() => {
+      for (const url of later) if (!this.mapTextures.has(url)) this.mapTextures.set(url, Texture.from(versioned(url)));
+    }, () => {});
+  }
+
+  /* A scene's painting, loaded or loading. */
+  sceneTexture(url) {
+    let t = this.mapTextures.get(url);
+    if (!t) { t = Texture.from(versioned(url)); this.mapTextures.set(url, t); }
+    return t;
   }
 
   /* -------------------------------------------------------------- places */
@@ -247,12 +286,12 @@ export class Game {
     this.above.removeChildren();
 
     const images = sceneImages(this.scene);
-    this.painting = new Sprite(this.mapTextures.get(images.image));
+    this.painting = new Sprite(this.sceneTexture(images.image));
     this.painting.position.set(0, 0);
     this.ground.addChild(this.painting);
     this.hotspotLayer = new Container();
     this.ground.addChild(this.hotspotLayer);
-    this.overPainting = new Sprite(this.mapTextures.get(images.over));
+    this.overPainting = new Sprite(this.sceneTexture(images.over));
     this.overPainting.position.set(0, 0);
     this.above.addChild(this.overPainting);
     /* Rooms shut to us are covered over rather than merely un-walkable: an
@@ -262,6 +301,7 @@ export class Game {
     /* A fresh, empty layer: forget what was drawn on the old one, or the cache
      * below says "already covered" and nothing is ever drawn again. */
     this.coveredRooms = null;
+    this.coversAt = -Infinity;
     this.paintCovers();
 
     this.selfSprite = this.makeCharacter(this.self.look, null, this.scene);
@@ -280,8 +320,8 @@ export class Game {
     this.characterScale = sceneCharacterScale(next);
     this.world = buildWorld(next);
     const images = sceneImages(next);
-    this.painting.texture = this.mapTextures.get(images.image);
-    this.overPainting.texture = this.mapTextures.get(images.over);
+    this.painting.texture = this.sceneTexture(images.image);
+    this.overPainting.texture = this.sceneTexture(images.over);
     this.self.x = destination.x;
     this.self.y = destination.y;
     this.self.dir = destination.dir ?? this.self.dir;
@@ -389,26 +429,49 @@ export class Game {
     ch.mode = animation;
     // Off-scene peers do not download art until they can actually be seen.
     if (!ch.node.visible) return;
+    /* NOTHING CHANGED, NOTHING TO DO. This ran for every character on every
+     * frame -- rebuilding the layer list, re-attaching every sprite (which
+     * makes Pixi remove it, re-insert it and recompute its transform) and
+     * moving the nameplate -- when a standing character changes frame about
+     * five times a second. The pose is remembered once every layer's art has
+     * arrived, and a frame that would draw the same pose is skipped. A fall
+     * rotates with its progress, so that counts as part of the pose. */
+    const key = `${dir}|${frame}|${animation}|${cycle}|${ch.scale}` +
+      (animation === 'die' ? `|${Math.round(progress * 32)}` : '');
+    if (key === ch.posedKey && ch.look === ch.posedLook) return;
+    const frames = characterLayers(ch.look, dir, frame, animation, cycle);
+    const order = frames.map((f) => f.key).join(',');
+    /* Layers are re-stacked only when WHICH layers are drawn changes -- a new
+     * outfit, a weapon drawn, a mount -- not on every step. */
+    const restack = order !== ch.layerOrder || ch.look !== ch.posedLook;
     for (const layer of Object.values(ch.layers)) layer.visible = false;
-    for (const f of characterLayers(ch.look, dir, frame, animation, cycle)) {
+    let complete = true;
+    for (const f of frames) {
       let layer = ch.layers[f.key];
       if (!layer) { layer = ch.layers[f.key] = new Sprite(Texture.EMPTY); ch.body.addChild(layer); }
       // Reinsert in the shared compositor's order (mount ALWAYS in front).
-      ch.body.addChild(layer);
+      if (restack) ch.body.addChild(layer);
       const texture = frameTexture(f);
       layer.visible = true;
-      if (texture) layer.texture = texture;
+      if (texture) layer.texture = texture; else complete = false;
       layer.anchor.set(.5, f.feet / f.h);
       layer.position.set((f.dx ?? 0)*ch.scale, (f.dy ?? 0)*ch.scale);
       layer.scale.set(ch.scale*(f.flip ? -1 : 1), ch.scale);
       layer.tint = f.tint ?? 0xffffff;
     }
+    ch.layerOrder = order;
     const premade = equipmentOf('premade', ch.look.premade?.part);
     // Some creatures have no fall strip. Give them the same visible, reversible
     // reaction with their OWN art rather than substituting a human body.
     ch.body.rotation = animation === 'die' && premade && !premade.animations.die
       ? Math.sin(progress*Math.PI)*Math.PI/2 : 0;
-    this.positionNameplate(ch);
+    /* Art still downloading: draw it again next frame until it is all here. */
+    ch.posedKey = complete ? key : null;
+    ch.posedLook = ch.look;
+    /* The nameplate sits over the top of the character: it moves when the
+     * zoom, the size or the outfit does, not on every step. */
+    const plate = `${this.zoom}|${ch.scale}|${ch.label?.style?.fontSize}`;
+    if (restack || plate !== ch.plateKey) { ch.plateKey = plate; this.positionNameplate(ch); }
   }
 
   animateCharacter(ch, dir, moving, time) {
@@ -521,7 +584,12 @@ export class Game {
         { solid: (x, y) => mapSolid(x, y, spot.scene) });
       p.ch.animation = new CharacterAnimation();
       this.scaleCharacter(p.ch, sceneCharacterScale(spot.scene), sceneNameSize(spot.scene));
-    } else if(p.spot.x!==spot.x || p.spot.y!==spot.y || p.spot.dir!==spot.dir) {
+    } else if(p.spot.x!==spot.x || p.spot.y!==spot.y || p.spot.dir!==spot.dir ||
+              /* THE STOP. When somebody lets go of the keys their last packet
+               * is where they already were, facing the way they already
+               * faced -- and it used to be dropped here as "no change", so
+               * their legs went on walking on the spot. */
+              (motion.moving===false && p.motion.walking())) {
       p.motion.push(spot,performance.now(),stamp,motion);
     }
     p.spot = spot;
@@ -616,6 +684,95 @@ export class Game {
     ch.dryTimer = setTimeout(() => this.poseCharacter(ch, ch.dir, ch.frame), 1800);
   }
 
+  /* ------------------------------------------------ clocks in the sky */
+
+  /* Our clocks, from our settings; see lib/clocks and world/space. */
+  setClocks(clocks) { this.space?.setClocks(clocks); }
+  /* Bring the clocks forward to be dragged about, or put them back. */
+  arrangeClocks(on) {
+    this.space?.arrange(on);
+    if (!on) this.clockDrag = null;
+    this.mount.style.cursor = '';
+  }
+  arranging() { return !!this.space?.arranging; }
+  /* A clock out in the sky -- not behind the map -- under this page point. */
+  skyClockAt(clientX, clientY) {
+    if (!this.space || !this.world) return null;
+    const p = this.screenPoint({ clientX, clientY });
+    return this.space.skyClockAt(p.x, p.y, this.camera.position.x, this.camera.position.y, this.world, this.zoom);
+  }
+  /* A mouse event's point on the canvas. */
+  screenPoint(e) {
+    const r = this.mount.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  /* ------------------------------------------------ sleep and waves */
+
+  characterOf(ship) {
+    return ship === this.ourShip ? this.selfSprite : this.peers.get(ship)?.ch ?? null;
+  }
+
+  /* Somebody idle has a little "zzz…" bubble over their name; see world/bubbles. */
+  setAsleep(ship, asleep) {
+    const ch = this.characterOf(ship);
+    if (!ch || !!ch.asleep === !!asleep) return;
+    ch.asleep = !!asleep;
+    this.paintBubble(ch, performance.now());
+  }
+
+  /* Somebody waved at us: a hand over their head, for us alone, for a moment. */
+  showWave(ship) {
+    const ch = this.characterOf(ship);
+    if (!ch) return false;
+    ch.waveUntil = performance.now() + WAVE_MS;
+    this.paintBubble(ch, performance.now());
+    return true;
+  }
+
+  /* Point the camera at somebody, the way a look around does. Our own next
+   * step brings it back. */
+  lookAt(ship) {
+    const p = this.peers.get(ship);
+    if (!p || p.scene !== this.scene || !this.selfSprite || !p.render) return false;
+    this.pan = { x: (p.render.x - this.self.x) * this.tile, y: (p.render.y - this.self.y) * this.tile };
+    this.centreCamera();
+    return true;
+  }
+
+  /* The bubble rides on the nameplate, so it is sized for the screen the way
+   * the name is. Built on first use; redrawn only when its words change. */
+  paintBubble(ch, time) {
+    if (ch.waveUntil && time >= ch.waveUntil) ch.waveUntil = 0;
+    const text = bubbleText(ch, time);
+    if (text === (ch.bubbleText ?? null)) return;
+    ch.bubbleText = text;
+    if (!text) { if (ch.bubble) ch.bubble.visible = false; return; }
+    if (!ch.bubble) {
+      const bubble = new Container(), back = new Graphics();
+      const words = new Text('', { fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+        fontWeight: 'bold', fontSize: 11, fill: 0x17141f });
+      words.anchor.set(0.5, 1);
+      words.resolution = 2;
+      bubble.addChild(back, words);
+      ch.nameplate.addChild(bubble);
+      Object.assign(ch, { bubble, bubbleBack: back, bubbleWords: words });
+    }
+    const size = Math.round(Number(ch.label.style.fontSize) * 0.9);
+    if (ch.bubbleWords.style.fontSize !== size) ch.bubbleWords.style.fontSize = size;
+    ch.bubbleWords.text = text;
+    /* A cream bubble with a little tail, just above the name. */
+    const w = Math.max(ch.bubbleWords.width + 8, 16), h = ch.bubbleWords.height + 2, tail = 3;
+    const bottom = -ch.label.height - 3 - tail;
+    ch.bubbleWords.position.set(0, bottom - 1);
+    ch.bubbleBack.clear()
+      .beginFill(0xfff6dc, 0.95)
+      .drawRoundedRect(-w / 2, bottom - h, w, h, 4)
+      .moveTo(-3, bottom).lineTo(1, bottom).lineTo(-4, bottom + tail).closePath()
+      .endFill();
+    ch.bubble.visible = true;
+  }
+
   dropPeer(ship) {
     const p = this.peers.get(ship);
     if (!p) return;
@@ -674,6 +831,19 @@ export class Game {
    * pesters you, and walking up to the doorway no longer misses. */
   doorNear(x, y) {
     if (!this.world) return null;
+    /* Forty-eight points around you, every frame, gave the same answer frame
+     * after frame while you stood still. Asked again when you move, when the
+     * room or scene changes, and otherwise four times a second -- often enough
+     * to notice a door opening under you. */
+    const t = performance.now(), memo = this.doorMemo;
+    if (memo && memo.x === x && memo.y === y && memo.room === this.room && memo.scene === this.scene &&
+        memo.door === this.doorRoom && t - memo.at < 250) return memo.value;
+    const value = this.lookForDoor(x, y);
+    this.doorMemo = { x, y, room: this.room, scene: this.scene, door: this.doorRoom, at: t, value };
+    return value;
+  }
+
+  lookForDoor(x, y) {
     const reach = this.doorRoom === null ? NEAR_DOOR : LEAVE_DOOR;
     let best = null, bestDistance = Infinity;
     for (const [dx, dy] of DOOR_LOOK) {
@@ -689,10 +859,31 @@ export class Game {
     return best;
   }
 
+  /* BACK TO SPAWN. Somebody standing in a room they may no longer be in -- it
+   * was leased to, or they were removed from, a note they are not part of --
+   * is put back at the world's spawn point, in the open commons. (Looking for
+   * the nearest floor outside the room used to land on the room's own
+   * threshold, which counts as still being inside it: they never left.)
+   * Their own client does it; Noltbook refuses them the call either way. */
+  moveOutside() {
+    if (!this.world || !this.selfSprite || this.scene !== MAIN_SCENE) return false;
+    this.self.x = SPAWN.x; this.self.y = SPAWN.y; this.self.dir = 'down';
+    this.self.moving = false; this.self.frame = 0;
+    this.keys.clear(); this.running = false;
+    this.pan = { x: 0, y: 0 };
+    this.onMove({ ...this.self });
+    return true;
+  }
+
   /* Draw over the rooms we may not enter. Cheap and re-run only when the set
    * changes, which is when somebody takes or gives back a secret lease. */
   paintCovers() {
     if (!this.covers || this.scene !== MAIN_SCENE) return;
+    /* Which rooms are shut changes when a lease does, not sixty times a
+     * second: looked at four times a second. */
+    const t = performance.now();
+    if (t - (this.coversAt ?? -Infinity) < 250) return;
+    this.coversAt = t;
     const mainRooms = ROOMS.filter((r) => r.scene === MAIN_SCENE);
     /* Evaluate access once. Discovery can update while this frame is being
      * painted; asking twice used to cache "room 3 is covered" after the
@@ -730,7 +921,9 @@ export class Game {
       const walking=point.moving??(distance>.001);
       this.animateCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001,time);
       this.followCharacter(p.ch,p.render.x,p.render.y,p.scene,time,dt);
+      if(p.ch.asleep||p.ch.waveUntil)this.paintBubble(p.ch,time);
     }
+    if(this.selfSprite.asleep||this.selfSprite.waveUntil)this.paintBubble(this.selfSprite,time);
 
     let dx = 0, dy = 0;
     if (this.keys.has('a') || this.keys.has('arrowleft')) dx -= 1;
@@ -839,6 +1032,7 @@ export class Game {
     }
     this.camera.scale.set(z);
     this.camera.position.set(Math.round(vw / 2 - cx * z), Math.round(vh / 2 - cy * z));
+    this.space?.update(vw, vh, this.camera.position.x, this.camera.position.y, performance.now(), this.world, z);
   }
 
   anchorPanToCamera() {

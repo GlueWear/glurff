@@ -44,7 +44,20 @@
       ^-  (unit @p)
       =/  v  (str key)
       ?~(v ~ (slaw %p u.v))
+    ::  A list of ships under `key`; anything that is not one is left out.
+    =/  ships
+      |=  key=@t
+      ^-  (list @p)
+      =/  m  (~(get by obj) key)
+      ?~  m  ~
+      ?.  ?=([%a *] u.m)  ~
+      %+  murn  p.u.m
+      |=  j=^json
+      ?.  ?=([%s *] j)  ~
+      (slaw %p p.j)
     ?:  =('leave' op)  [%leave peers ~]
+    ::  our own settings, as the client's JSON text; empty clears them
+    ?:  =('prefs' op)  [%prefs peers (fall (str 'text') '')]
     ?:  =('ensure-commons' op)  [%ensure-commons peers ~]
     ?:  =('move' op)
       =/  d=dir:g
@@ -132,6 +145,23 @@
       :*  %seat  peers  (slav %p (need (str 'host')))  (num 'place' 0)
           (num 'gen' 0)  `@t`(need (str 'tab'))  w
       ==
+    ?:  =('admits' op)
+      [%admits peers (num 'place' 0) (ships 'ships')]
+    ?:  =('call-knock' op)
+      :*  %call-knock  peers  (need (ship 'host'))  (num 'place' 0)
+          (num 'attempt' 0)  `@tas`(need (str 'mode'))
+      ==
+    ?:  =('lease-door' op)
+      [%lease-door peers `@tas`(need (str 'vis')) (ships 'members')]
+    ?:  =('lease-ask' op)
+      [%lease-ask peers (need (ship 'host')) (num 'place' 0)]
+    ?:  =('session' op)
+      =/  take=?
+        =/  t  (~(get by obj) 'take')
+        ?~  t  %.n
+        ?.  ?=([%b *] u.t)  %.n
+        p.u.t
+      [%session peers `@t`(need (str 'tab')) take]
     ?:  =('roll' op)
       =/  st=roll-stage:g
         =/  h  (str 'hash')

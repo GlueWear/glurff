@@ -117,6 +117,34 @@
 ::  room is gone soon after renewals stop. Mirrored in lib/movement.js.
 ++  movement-ttl  900
 ::
+::  THE WORLD ROOM. Each glurff names its host ship in the world config, and
+::  everybody's movement goes through ONE relay room on that ship's call
+::  service, at this fixed place. The host's agent opens it itself the first
+::  time somebody asks to be let in -- no browser of the host's involved --
+::  keeps it open while people keep asking, and opens it again once it has
+::  lapsed or stopped working. Players only fall back to rooms of their own
+::  when the host cannot be reached.
+::
+::  The top movement term, so a client from before the world room existed
+::  still ranks it above any session of its own. Mirrored as WORLD_TERM in
+::  lib/movement-session.js; the two MUST agree.
+++  world-term   49.999
+++  world-place  `place`(add movement-base world-term)
+::  The world room as its host keeps it: when somebody last asked to be let in
+::  -- every ask extends the room's lease, so the lease cannot outlast the last
+::  ask by more than movement-ttl -- and since when asks have been failing
+::  because the room is not there.
++$  world-room  [asked=@da failing=(unit @da)]
+::  How long asks may fail before the room is opened afresh. Longer than a
+::  room takes to come up, so a room still being created is never recreated:
+::  opening afresh throws out everybody inside.
+++  world-reopen  ~s30
+::
+::  OUR SETTINGS. Owner-local JSON the agent keeps and never reads: which
+::  clocks we have in the sky and where, and our time zone. Capped, since a
+::  browser writes it.
+++  prefs-max  8.192
+::
 ::  -------------------------------------------------------------- presence
 ::
 ::  `peers` sits at the SAME AXIS in every variant so a receiver can read it
@@ -153,9 +181,29 @@
       ::  lease owner; our own agent forwards it to theirs. gen 0 on an enter
       ::  means "whichever is current" -- the owner answers with the real one.
       [%seat peers=(list @p) host=@p =place gen=@ud tab=@t what=?(%enter %renew %leave)]
+      ::  ONE LIVE GLURFF PER SHIP. A browser session asks to be the live one
+      ::  (`take`, on opening) or to stay it (renewing, without `take`). See
+      ::  `live` below.
+      [%session peers=(list @p) tab=@t take=?]
+      ::  HOST-SHIP ADMISSION. The ships our browser has already let into the
+      ::  call at `place`; our agent admits them again -- renewals, reconnects
+      ::  -- without asking our browser. An empty list forgets the place.
+      [%admits peers=(list @p) =place ships=(list @p)]
+      ::  Ask a host's SHIP for credentials to its call at `place`. See
+      ::  `%call-knock` in `remote`.
+      [%call-knock peers=(list @p) host=@p =place attempt=@ud mode=@tas]
+      ::  THE LEASED ROOM'S DOOR: the note's members, and how open the note is.
+      ::  Our agent tells the members which note the room is -- a secret note's
+      ::  id never rides the relay -- and answers them when they ask.
+      [%lease-door peers=(list @p) vis=@tas members=(list @p)]
+      ::  Ask a room's lease owner which note it is, or be told it is private.
+      [%lease-ask peers=(list @p) host=@p =place]
       ::  Owner-local development switch. Deliberately absent from the JSON
       ::  parser: it is changed from Dojo, not from the public UI.
       [%sprite-lab peers=(list @p) enabled=?]
+      ::  Our own settings -- the clocks in the sky, our time zone -- as the
+      ::  client's own JSON, stored so they follow us to any browser.
+      [%prefs peers=(list @p) text=@t]
   ==
 ::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
 ::  confers only "the ship that mints tokens" -- no kick, no mute.
@@ -202,6 +250,35 @@
 ++  seat-renew  ~s15
 ++  seat-ttl    ~s45
 ++  seat-grace  ~s5
+::  live: the one browser session this SHIP is using Glurff from.
+::
+::  A browser can only coordinate its own tabs. A second browser, an incognito
+::  window or another device used to run beside the first: two relays, two
+::  publishers, two contradictory positions for one person. The agent is the
+::  one place every session of a ship shares, so it holds the lease. Opening
+::  Glurff TAKES it (newest wins -- that is the one somebody is looking at);
+::  renewing only KEEPS it, so the session that lost cannot quietly take it
+::  back.
+::
+::  `gen` orders a ship's sessions for everybody else. It is issued by this
+::  agent -- one clock per ship -- so two devices with different clocks can no
+::  longer argue about which of them is newer. Never smaller than the last one,
+::  and never smaller than the agent's Unix milliseconds, so it survives a
+::  reload of the agent without going backwards.
++$  live  [tab=@t gen=@ud at=@da]
+++  session-ttl  ~s45
+::  FROM OTHER SHIPS: how much we accept. Any ship can poke %glurff, and every
+::  poke becomes a fact in our own browser, so a ship that floods us floods the
+::  page. Past `remote-burst` pokes in one `remote-window` a ship's pokes are
+::  dropped until the window turns over -- a hundred times what a busy room
+::  needs. No text body from another ship may exceed `remote-body` bytes, the
+::  same limit our own browser keeps to.
++$  meter  [at=@da n=@ud]
+::  door: who may learn which note a leased room is, and how open that note is.
++$  door  [members=(set @p) vis=@tas]
+++  remote-window  ~s10
+++  remote-burst   300
+++  remote-body    8.192
 ::  Cee-lo without a server. Each client publishes a hash, then the secret; the
 ::  seed is every secret combined, so no player can bias the result unless all
 ::  of them collude, and a lie is caught because the reveal must match.
@@ -241,6 +318,17 @@
       ::  agent tells the occupants directly, or they go on believing the room
       ::  is still the note.
       [%lease-gone =place gen=@ud]
+      ::  A guest's ship asking ours for credentials to our call at `place`,
+      ::  for its attempt `attempt`. Answered by minting -- no browser involved
+      ::  -- if our browser already let them in; otherwise put to our browser.
+      [%call-knock =place attempt=@ud mode=@tas]
+      ::  The answer when we are not hosting that call at all.
+      [%call-refused =place attempt=@ud why=@tas]
+      ::  THE DOOR. A ship asking which note our leased room is; the answer to
+      ::  a member; and the answer to anybody else.
+      [%lease-ask =place]
+      [%lease-info =place note=@ta vis=@tas gen=@ud]
+      [%lease-private =place gen=@ud]
   ==
 ::
 ::  agent -> our own client, as facts on /world.
@@ -264,5 +352,19 @@
       [%seat-ok =place gen=@ud]
       ::  the owner of a lease we were in saying it is over
       [%lease-gone who=@p =place gen=@ud]
+      ::  which browser session is this ship's live one, and its generation
+      [%session tab=@t gen=@ud]
+      ::  a ship asked for our call and our agent could not decide alone
+      [%call-knocked who=@p =place attempt=@ud mode=@tas]
+      ::  a host's ship turned our knock away
+      [%call-refused who=@p =place attempt=@ud why=@tas]
+      ::  our agent let somebody back into our call without asking us
+      [%admitted who=@p =place attempt=@ud]
+      ::  a lease owner told us which note their room is
+      [%lease-info who=@p =place note=@ta vis=@tas gen=@ud]
+      ::  a lease owner told us their room is private to a note we are not in
+      [%lease-private who=@p =place gen=@ud]
+      ::  our own settings, on startup and whenever they change
+      [%our-prefs text=@t]
   ==
 --

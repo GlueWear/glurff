@@ -84,6 +84,60 @@
           ['gen' (numb gen.upd)]
       ==
     ::
+        %our-prefs
+      (frond 'our-prefs' s+text.upd)
+    ::
+        %session
+      %+  frond  'session'
+      %-  pairs
+      :~  ['tab' s+tab.upd]
+          ['gen' (numb gen.upd)]
+      ==
+    ::
+        %call-knocked
+      %+  frond  'call-knocked'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['attempt' (numb attempt.upd)]
+          ['mode' s+mode.upd]
+      ==
+    ::
+        %call-refused
+      %+  frond  'call-refused'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['attempt' (numb attempt.upd)]
+          ['why' s+why.upd]
+      ==
+    ::
+        %admitted
+      %+  frond  'admitted'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['attempt' (numb attempt.upd)]
+      ==
+    ::
+        %lease-info
+      %+  frond  'lease-info'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['note' s+(crip (trip note.upd))]
+          ['vis' s+vis.upd]
+          ['gen' (numb gen.upd)]
+      ==
+    ::
+        %lease-private
+      %+  frond  'lease-private'
+      %-  pairs
+      :~  ['who' s+(scot %p who.upd)]
+          ['place' (numb place.upd)]
+          ['gen' (numb gen.upd)]
+      ==
+    ::
         %peer-hosting
       %+  frond  'peer-hosting'
       %-  pairs

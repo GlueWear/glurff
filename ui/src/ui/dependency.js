@@ -1,7 +1,6 @@
 import { NOLTBOOK_PUBLISHER, NOLTBOOK_DESK } from 'lib/dependency';
+import { esc } from 'ui/html';
 
-const esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));
 
 /* A missing dependency is explained and installed in Glurff's own UI. It is
  * never silently installed: a second desk is a meaningful change to a ship. */

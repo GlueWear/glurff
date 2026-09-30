@@ -4,13 +4,14 @@
  * readout of who can hear you and what you are sending. Video sits along the
  * top: double-click a tile to expand it, drag its corner to size it.
  */
-import { rooms, onRooms, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged,
-         canModerate, mayRecord, mutedShip, roleFor } from 'lib/rooms';
+import { rooms, onRooms, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged, hostReach,
+         canModerate, mayRecord, mutedShip, roleFor, callPeers, retryMic, soundless, micOff } from 'lib/rooms';
 import { devices, onDevices, refreshDevices, chosenDevice, chooseDevice, canPickOutput, noiseReduction, setNoiseReduction } from 'lib/devices';
-import { displayName } from 'lib/noltbook';
+import { displayName, avatarUrl, onChange } from 'lib/noltbook';
 import { copyDiagnostics } from 'lib/diagnostics';
 import { roomById, COMMONS } from 'world/places';
 import { our } from 'lib/api';
+import { esc } from 'ui/html';
 
 export class Rail {
   constructor(root, strip) {
@@ -35,6 +36,8 @@ export class Rail {
     this.settingsOpen = false;
     onDevices(() => { if (this.settingsOpen) this.paintSettings(); });
     onRooms(() => this.paint());
+    /* A picture arriving, or a name, changes a tile. */
+    onChange(() => this.paintStrip(), (c) => c.field === 'profiles');
     this.paint();
   }
 
@@ -50,21 +53,55 @@ export class Rail {
     return out;
   }
 
-  videos() {
-    /* Our own camera and screen first, muted -- playing your own microphone
-     * back at you is an echo, not a feature. */
-    const mine = [...rooms.localStreams.entries()]
-      .map(([kind, s]) => ({ key: kind, label: kind === 'screen' ? 'Your screen' : 'You', stream: s, mine: true }));
+  /* EVERYBODY IN THE CALL HAS A TILE. Their camera if it is on, otherwise
+   * their profile picture -- or their initials, with no picture -- and their
+   * name under it, with host, admin and muted as small tags. This is where the
+   * call's names live now; the list that used to be squeezed in beside the
+   * buttons is gone. Screens are tiles of their own, after the people.
+   * Before the call connects only your own camera preview shows. */
+  participants() {
+    const connected = rooms.voice === 'connected';
     /* Somebody an admin has muted is not shown, by anybody. */
     const muted = new Set(rooms.blocked ?? []);
-    const theirs = [...rooms.remoteStreams.entries()]
-      .filter(([, r]) => !muted.has(r.ship) && r.stream.getVideoTracks().some(t=>t.readyState!=='ended'))
-      .map(([id, r]) => ({ key: 'remote:'+id, label: displayName(r.ship)+(r.label==='screen'?' · Screen':''), stream: r.stream, mine: false }));
-    return [...mine, ...theirs];
+    const live = (stream) => stream?.getVideoTracks().some((t) => t.readyState !== 'ended');
+    const cameras = new Map(), screens = [];
+    for (const [id, r] of rooms.remoteStreams.entries()) {
+      if (muted.has(r.ship) || !live(r.stream)) continue;
+      if (r.label === 'screen') screens.push({ key: 'remote:' + id, ship: r.ship, label: `${displayName(r.ship)} · Screen`, stream: r.stream, mine: false, screen: true });
+      else if (!cameras.has(r.ship)) cameras.set(r.ship, r.stream);
+    }
+    const byName = (a, b) => displayName(a).toLowerCase().localeCompare(displayName(b).toLowerCase());
+    const people = connected ? [...callPeers()].filter((s) => s !== our && !muted.has(s)) : [];
+    for (const s of cameras.keys()) if (!people.includes(s)) people.push(s);
+    const out = [];
+    const mine = rooms.localStreams.get('cam') ?? null;
+    if (connected || mine) out.push({ key: 'person:' + our, ship: our, label: 'You', stream: mine, mine: true });
+    for (const s of people.sort(byName))
+      out.push({ key: 'person:' + s, ship: s, label: displayName(s), stream: cameras.get(s) ?? null, mine: false });
+    const myScreen = rooms.localStreams.get('screen');
+    if (myScreen) out.push({ key: 'screen', ship: our, label: 'Your screen', stream: myScreen, mine: true, screen: true });
+    return [...out, ...screens];
+  }
+
+  /* The tiles that are showing video right now: what a recording draws. */
+  videos() { return this.participants().filter((t) => t.stream); }
+
+  /* Small tags after a name: who hosts, who is an admin, who is muted. */
+  tags(ship) {
+    if (!ship) return '';
+    const host = currentHuddle()?.host ?? (rooms.here !== COMMONS ? rooms.host : null);
+    /* "no sound": their audio should be reaching us and is not. Not our
+     * speakers -- see lib/sfu soundless. */
+    /* "mic off": muted by themselves. Their stream stays in the call now,
+     * silent, so without this nobody could tell muted from quiet. */
+    return [ship === host ? 'host' : '', roleFor(ship) === 'admin' ? 'admin' : '',
+      mutedShip(ship) ? 'muted' : micOff(ship) ? 'mic off' : '',
+      ship !== our && soundless().has(ship) ? 'no sound' : '']
+      .filter(Boolean).join(' · ');
   }
 
   paintStrip() {
-    const vids = this.videos();
+    const vids = this.participants();
     this.tiles ??= new Map();
     const wanted = new Set(vids.map(v=>v.key));
     for (const [key,el] of this.tiles) if(!wanted.has(key)) {
@@ -85,7 +122,8 @@ export class Rail {
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
-        el.innerHTML='<video autoplay playsinline muted></video><span></span><i class="grip"></i>';
+        el.innerHTML='<video autoplay playsinline muted></video><img class="face" alt=""><b class="initials"></b>'+
+          '<span><em class="who"></em><small class="tags"></small></span><i class="grip"></i>';
         this.tiles.set(v.key,el);
         el.ondblclick=()=>{this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
         /* Pointer events with capture: the drag follows the pointer even when
@@ -113,9 +151,27 @@ export class Rail {
       }
       el.classList.toggle('big',this.expanded===v.key);
       el.style.width=`${w}px`;
-      el.querySelector('span').textContent=v.label;
+      /* Text only, never markup: a name is whatever its owner typed. */
+      const who=el.querySelector('.who'),tags=el.querySelector('.tags'),tag=this.tags(v.screen?null:v.ship);
+      if(who.textContent!==v.label)who.textContent=v.label;
+      if(tags.textContent!==tag)tags.textContent=tag;
       const video=el.querySelector('video');video.muted=true; // Audio belongs to the SFU's volume-controlled elements.
-      if(video.srcObject!==v.stream){video.srcObject=v.stream;video.play().catch(()=>{});}
+      const face=el.querySelector('.face'),initials=el.querySelector('.initials');
+      if(v.stream){
+        if(video.srcObject!==v.stream){video.srcObject=v.stream;video.play().catch(()=>{});}
+        video.hidden=false;face.hidden=true;initials.hidden=true;el.classList.remove('faced');
+      } else {
+        /* Camera off: their picture where the camera would be. */
+        if(video.srcObject){video.pause();video.srcObject=null;}
+        video.hidden=true;el.classList.add('faced');
+        const url=avatarUrl(v.ship);
+        if(url){ if(face.getAttribute('src')!==url)face.setAttribute('src',url); face.hidden=false; initials.hidden=true; }
+        else {
+          face.hidden=true;initials.hidden=false;
+          const mark=(displayName(v.ship)||v.ship||'?').replace(/^~/,'').slice(0,2).toUpperCase();
+          if(initials.textContent!==mark)initials.textContent=mark;
+        }
+      }
       const at=mediaCount+i;
       if(this.strip.children[at]!==el)this.strip.insertBefore(el,this.strip.children[at]??null);
     }
@@ -139,27 +195,29 @@ export class Rail {
     /* Being muted by an admin is the first thing about a call you need to
      * know, so it takes the status line rather than hiding in a tooltip. */
     const status = rooms.mutedByAdmin ? 'Muted by an admin' : rooms.bootedByAdmin ? 'Removed from this call'
-      : rooms.error ?? (room!==COMMONS && rooms.picker ? 'Choose which one…' :
+      : rooms.error ?? (rooms.callHealth?.failed ? unreachable(rooms.callHealth.missing, rooms.callHealth.reach) :
+      rooms.mediaError ? mediaFailed(rooms.mediaError.kind) :
+      room!==COMMONS && rooms.picker ? 'Choose which one…' :
       room!==COMMONS && rooms.waiting ? 'Connecting…' : room===COMMONS && !huddle ? 'No nearby call' :
       rooms.voice === 'connected' && !rooms.others ? 'Waiting for others' :
+      /* Waiting on a host whose ship we cannot reach says so, rather than
+       * "switching" for ever. See lib/reachability. */
+      rooms.voice !== 'connected' && rooms.host && hostReach() === 'one-way' ? `${displayName(rooms.host)} can't hear your ship` :
+      rooms.voice !== 'connected' && rooms.host && hostReach() === 'unreachable' ? `Can't reach ${displayName(rooms.host)}'s ship` :
       waitingOn[rooms.stage] ?? rooms.voice);
 
-    const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s),roleFor(s),mutedShip(s)]),status,rooms.voice,
+    const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s),roleFor(s),mutedShip(s)]),status,rooms.micTrouble,rooms.voice,
       rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen,canModerate(),mayRecord(),rooms.recording?.by??null]);
     if(signature===this.signature)return;
     this.signature=signature;
     this.root.innerHTML = `
       <div class="rail">
-        <div class="rail-head">${r?.name ?? 'Room'}
-          <span class="dim ${status === 'connected' ? '' : 'warn'}">${status}</span>
+        <div class="rail-head">${esc(r?.name ?? 'Room')}
+          <span class="dim ${status === 'connected' ? '' : 'warn'}">${esc(status)}</span>
         </div>
-        <div class="rail-people">
-          ${people.length
-            ? people.map((s) => `<div class="p">${displayName(s)}${s === our ? ' <span class="dim">(you)</span>' : ''}${s === host ? ' <span class="dim">host</span>' : ''}${roleFor(s) === 'admin' ? ' <span class="dim">admin</span>' : ''}${mutedShip(s) ? ' <span class="muted-tag">muted</span>' : ''}</div>`).join('')
-            : '<div class="dim">nobody else here</div>'}
-        </div>
+        ${rooms.micTrouble ? `<div class="mic-trouble" role="alert"><span>${esc(MIC_TROUBLE[rooms.micTrouble] ?? MIC_TROUBLE.silent)}</span><button class="mic-retry">Try again</button></div>` : ''}
         <div class="rail-btns">
-          ${rooms.voice==='blocked'||['quota','rate-limited','participant-limit','service-unavailable'].includes(rooms.error)?'<button class="retry-call">Retry call</button>':''}
+          ${rooms.voice==='blocked'||rooms.callHealth?.failed||['quota','rate-limited','participant-limit','service-unavailable'].includes(rooms.error)?'<button class="retry-call">Retry call</button>':''}
           ${mediaButton('mic','Microphone',rooms.micOn)}
           ${mediaButton('cam','Camera',rooms.camOn)}
           ${mediaButton('scr','Screen sharing',rooms.screenOn)}
@@ -174,6 +232,7 @@ export class Rail {
     this.root.appendChild(this.settings);
     const q = (c) => this.root.querySelector(c);
     if(q('.retry-call'))q('.retry-call').onclick=()=>retryCall();
+    if(q('.mic-retry'))q('.mic-retry').onclick=()=>{void retryMic();};
     q('.mic').onclick = () => toggleMic().catch((e) => console.error('mic', e));
     q('.cam').onclick = () => toggleCam().catch((e) => console.error('cam', e));
     q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
@@ -232,8 +291,22 @@ export class Rail {
   }
 }
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Somebody we can see in the call's room, who repair could not bring into it. */
+/* Status text is PLAIN text: the one place it becomes HTML escapes it. */
+const unreachable = (missing = [], reach = {}) => missing.length === 1
+  ? (reach[missing[0]] === 'one-way' ? `${displayName(missing[0])} can't hear your ship`
+    : `Can't reach ${displayName(missing[0])} in this call`)
+  : `Can't reach ${missing.length} people in this call`;
+/* One publication given up on; the call itself is fine. */
+/* What to tell somebody whose microphone is on but sending nothing. */
+const MIC_TROUBLE = {
+  ended: "Your microphone stopped. Check it's plugged in, or choose another in settings.",
+  muted: 'Your microphone is muted by your system or its mute switch.',
+  paused: "Your microphone's sound stopped. Try again, or turn it off and on.",
+  silent: "Your microphone isn't sending any sound. Check it's plugged in, not muted, and allowed for this site.",
+};
+const mediaFailed = (kind) => `${{ mic: 'Microphone', cam: 'Camera', screen: 'Screen share' }[kind] ?? 'Media'} couldn't be sent`;
 
 function mediaButton(kind,label,on) {
  const paths={mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',cam:'<rect x="2" y="5" width="13" height="14" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',scr:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5M12 13V6m-4 4 4-4 4 4"/>'};

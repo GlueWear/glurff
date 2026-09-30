@@ -1,17 +1,25 @@
 import { diagnostic, setMovementDiagnostics, milestone } from 'lib/diagnostics';
 import { createMemberPresence } from 'lib/member-presence';
-import { WORLD_ID } from 'lib/world-config';
+import { WORLD_ID, WORLD_HOST } from 'lib/world-config';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
 import { createBow } from 'lib/bow';
 import { createPlayerState } from 'lib/player-state';
 import { palStatus } from 'lib/noltbook';
+import { createWaves, createTitleFlash, WAVE_NOTICE_MS } from 'lib/waves';
+import { createClockSettings, anchor as clockAnchor } from 'lib/clocks';
+import { IDLE_MS } from 'world/bubbles';
+import { esc } from 'ui/html';
 import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
 /* Artwork loads alongside the official note. Connecting waits for membership. */
 import { initApi, our, closeChannel } from 'lib/api';
 import { watchNoltbookDependency } from 'lib/dependency';
 import { createTabGuard } from 'lib/tab';
-import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest } from 'lib/noltbook';
+import { createSessionLease, newerMotion } from 'lib/session-lease';
+import { createReachability } from 'lib/reachability';
+import { createInsideLease } from 'lib/inside-lease';
+import { createReliable } from 'lib/reliable';
+import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts } from 'lib/noltbook';
 import * as G from 'lib/glurff';
 import { Game } from 'world/game';
 import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
@@ -81,6 +89,20 @@ const tabGuard = createTabGuard({
 window.addEventListener('storage', (e) => { if (e.key === TAB_KEY) tabGuard.heard(e.newValue); });
 window.addEventListener('glurff-exit', () => tabGuard.close());
 tabGuard.claim();
+/* ONE LIVE GLURFF PER SHIP -- across browsers and devices, which the tab guard
+ * cannot see. Held by our agent; see lib/session-lease. Started once /world is
+ * watched, so the agent's answer has somewhere to arrive. */
+const sessionLease = createSessionLease({
+  tab: R.seatTab(),
+  send: G.session,
+  trace: diagnostic,
+  onLost: (reason) => standDown(reason),
+});
+window.addEventListener('glurff-exit', () => sessionLease.stop());
+/* Per-ship reachability: who hears us, who we only hear. See lib/reachability. */
+const reach = createReachability({ trace: diagnostic });
+R.setReachability(reach);
+window.glurffReachability = () => reach.stats();
 
 /* A newer tab has taken over. Leave exactly as closing the tab does -- presence
  * says goodbye, the relay closes, a call hangs up, our "In Glurff" mark is
@@ -96,7 +118,9 @@ function standDown(reason) {
   setTimeout(closeChannel, 2000);
   const el = document.createElement('div');
   el.className = 'takeover';
-  el.innerHTML = '<div><p>Glurff is open in another tab.</p><button type="button">Use here</button></div>';
+  el.innerHTML = reason === 'another-session'
+    ? '<div><p>Glurff is open on another device or browser.</p><button type="button">Use here</button></div>'
+    : '<div><p>Glurff is open in another tab.</p><button type="button">Use here</button></div>';
   el.querySelector('button').onclick = () => location.reload();
   document.body.appendChild(el);
 }
@@ -225,6 +249,107 @@ async function offerJoinRequest() {
 onChange(() => void offerJoinRequest(), (c) => c.field === 'joinRequests' || c.field === 'notes');
 R.onRooms(() => void offerJoinRequest());
 
+/* LEASED WHILE YOU WERE INSIDE -- or removed from the note while you were.
+ * The decision tree is lib/inside-lease; this wires it to the world. */
+function insideLeaseHere() {
+  const place = R.rooms.here;
+  if (!(place > COMMONS && place <= 15) || R.rooms.lease?.place === place) return null;
+  const lease = R.leaseAt(place);
+  if (!lease?.note && !lease?.vis) return null;
+  if (lease.note && nb.notes[lease.note]) return null;             //  a member
+  const host = R.leaseHolder(place) ?? R.rooms.host ?? null;
+  return { place, note: lease.note ?? null, vis: lease.vis ?? 'private', host };
+}
+const insideLease = createInsideLease({
+  lease: insideLeaseHere,
+  toldPrivate: (place) => R.rooms.privateRoom?.place === place,
+  joinAsked,
+  learn: (l) => { void R.learnLease(l.place, l.host, true); },
+  ask: async (l, { timeout, signal }) => {
+    await new Promise((r) => setTimeout(r, 600));        //  the group's name, if it is quick
+    if (signal?.aborted) return null;
+    const publicNote = l.vis === 'public';
+    const title = noteFacts(l.host, l.note)?.name ?? 'this group';
+    const room = roomById(l.place)?.name ?? 'This room';
+    return ask(publicNote ? `Join ${title}?` : `Request to join ${title}?`, {
+      yes: publicNote ? 'JOIN' : 'REQUEST JOIN', no: 'LEAVE ROOM',
+      detail: `${room} was just linked to a ${publicNote ? 'public' : 'private'} Noltbook group. ` +
+        (publicNote ? 'Join it to stay.' : 'Ask to join and wait here for the host, or leave the room.'),
+      timeout, signal,
+    });
+  },
+  requestJoin: (l) => askToJoinNote(l.note, l.host),
+  askOwner: (l) => { if (l.host) Promise.resolve(G.leaseAsk(l.host, l.place)).catch(() => {}); },
+  stepOutside: (l, reason) => {
+    game.moveOutside();
+    const room = roomById(l.place)?.name ?? 'the room';
+    showNotice(reason === 'secret' ? `${room} is now private. You've been moved back to the spawn.`
+      : reason === 'declined' ? `The host didn't let you into ${room}. You've been moved back to the spawn.`
+      : `You left ${room} and are back at the spawn. Walk up to its door to join.`);
+  },
+  trace: diagnostic,
+});
+const checkInsideLease = () => insideLease.check();
+R.onRooms(() => void checkInsideLease());
+R.onRoommates(() => void checkInsideLease());
+onChange(() => void checkInsideLease(), (c) => ['notes', 'joinStatus', 'remoteNotes'].includes(c.field));
+/* A short line at the top of the screen, gone by itself. */
+const notice = document.createElement('div');
+notice.className = 'toast'; notice.setAttribute('role', 'status'); notice.hidden = true;
+document.body.appendChild(notice);
+let noticeTimer = null;
+function showNotice(text) {
+  notice.textContent = text; notice.hidden = false;
+  clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.hidden = true; }, 6000);
+}
+/* A WAVE for us: who, and a way to look at them. It waits for us if the tab is
+ * in the background -- the hand over their head too -- rather than coming and
+ * going unseen. See lib/waves. */
+const waveNotice = document.createElement('div');
+waveNotice.className = 'wave-toast'; waveNotice.setAttribute('role', 'status'); waveNotice.hidden = true;
+document.body.appendChild(waveNotice);
+let waveTimer = null;
+const unseenWaves = new Set();
+const titleFlash = createTitleFlash();
+function hideWaveLater() {
+  clearTimeout(waveTimer);
+  waveTimer = setTimeout(() => { waveNotice.hidden = true; waveTimer = null; }, WAVE_NOTICE_MS);
+}
+function showWave(who) {
+  const name = displayName(who);
+  waveNotice.innerHTML = `<span>👋 <b>${esc(name)}</b> waved at you</span><button type="button">Show me</button>`;
+  waveNotice.querySelector('button').onclick = () => { game.lookAt(who); waveNotice.hidden = true; };
+  waveNotice.hidden = false;
+  if (document.hidden) {
+    clearTimeout(waveTimer); waveTimer = null;
+    unseenWaves.add(who);
+    titleFlash.flash(`👋 ${name} waved · Glurff`);
+  } else { game.showWave(who); hideWaveLater(); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  for (const who of unseenWaves) game.showWave(who);
+  unseenWaves.clear();
+  if (!waveNotice.hidden && waveTimer === null) hideWaveLater();
+});
+
+/* CLOCKS IN THE SKY: our settings, kept by our agent (see lib/clocks). The
+ * sky follows every change at once; the agent is told a moment after the last. */
+const clocks = createClockSettings({ save: (text) => G.savePrefs(text) });
+clocks.on((s) => game.setClocks(s.clocks));
+/* ARRANGING: the clocks come in front of the map to be dragged about, until
+ * Done (or Escape). */
+const arrangeBar = document.createElement('div');
+arrangeBar.className = 'arrange-bar'; arrangeBar.hidden = true;
+arrangeBar.innerHTML = '<span>Drag your clocks where you want them</span><button type="button">Done</button>';
+document.body.appendChild(arrangeBar);
+function arrangeClocks(on) {
+  game.arrangeClocks(on);
+  arrangeBar.hidden = !on;
+}
+arrangeBar.querySelector('button').onclick = () => arrangeClocks(false);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && game.arranging()) arrangeClocks(false); });
+
 const game = new Game(document.getElementById('stage'), {
   onEmote: scene => {
     void Promise.resolve(sendWorldAction({kind:'emote',scene,t0:Date.now()})).catch(()=>{});
@@ -235,7 +360,10 @@ const game = new Game(document.getElementById('stage'), {
      * past where you stopped. */
     const change = self.dir !== reported.dir || self.moving !== reported.moving || self.scene !== reported.scene;
     reported = { dir: self.dir, moving: self.moving, scene: self.scene };
-    if (change) reportPosition(self, false, true); else sendPosition(self);
+    /* A walking position still queued in the throttle would go out AFTER the
+     * stop and start them walking again -- on the spot, since it is where they
+     * already were. The change is newer than anything queued: drop it. */
+    if (change) { sendPosition.cancel(); reportPosition(self, false, true); } else sendPosition(self);
   },
   /* Rooms are regions of the one world, so this is a change of context rather
    * than a change of scene: the chat channel follows you, and the call for
@@ -255,6 +383,12 @@ const game = new Game(document.getElementById('stage'), {
   isClosed: (room) => R.roomClosed(room),
   isBlocked: (room) => R.roomBlocked(room),
   onRoomDoor: (room) => offerRoomDoor(room),
+  /* A clock dragged somewhere new: kept from the nearest corner. */
+  onClockMoved: (id, x, y, w, h) => clocks.update((s) => {
+    const c = s.clocks.find((k) => k.id === id);
+    if (c) c.at = clockAnchor(x, y, w, h);
+    return s;
+  }),
   onSceneChange: (scene, from) => {
     diagnostic('scene-enter', { scene, from, hidden: document.hidden });
     /* A scene doorway changes the social room too. This leaves the old call,
@@ -311,6 +445,8 @@ const stripRoot = document.createElement('div');
 stripRoot.id = 'strip';
 document.body.appendChild(stripRoot);
 const rail = new Rail(railRoot, stripRoot);
+/* Who has their microphone off: from their presence. */
+R.setPeerMicOff((ship) => state.peers.get(ship)?.micOff === true);
 /* ADMIN, REC and the recording notice. Outside the rail's markup on purpose:
  * the rail replaces its own innerHTML several times a second. */
 const panelRoot = document.createElement('div');
@@ -351,6 +487,13 @@ const card = new ProfileCard(cardRoot, {
    * world is drawing for them. */
   look: (ship) => ship === our ? state.look : state.peers.get(ship)?.look ?? null,
   onEditCharacter: () => builder.toggle(),
+  /* In the world with us, and since when they have been idle (their clock). */
+  presenceOf: (ship) => ship === our ? null : state.peers.has(ship)
+    ? { inWorld: true, idleSince: state.peers.get(ship).idle ?? null } : { inWorld: false, idleSince: null },
+  onWave: (ship) => waves.wave(ship),
+  /* Our clocks, edited with our profile; see lib/clocks. */
+  clocks,
+  onArrangeClocks: () => arrangeClocks(true),
 });
 const dms = new Dms(dmRoot, { onShowProfile: (ship) => card.open(ship) });
 new Contacts(contactsRoot, { onShowProfile: (ship) => card.open(ship) });
@@ -379,6 +522,8 @@ game.mount.addEventListener('dblclick', (e) => {
   if (game.panned) return;   //  that was a look-around, not a click on somebody
   const ship = game.characterAt(e.clientX, e.clientY);
   if (ship) { card.open(ship); return; }
+  /* A clock out in the sky: arrange them, straight from there. */
+  if (!game.arranging() && game.skyClockAt(e.clientX, e.clientY)) { arrangeClocks(true); return; }
   game.activateHotspot(e.clientX, e.clientY);
 });
 
@@ -426,17 +571,35 @@ function reportPosition(self, force = false, urgent = false) {
 function throttle(fn,ms) {
   let last=-Infinity,timer=null,latest=null;
   const flush=()=>{timer=null;last=performance.now();const args=latest;latest=null;if(args)fn(...args);};
-  return (...args)=>{
+  const call=(...args)=>{
     latest=args;
     const remaining=ms-(performance.now()-last);
     if(remaining<=0){clearTimeout(timer);flush();}
     else if(!timer)timer=setTimeout(flush,remaining);
   };
+  /* Drop what is queued: something newer has already been sent another way. */
+  call.cancel=()=>{clearTimeout(timer);timer=null;latest=null;last=performance.now();};
+  return call;
 }
 
 /* The slingshot is gone. Attacks will come from the weapon art instead, which
  * is drawn for the bare bodies rather than for clothing -- see the report. */
 let worldReady = false;
+/* ASLEEP after IDLE_MS with no key, pointer or touch -- but never in a call,
+ * where people often sit perfectly still. Everybody sees a "zzz…" over our
+ * head, and it goes the moment we touch anything. See world/bubbles. */
+let lastInput = Date.now(), asleep = false;
+const inCall = () => ['connected', 'retrying', 'requesting'].includes(R.rooms.voice) ||
+  R.inNoteCall() || !!R.currentHuddle();
+function checkAsleep() {
+  const next = Date.now() - lastInput >= IDLE_MS && !inCall();
+  if (next === asleep) return;
+  asleep = next;
+  game.setAsleep(our, asleep);
+  if (presenceStarted) presence.publish();
+}
+for (const type of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart'])
+  window.addEventListener(type, () => { lastInput = Date.now(); if (asleep) checkAsleep(); }, { passive: true, capture: true });
 /* The world's subscriptions are open: presence can run before the artwork is in. */
 let watching = false;
 let pendingPeers = null;
@@ -456,23 +619,35 @@ function applyPresence() {
     const old=appliedPresence.get(ship);
     if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.chatPlace!==p.chatPlace ||
       old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
-      old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene)
+      old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene ||
+      old.idle!==p.idle || old.micOff!==p.micOff)
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
   reconcilePeers();
 }
 /* What we are right now, as presence and rooms both send it. */
-const here = () => ({stamp:Date.now(),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
+const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
+  /* In a call with our microphone off: our stream stays in the call, silent,
+   * so the others are told rather than left to guess. See lib/rooms. */
+  ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
   huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
 const presence = createMemberPresence({
   our, session:crypto.randomUUID(),
+  sessionGen: () => sessionLease.gen(),
   members: worldMembers,
   blocked: ship => palStatus(ship) === 'blocked',
   /* The room list we are on rides our presence answer, so somebody who arrives
    * after a room filled up still learns who is in it. */
   snapshot:()=>({...here(),room:R.roomSummary()}),
-  send:G.sendPresence,
+  /* A query expects an answer; see lib/reachability. */
+  send:(to,p)=>{if(p?.kind==='query')reach.asked(to);return G.sendPresence(to,p);},
+  onRelay:(ship)=>movement?.onRelay(ship)??false,
+  /* Noltbook's own record of who is in Glurff right now, kept by the world
+   * note's host. Discovery over Ames asks only these. */
+  likelyLive:()=>{const rows=nb.active?.[COMMONS_NOTE];if(!Array.isArray(rows)||!rows.length)return null;
+    return new Set(rows.map(r=>r?.setBy).filter(s=>typeof s==='string'));},
+  answered:(who)=>reach.answered(who),
   trace:(type,d)=>{diagnostic(type,d);if(type==='presence-first' || (type==='presence-discover' && !d.count))releaseHistory();},
   changed: peers => {
     pendingPeers=peers;
@@ -503,11 +678,13 @@ R.onRoommates((why) => {
 });
 movement = createMovement({
   our,
+  generation: () => sessionLease.gen(),
   agent: { claim: G.claimMovement, release: G.releaseMovement, open: G.openMovement, knock: G.knockMovement },
-  /* Direct presence authorizes the movement audience and its slow fallback. */
+  /* Direct presence authorizes the movement audience. There is no slow path:
+   * positions go over the relay or not at all. */
   presence: {
     viewers: () => presence.viewers(),
-    publishTo: (ships) => { G.asFallback(() => presence.publishTo(ships)); },
+    publishTo: () => {},
   },
   /* state.peers holds exactly the people presence lets us see; reconcilePeers
    * removes anyone who stops being visible. The relay adds nobody. */
@@ -516,8 +693,26 @@ movement = createMovement({
   /* Installed but offline members must never delay a movement session. */
   expected: () => [...presence.peers().keys()],
   trace: diagnostic,
+  onControl: (who, body) => onControl(who, body),
+  onRelayRoster: (ships, left) => { presence.relayRoster([...ships], left); for (const s of left) reliable.forget(s); },
+  /* Everybody's movement goes through the world host's relay room first. */
+  world: WORLD_HOST,
 });
 window.__movement = movement;
+/* THE WORLD'S LIVE CHANNEL is the movement relay. Presence, call coordination,
+ * room lists, room chat and world effects go over it to whoever is on it; see
+ * sendPresence in lib/glurff. */
+/* Receipts, retries and repeat-dropping for what calls and presence depend
+ * on; see lib/reliable. */
+const reliable = createReliable({ send: (ship, body) => movement.control(ship, body), trace: diagnostic });
+window.glurffReliable = () => reliable.stats();
+G.setLiveChannel({ has: (ship) => movement.onRelay(ship), send: (ship, body) => reliable.send(ship, body) });
+/* Waves go over that channel, with a receipt; see lib/waves. */
+const waves = createWaves({
+  send: (ship, body) => G.sendPresence(ship, body),
+  may: (ship) => ship !== our && state.peers.has(ship) && palStatus(ship) !== 'blocked',
+  onWaved: (who) => showWave(who),
+});
 /* Debug handle, like __game and __movement: the call layer as this tab sees
  * it. Nothing here can forge authority -- moderation is judged on the HOST's
  * ship, against the ship a request actually came from. */
@@ -537,19 +732,26 @@ R.onRooms(() => {
 });
 
 /* A position that arrived over the movement relay. */
+/* Returns whether the position was ACCEPTED. The movement layer records a
+ * peer's motion only for accepted packets; see onPosition in lib/movement. */
 function applyRelayPosition(ship, spot, meta) {
   const peer = state.peers.get(ship);
-  if (!peer) return;
-  /* Both timestamps come from the SAME sender's clock, so they compare soundly:
-   * an older presence snapshot can never drag an avatar back behind a newer
-   * relay position, and a late relay packet cannot undo a newer snapshot. */
-  if (!(meta.t > (peer.motionT ?? -Infinity))) return;
+  if (!peer) return false;
+  /* Ordered by the sender's SESSION first -- the generation its agent issued,
+   * one clock per ship -- and only within one session by the sender's own
+   * clock. Comparing timestamps alone let a second device whose clock ran
+   * behind the first be ignored until the peer was forgotten. Within one
+   * session an older presence snapshot still cannot drag an avatar back behind
+   * a newer relay position, nor a late relay packet undo a newer snapshot. */
+  if (!newerMotion(meta.gen, meta.t, peer)) return false;
+  peer.motionG = meta.gen ?? 0;
   peer.motionT = meta.t;
   peer.spot = { place: COMMONS, x: spot.x, y: spot.y, dir: spot.dir, scene: spot.scene };
   peer.host = meta.host;
   game.upsertPeer(ship, peer.spot, peer.look, displayName(ship), meta.t,
                   { vx: meta.vx, vy: meta.vy, moving: meta.moving });
   scheduleWorld();
+  return true;
 }
 /* Room occupancy, huddles and proximity volume all follow from positions but
  * are not cheap. Coalesce them instead of recomputing per packet -- on a timer,
@@ -581,6 +783,9 @@ function reconcilePeers() {
   if(presenceStarted)void updateActiveCount(state.peers.size+1);
 }
 let presenceStarted=false;
+/* Our microphone going off or on in a call is news for the people in it. */
+let micSaid=false;
+R.onRooms(()=>{const off=inCall()&&!R.rooms.micOn;if(off!==micSaid){micSaid=off;if(presenceStarted)presence.publish();}});
 function socialReady() {
   if(!watching || !liveTab)return;
   if(!worldJoined()) {
@@ -609,14 +814,39 @@ let positionSignature='';
 /* Presence sends only changes. Our movement-session claim is part of what it
  * sends, so a change there -- a new session, the relay going live -- goes out. */
 let claimSignature='';
+/* RECONNECTING, SAID OUT LOUD. With no slow path, a dropped relay means
+ * nobody moves and nothing live arrives until it is back -- which must read as
+ * "reconnecting", not as everybody standing still. Shown only once the relay
+ * has been up, or after the first few seconds, so startup is not a warning. */
+const netPill = document.createElement('div');
+netPill.className = 'net-pill'; netPill.setAttribute('role', 'status'); netPill.hidden = true;
+document.body.appendChild(netPill);
+const bootAt = Date.now();
+let relayWasLive = false;
+function paintConnectivity() {
+  const channel = window.api?.connectionDiagnostics?.();
+  const relayLive = !!movement?.relayLive?.();
+  if (relayLive) relayWasLive = true;
+  const text = channel?.rebuilding ? 'Reconnecting to your ship…'
+    : !relayLive && (relayWasLive || Date.now() - bootAt > 10000) && presenceStarted ? 'Reconnecting to the world…'
+    : '';
+  if (netPill.textContent !== text) netPill.textContent = text;
+  netPill.hidden = !text;
+}
 ticker=setInterval(()=>{
+  checkAsleep();
   presence.tick();
+  reach.check();
+  paintConnectivity();
+  if(insideLease.active())void checkInsideLease();      //  the waits have deadlines
   if(presenceStarted)void updateActiveCount(state.peers.size+1);
   R.tickRoom();
   if(presenceStarted && movement) {
     const mv=movement.announce();
     const next=mv?`${mv.host}/${mv.term}/${mv.live}`:'';
-    if(next!==claimSignature){claimSignature=next;presence.publish();R.publishRoom();}
+    /* A new session is news for EVERYBODY who can see us, not only the people
+     * already on our relay: they are the ones who need to find it. */
+    if(next!==claimSignature){claimSignature=next;presence.publishAll();R.publishRoom();}
   }
   members.paint();   //  people come and go without a room change
   if(!movement)return;
@@ -632,14 +862,29 @@ window.addEventListener('glurff-restored',()=>{R.recoverCall();if(presenceStarte
 window.addEventListener('online',()=>{if(presenceStarted){presence.start(true);movement?.restored();}});
 window.addEventListener('visibilitychange',()=>{if(!document.hidden && presenceStarted){presence.start();movement?.restored();}});
 
+/* A message over the relay from a ship that is here: handled exactly as the
+ * same message arriving over Ames would be, through the same checks. */
+function onControl(who, body) {
+  if (!worldMember(who) || palStatus(who) === 'blocked' || body?.world !== WORLD_ID) return;
+  /* A receipt, or a repeat of something already handled. */
+  if (reliable.receive(who, body)) return;
+  if (body.kind === 'room-chat') {
+    if (body.event?.world === WORLD_ID && Number.isSafeInteger(body.place))
+      onWorldFact('room-event', { who, place: body.place, body: JSON.stringify(body.event) });
+    return;
+  }
+  onWorldFact('presence-event', { who, body: JSON.stringify(body) });
+}
 function onWorldFact(name, p, fromPresence=false) {
   if(name==='presence-event') {
     if(!worldMember(p.who))return;
+    reach.heard(p.who);
     try {const event=JSON.parse(p.body);if(event.world!==WORLD_ID)return;
     if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){if(spriteLabEnabled())bow.receive(p.who,event);}else if(event.kind==='emote'){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
          ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
+    }else if(event.kind==='wave'){waves.receive(p.who);
     }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else if(event.kind?.startsWith('player-')){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked')globalThis.__players?.store.receive(p.who,event);
     }else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
@@ -647,7 +892,11 @@ function onWorldFact(name, p, fromPresence=false) {
   }
   // Old, unscoped movement/departure packets cannot override tab leases.
   if((name==='peer-here' || name==='peer-gone') && !fromPresence)return;
-  if (p.who && !visiblePeers().includes(p.who)) return;
+  /* "No lease" arrives as null -- see mar/glurff-update -- and has to reach
+   * its case below. Reading `who` off it first threw, and the page never
+   * learned the lease was gone. Nothing else is meant to be null. */
+  if (p == null && name !== 'our-lease') return;
+  if (p?.who && !visiblePeers().includes(p.who)) return;
   switch (name) {
     case 'room-event':
       try { const event=JSON.parse(p.body);if(event.world===WORLD_ID)events.receive(p.who,p.place,event); } catch {}
@@ -660,19 +909,24 @@ function onWorldFact(name, p, fromPresence=false) {
        * position from this sender, keep it -- both carry the sender's own clock.
        * Membership, avatar version and room host still update either way. */
       const stamp = Number.isFinite(p.stamp) ? p.stamp : -Infinity;
-      const newer = !prev || !Number.isFinite(prev.motionT) || stamp > prev.motionT;
+      const newer = !prev || !Number.isFinite(prev.motionT) || newerMotion(p.sgen, stamp, prev);
       const spot = newer ? reported : prev.spot;
       const entry = { spot, rev: p.rev, look: prev?.look ?? null, at: Date.now(),
                       chatPlace: p.chatPlace,
+                      idle: Number.isFinite(p.idle) ? p.idle : null,
+                      micOff: p.micOff === true,
                       host: newer ? (p.host || null) : prev.host,
                       huddle: p.huddle ?? null,
-                      motionT: newer ? stamp : prev.motionT };
+                      motionT: newer ? stamp : prev.motionT,
+                      motionG: newer ? (p.sgen ?? 0) : (prev.motionG ?? 0) };
       state.peers.set(p.who, entry);
       globalThis.__players?.store.adopt(p.who,p.players);
       if (!prev) milestone('visible:' + p.who, { who: p.who });
       /* One world, so everyone visible is drawn -- including people inside
        * rooms, seen from the commons. */
       game.upsertPeer(p.who, spot, entry.look, displayName(p.who), newer ? p.stamp : prev.motionT);
+      game.setAsleep(p.who, entry.idle !== null);
+      if ((prev?.micOff ?? false) !== entry.micOff) R.roomsChanged();
       /* Their character arrives on request, not on every beat -- it is far
        * bigger than a position. Ask once, when the revision moves. */
       if (!prev || prev.rev !== p.rev) G.fetchLook(p.who);
@@ -692,6 +946,10 @@ function onWorldFact(name, p, fromPresence=false) {
       game.upsertPeer(p.who, e.spot, p.look, displayName(p.who));
       break;
     }
+    /* Our settings, from our agent: see lib/clocks. */
+    case 'our-prefs':
+      clocks.load(typeof p === 'string' ? p : '');
+      break;
     case 'our-look':
       setSpriteLabEnabled(p.spriteLab === true);
       builder.setEquipmentReady(p.equipment === true);
@@ -717,11 +975,35 @@ function onWorldFact(name, p, fromPresence=false) {
     case 'seat-ok':
       R.seatAdmitted(p?.place ?? 0, p?.gen ?? 0);
       break;
+    /* Which browser session is this ship's live one. See lib/session-lease. */
+    case 'session':
+      sessionLease.heard(p);
+      break;
     /* The owner of a room we were in has given it back. Their browser may be
      * closed, so this is the only thing that can tell us. */
     case 'lease-gone':
       R.leaseGone(p?.who ?? null, p?.place ?? 0, p?.gen ?? 0);
       hud.setRoom(state.room);
+      break;
+    /* HOST-SHIP ADMISSION: our agent could not decide a knock alone, turned
+     * one of ours away on a host's behalf, or let somebody back in by itself. */
+    case 'call-knocked':
+      R.receiveKnocked(p?.who, p?.place, p?.attempt, p?.mode);
+      break;
+    case 'call-refused':
+      R.receiveShipRefusal(p?.who, p?.place, p?.attempt, p?.why);
+      break;
+    case 'admitted':
+      R.admittedByShip(p?.who, p?.place);
+      break;
+    /* THE DOOR: a lease owner's ship told us which note their room is, or that
+     * it is private to a note we are not in. */
+    case 'lease-info':
+      R.leaseInfo(p?.who, p?.place, p?.note, p?.vis, p?.gen ?? 0);
+      hud.setRoom(state.room);
+      break;
+    case 'lease-private':
+      R.leasePrivate(p?.who, p?.place);
       break;
     case 'peer-hosting':
       /* Somebody is holding a room. Without this both people walking into an
@@ -761,10 +1043,12 @@ function onWorldFact(name, p, fromPresence=false) {
   /* Calls are decided on positions; do not start one on positions the movement
    * layer cannot vouch for yet. */
   R.setPositionGate({ ready: () => movement?.ready() ?? true,
+    roster: () => movement?.rosterReady?.() ?? movement?.ready() ?? true,
     reliable: (ship) => movement?.reliable(ship) ?? true,
     confidence: (ship) => movement?.confidence(ship) ?? 'live-stationary' });
   await Promise.all([G.watchWorld(onWorldFact), R.initRooms()]);
   watching = true;
+  sessionLease.start();
   milestone('world-subscribed');
   movement.moved({ ...game.self, host: R.rooms.host ?? null });
   socialReady();
@@ -783,6 +1067,8 @@ function onWorldFact(name, p, fromPresence=false) {
   refreshNames();
   onChange(refreshNames, c => c.field === 'profiles');
   worldReady = true;
+  /* Our clocks, if our settings came in before the sky was there. */
+  game.setClocks(clocks.get().clocks);
   milestone('world-ready');
   /* Everyone presence found while the artwork loaded. */
   applyPresence();

@@ -14,9 +14,8 @@ import { rooms, onRooms, moderate, mayActOn, roleFor, mutedShip, bootedShip, can
          mayRecord, startRecording, stopRecording, recordingElapsed } from 'lib/rooms';
 import { displayName } from 'lib/noltbook';
 import { our } from 'lib/api';
+import { esc } from 'ui/html';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export class CallPanels {

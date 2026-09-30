@@ -33,6 +33,17 @@ export default defineConfig({
       ui: path.resolve('./src/ui'),
     },
   },
+  /* The stylesheet is a public file Vite does not fingerprint, so it was
+   * served "revalidate every time" and downloaded whole on every load. Its
+   * link carries its own content version instead: an unchanged stylesheet
+   * keeps its URL and stays cached, a changed one gets a new URL. */
+  plugins: [{
+    name: 'glurff-style-version',
+    transformIndexHtml(html) {
+      const v = crypto.createHash('sha256').update(fs.readFileSync('public/style.css')).digest('hex').slice(0, 12);
+      return html.replace('href="/apps/glurff/style.css"', `href="/apps/glurff/style.css?v=${v}"`);
+    },
+  }],
   build: { target: 'esnext', assetsInlineLimit: 0 },
   server: { host: '127.0.0.1', port: 3000 },
 });

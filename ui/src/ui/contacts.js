@@ -11,9 +11,9 @@ import {
 } from 'lib/noltbook';
 import { contactRows, palPresentation } from 'lib/contact-list';
 import { our } from 'lib/api';
+import { esc } from 'ui/html';
+import { normalizeSearch } from 'lib/search-basics';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const CONTACTS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.5-3.2 2.3-5 5.5-5s5 1.8 5.5 5"/><circle cx="17" cy="9" r="2.2"/><path d="M15.3 14.2c3.1-.7 5 .7 5.4 3.8"/></svg>';
 const avatar = (ship) => `<span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>`;
@@ -23,6 +23,7 @@ export class Contacts {
     this.root = root;
     this.onShowProfile = onShowProfile;
     this.open = false;
+    this.query = '';
     this.busy = new Map();
     root.className = 'contacts';
     root.innerHTML = `
@@ -51,24 +52,44 @@ export class Contacts {
 
   toggle(open) {
     this.open = open;
+    this.query = '';
+    const input = this.panel.querySelector('input');
+    if (input) input.value = '';
     this.btn.setAttribute('aria-expanded', String(open));
     this.paint();
+    if (open) this.panel.querySelector('input')?.focus();
+  }
+
+  /* A contact matches on their name or their @p, however it is typed. */
+  matches(row) {
+    const q = normalizeSearch(this.query);
+    if (!q) return true;
+    return normalizeSearch(row.name).includes(q) || normalizeSearch(row.ship).includes(q);
   }
 
   paint() {
     const rows = this.rows();
     const requests = rows.filter((row) => row.status === 'requested');
-    const others = rows.filter((row) => row.status !== 'requested');
     this.root.querySelector('.dot').hidden = requests.length === 0;
     this.panel.hidden = !this.open;
     if (!this.open) return;
+    /* The field is written once and only the list under it redraws: rebuilding
+     * it under the caret would drop keystrokes whenever a profile arrived. */
+    if (!this.panel.querySelector('input')) {
+      this.panel.innerHTML = '<input class="contacts-search" placeholder="Search contacts" aria-label="Search contacts" autocomplete="off"><div class="contacts-list"></div>';
+      const input = this.panel.querySelector('input');
+      input.oninput = () => { this.query = input.value; this.paint(); };
+    }
+    const shown = rows.filter((row) => this.matches(row));
+    const asks = shown.filter((row) => row.status === 'requested');
+    const others = shown.filter((row) => row.status !== 'requested');
     const section = (title, body) => `<div class="contacts-group">${title}</div>${body}`;
     let html = '';
-    if (requests.length) html += section('Pal requests', requests.map((row) => this.requestRow(row)).join(''));
+    if (asks.length) html += section('Pal requests', asks.map((row) => this.requestRow(row)).join(''));
     html += section('Contacts', others.length
       ? others.map((row) => this.contactRow(row)).join('')
-      : '<div class="dim pad">no other contacts yet</div>');
-    this.panel.innerHTML = html;
+      : `<div class="dim pad">${normalizeSearch(this.query) ? 'nobody matches' : 'no other contacts yet'}</div>`);
+    this.panel.querySelector('.contacts-list').innerHTML = html;
   }
 
   requestRow({ ship, name, status }) {

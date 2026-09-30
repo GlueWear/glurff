@@ -20,26 +20,55 @@ export class CallController {
     if(this.closed)return;
     if(target && this.current?.place===target.place && this.current.host===target.host)return;
     const old=this.current;
-    const keeping=!!(preserve && target && old && this.phase==='connected');
+    /* The call actually carrying audio: the current one once connected, or --
+     * while its replacement is being authorised or joining beside it -- the
+     * one it would replace. `previous` is only ever held while it is live
+     * (its socket dying clears it), so it is the one to keep. */
+    const live=!old?null:this.phase==='connected'?old:(old.previous??null);
+    const keeping=!!(preserve && target && live);
+    const leave=r=>{if(r && r.host!==this.our)this.send(r.host,{kind:'call-leave',place:r.place,attempt:r.attempt});};
     this.clearTimers();this.current=null;
-    if(!keeping && old && old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});
-    if(!keeping)this.sfu.close(null);
+    if(!keeping){leave(old);if(old?.previous)leave(old.previous);this.sfu.close(null);}
+    else if(live!==old){
+      /* Changing our mind mid-switch: the half-joined replacement goes, the
+       * call still carrying audio stays. */
+      leave(old);this.sfu.abandonNext?.(null);
+      if(live.place===target.place && live.host===target.host){
+        this.current=live;this.trace('call-transition-reverted',{place:live.place,host:live.host,reason:'reselected'});
+        this.emit('connected');this.scheduleRenew();return;
+      }
+    }
     if(!target){this.emit('idle');return;}
     for(const [place,r] of this.hosted)if(r.until<this.now())this.hosted.delete(place);
     this.current={...target,attempt:this.fresh(),mode:'renew-access',tries:0,failures:0,capacityFailures:0,grant:null,
-                  began:this.now(),acceptedHere:false,heardHost:false,previous:keeping?old:null};
+                  began:this.now(),acceptedHere:false,heardHost:false,previous:keeping?live:null};
     this.emit(keeping?'transitioning':'requesting');this.request();
   }
   bounded(pending,key,send) {
     if(this.closed)return false;
-    if(pending.has(key) || pending.size>=16) {
-      /* A skipped send used to leave no trace, so a retry that never left the
-       * browser looked identical to one the host ignored. */
-      this.trace('call-send-skipped',{reason:pending.has(key)?'pending':'full',count:pending.size});
+    const busy=pending.get(key);
+    if(busy) {
+      /* THE NEWEST WAITS, THE OLDER ONES DO NOT. A newer request for the same
+       * thing used to be dropped while an older one was stuck in flight -- for
+       * as long as that took. It is kept now, replacing anything already
+       * waiting, and goes the moment the one in flight settles. */
+      busy.next=send;
+      this.trace('call-send-skipped',{reason:'queued',count:pending.size});
       return false;
     }
-    const flight={};pending.set(key,flight);
-    const done=()=>{if(pending.get(key)===flight)pending.delete(key);};
+    if(pending.size>=16) {
+      /* A skipped send used to leave no trace, so a retry that never left the
+       * browser looked identical to one the host ignored. */
+      this.trace('call-send-skipped',{reason:'full',count:pending.size});
+      return false;
+    }
+    const flight={next:null};pending.set(key,flight);
+    const done=()=>{
+      if(pending.get(key)!==flight)return;
+      pending.delete(key);
+      const next=flight.next;
+      if(next && !this.closed)this.bounded(pending,key,next);
+    };
     try {const p=send();if(p?.then)Promise.resolve(p).then(done,done);else done();}
     catch{done();return false;}
     return true;
@@ -55,6 +84,20 @@ export class CallController {
       return p;
     });
     return sent;
+  }
+  /* ASK THE HOST'S SHIP. With a `knock` transport the request goes agent to
+   * agent over Ames -- the way the credential comes back -- and the host's
+   * agent answers it alone for anybody the host already let in: a renewal or
+   * a reconnect never waits on the host's browser. Without one, the request
+   * goes to the host's browser as before. Same attempt, same retries. */
+  ask(c,mode) {
+    const event={kind:'call-request',place:c.place,attempt:c.attempt,mode};
+    if(!this.transport.knock)return this.send(c.host,event);
+    return this.bounded(this.pendingSends,`${c.host}/call-request/${c.place}`,()=>{
+      const p=this.transport.knock(c.host,c.place,c.attempt,mode);
+      Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
+      return p;
+    });
   }
   /* What the person is actually waiting on, for the readout. Phases say what
    * the call is doing; this says who has not answered yet. */
@@ -80,7 +123,7 @@ export class CallController {
       }
       const op=room.ready?'renew-access':'open';
       this.operation(op,c.place,this.our,c.attempt);
-    } else this.send(c.host,{kind:'call-request',place:c.place,attempt:c.attempt,mode:c.mode});
+    } else this.ask(c,c.mode);
     c.retry=this.later(()=>{if(this.current===c)this.request();},Math.min(30000,4000*2**Math.min(c.tries-1,3)));
   }
   operation(op,place,who,attempt) {
@@ -193,24 +236,47 @@ export class CallController {
       this.scheduleRenew();return;
     }
     if(this.phase==='connecting')return;
-    /* Keep the old conversation audible while the replacement credential is
-     * being minted. Receipt of a usable grant is the commit point. */
-    if(c.previous){const old=c.previous;c.previous=null;
-      if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
+    /* CONNECT BEFORE BREAK. The old conversation stays audible while the
+     * replacement credential is minted AND while the new socket joins beside
+     * it; the commit point is the call server accepting us into the new room
+     * (see `status`). A replacement that cannot join is abandoned and we go
+     * back to the call we never left. With no live old call to keep, there is
+     * nothing to overlap and the old host is told now. */
     this.emit('connecting');
-    this.sfu.connect(p);
+    this.sfu.connect(p,{overlap:!!c.previous});
+    if(c.previous && !this.sfu.switching?.()){const old=c.previous;c.previous=null;
+      if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
     if(this.phase==='connecting')c.joining=this.later(()=>{if(this.current===c && this.phase==='connecting')this.reconnect('join-timeout');},45000);
   }
   status(phase,reason) {
-    if(!this.current)return;
+    const c=this.current;
+    if(!c)return;
     if(phase==='connected') {
-      this.cancel(this.current.joining);this.current.joining=null;this.current.failures=0;
+      /* The replacement joined: this is the commit point. Only now is the old
+       * host told we have gone. */
+      if(c.previous){const old=c.previous;c.previous=null;
+        if(old.host!==this.our && !(old.host===c.host && old.place===c.place))
+          this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});
+        this.trace('call-transition-committed',{place:c.place,host:c.host,reason:`${old.place}/${old.host}`});}
+      this.cancel(c.joining);c.joining=null;c.failures=0;
       this.emit('connected');this.scheduleRenew();return;
+    }
+    if(phase==='handoff-failed'){
+      /* The new room would not have us. The old call is still up -- go back
+       * to it, and tell the new host we are not coming after all. */
+      this.trace('call-handoff-failed',{place:c.place,host:c.host,reason:reason??''});
+      if(c.host!==this.our)this.send(c.host,{kind:'call-leave',place:c.place,attempt:c.attempt});
+      if(this.revertTransition(reason||'handoff-failed'))return;
+      this.reconnect(reason||'handoff-failed');
+      return;
     }
     if(phase==='failed' || phase==='closed'){
       /* While authorising a replacement, SFU status still belongs to the old
-       * socket. If that socket dies there is nothing left to preserve. */
-      if(this.current.previous)this.current.previous=null;
+       * socket. If that socket dies there is nothing left to preserve -- but a
+       * replacement already joining beside it is left to finish. */
+      if(c.previous){const old=c.previous;c.previous=null;
+        if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
+      if(this.sfu.switching?.())return;
       this.reconnect(reason||'disconnected');
     }
   }
@@ -231,7 +297,7 @@ export class CallController {
       const refresh=()=>{
         if(this.current!==c || this.phase!=='connected')return;
         if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
-        else this.send(c.host,{kind:'call-request',place:c.place,attempt:c.attempt,mode:'renew-access'});
+        else this.ask(c,'renew-access');
         c.retry=this.later(refresh,30000);
       };
       refresh();
@@ -256,7 +322,7 @@ export class CallController {
         c.retry=null;c.attempt=this.fresh();c.mode='renew-access';c.tries=0;c.reconnecting=false;
         if(live){
           if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
-          else this.send(c.host,{kind:'call-request',place:c.place,attempt:c.attempt,mode:c.mode});
+          else this.ask(c,c.mode);
           // A lost response consumes a bounded probe too. Do not schedule from
           // an already-expired grant and accidentally renew every second.
           c.retry=this.later(()=>{if(this.current===c)this.fail(error);},30000);
@@ -292,6 +358,18 @@ export class CallController {
     this.current=old;
     this.emit('connected');
     this.scheduleRenew();
+    return true;
+  }
+  /* Fresh credentials for the call we are in, now, without touching media:
+   * the call watchdog's second repair. A grant for a different room on the
+   * server reconnects; the same room just keeps the new token. */
+  refresh() {
+    const c=this.current;if(!c || this.closed || this.phase!=='connected')return false;
+    this.cancel(c.retry);
+    c.attempt=this.fresh();c.mode='renew-access';c.tries=0;
+    this.trace('call-refresh',{place:c.place,host:c.host,attempt:c.attempt});
+    if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
+    else this.ask(c,'renew-access');
     return true;
   }
   restored() {if(this.current && this.phase!=='connected' && this.phase!=='connecting' && this.phase!=='blocked')this.request();}

@@ -14,8 +14,8 @@ import * as ob from 'urbit-ob';
 /* The bundler exposes urbit-ob's functions by name; plain Node only as default. */
 const isValidPatp = ob.isValidPatp ?? ob.default?.isValidPatp;
 
-export const MIN_BODY_QUERY = 2;
-export const normalizeSearch = (s) => String(s ?? '').trim().toLowerCase().replace(/^[@~]+/, '');
+import { MIN_BODY_QUERY, normalizeSearch } from './search-basics.js';
+export { MIN_BODY_QUERY, normalizeSearch };
 
 /* A typed string that is a real @p, other than our own. */
 export function shipCandidate(query, our) {

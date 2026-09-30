@@ -30,6 +30,14 @@
 
 export const KIND = 'glurff.move';
 export const ACK_KIND = 'glurff.move-ack';
+/* THE WORLD'S LIVE CHANNEL. Everything live that is not a position -- who is
+ * here, call coordination, room lists, huddle rosters, handoffs -- rides the
+ * same relay, addressed to one ship's clients at a time. Galene attributes
+ * every message to the username in the sender's token, so the sender is the
+ * ship the relay host admitted, never a claim in the body. */
+export const CONTROL_KIND = 'glurff.ctl';
+/* A control message bigger than this is refused rather than sent. */
+export const CONTROL_MAX = 16384;
 export const DELIVERY_MS = 3000;
 const ACK_MS = 1000, REPAIR_MS = 2000;
 /* A start, a stop or a turn jumps the tick -- but no faster than this, so
@@ -48,6 +56,29 @@ const MAX_Y = 736;                        //  46 tiles * SUB
  * eight tiles a second; anything past twenty is not a walk. */
 const MAX_V = 20 * SUB;
 const DIRS = new Set(['down', 'right', 'up', 'left']);
+const DIR_LIST = ['down', 'right', 'up', 'left'];
+/* THE WIRE, COMPACT. A position is an array rather than an object with named
+ * fields:  [s, t, x, y, dir, moving, vx, vy, scene, host, gen, ack]
+ * and the host and session generation -- the two longest things in it -- ride
+ * only when they change, to somebody new, or every HEADER_MS; `null` there
+ * means "as before". An acknowledgement of the receiver's own last position
+ * rides along instead of going as a message of its own. */
+export const HEADER_MS = 2000;
+export function encodePosition(p, s, { header = true, ack = null } = {}) {
+  return [s, p.t, p.x, p.y, Math.max(0, DIR_LIST.indexOf(p.dir)), p.moving ? 1 : 0,
+    p.vx || 0, p.vy || 0, p.scene === 'vatican' ? 1 : 0,
+    header ? (p.host ?? '') : null, header ? (p.gen || 0) : null, ack];
+}
+/* Either form, into the named one. `prior` is what this sender's last header
+ * said, for the fields they left as "as before". */
+export function decodePosition(v, prior = {}) {
+  if (!Array.isArray(v)) return v && typeof v === 'object' ? v : null;
+  const [s, t, x, y, d, m, vx, vy, z, h, g, a] = v;
+  return { s, t, x, y, d: DIR_LIST[d], m, vx, vy, z,
+    h: h === null || h === undefined ? prior.h ?? null : (h || null),
+    g: g === null || g === undefined ? prior.g ?? 0 : g,
+    ...(a !== null && a !== undefined ? { a } : {}), header: h !== null && h !== undefined };
+}
 const PROTOCOL_VERSION = '2';
 const MAX_TRACKED = 512;
 
@@ -73,6 +104,7 @@ export function createMovementRelay({
   onPosition = () => {},                  //  (ship, {x,y,dir}, {t, seq, host, client})
   onStatus = () => {},                    //  (state, reason)
   onRoster = () => {},                    //  (Set<ship>) ships connected to this room
+  onControl = () => {},                   //  (ship, body) a control message from a ship here
   diagnostic = () => {},
 } = {}) {
   let ws = null;
@@ -93,9 +125,15 @@ export function createMovementRelay({
   const lastSeq = new Map();              //  galene client id -> last accepted seq
   const lag = new Map();                  //  ship -> {min, last, max}
   const deliveries = new Map(), acknowledgements = new Map(), receivedAt = new Map();
+  const headers = new Map();              //  client id -> {h, g}: the last header they sent us
+  const told = new Map();                 //  client id -> {h, g, at}: the last header we sent them
+  /* Clients to send our LATEST position to, without a new one to send
+   * everybody: a newcomer, or somebody nothing has got through to. */
+  const resend = new Set();
   let lastAckFlush = -Infinity, lastRepair = -Infinity, lastUrgent = -Infinity;
   const counts = { sent: 0, dropped: 0, received: 0, stale: 0, invalid: 0,
-                   refused: 0, reconnects: 0, unrouted: 0, ackSent:0, ackReceived:0, repairs:0 };
+                   refused: 0, reconnects: 0, unrouted: 0, ackSent:0, ackReceived:0, repairs:0,
+                   controlSent: 0, controlReceived: 0, controlDropped: 0 };
 
   /* DELIVERY IS PER PERSON, NOT PER TAB. One ship may be connected from more
    * than one client -- a reloaded tab whose old connection has not been cleaned
@@ -138,6 +176,7 @@ export function createMovementRelay({
     const had = users.size > 0;
     users.clear();
     deliveries.clear();acknowledgements.clear();receivedAt.clear();
+    headers.clear();told.clear();resend.clear();
     if (had) onRoster(roster());
   }
 
@@ -224,12 +263,14 @@ export function createMovementRelay({
       case 'user':
         if (typeof m.id !== 'string' || m.id === clientId) return;
         if (m.kind === 'delete') {
-          if (users.delete(m.id)) { lastSeq.delete(m.id);deliveries.delete(m.id);acknowledgements.delete(m.id);receivedAt.delete(m.id);onRoster(roster()); }
+          if (users.delete(m.id)) { lastSeq.delete(m.id);deliveries.delete(m.id);acknowledgements.delete(m.id);receivedAt.delete(m.id);
+            headers.delete(m.id);told.delete(m.id);resend.delete(m.id);onRoster(roster()); }
           return;
         }
         if (isShip(m.username) && users.get(m.id) !== m.username && (users.has(m.id) || users.size < MAX_TRACKED)) {
           users.set(m.id, m.username);
-          if (routes.has(m.username) && latest) pending = latest;
+          /* Somebody entitled to see us arrived: just them, our latest. */
+          if (routes.has(m.username) && latest) resend.add(m.id);
           onRoster(roster());
         }
         return;
@@ -241,12 +282,14 @@ export function createMovementRelay({
           return;
         }
         if (m.kind === KIND) receive(m);
-        if (m.kind === ACK_KIND) {
-          const d=deliveries.get(m.source), s=m.value?.s;
-          if(users.has(m.source) && d && Number.isSafeInteger(s) && s>d.acked && s<=d.sent){
-            d.acked=s;d.lastAckAt=now();counts.ackReceived++;
-          }
+        if (m.kind === CONTROL_KIND) {
+          const who = typeof m.source === 'string' ? users.get(m.source) : null;
+          if (!who || who === our || !m.value || typeof m.value !== 'object') return;
+          counts.controlReceived++;
+          try { onControl(who, m.value); } catch {}
+          return;
         }
+        if (m.kind === ACK_KIND) acknowledged(m.source, m.value?.s);
         return;
       case 'abort':
         teardown(); lost('aborted');
@@ -265,7 +308,7 @@ export function createMovementRelay({
     const from = typeof m.source === 'string' ? m.source : null;
     const who = from && users.get(from);
     if (!who || who === our) return;
-    const v = m.value;
+    const v = decodePosition(m.value, headers.get(from));
     if (!v || !Number.isSafeInteger(v.s) || !Number.isFinite(v.t) ||
         !Number.isSafeInteger(v.x) || !Number.isSafeInteger(v.y) ||
         v.x < 0 || v.y < 0 || v.x > MAX_X || v.y > MAX_Y || !DIRS.has(v.d) ||
@@ -274,10 +317,16 @@ export function createMovementRelay({
         //  Velocity and the walking flag are optional: an older sender has neither.
         (v.vx != null && !(Number.isSafeInteger(v.vx) && Math.abs(v.vx) <= MAX_V)) ||
         (v.vy != null && !(Number.isSafeInteger(v.vy) && Math.abs(v.vy) <= MAX_V)) ||
-        (v.m != null && v.m !== 0 && v.m !== 1)) {
+        (v.m != null && v.m !== 0 && v.m !== 1) ||
+        //  The sender's session generation, issued by its agent. Optional.
+        (v.g != null && !(Number.isSafeInteger(v.g) && v.g >= 0)) ||
+        (v.a != null && !Number.isSafeInteger(v.a))) {
       counts.invalid++;
       return;
     }
+    if (v.header) { headers.set(from, { h: v.h ?? null, g: v.g ?? 0 }); if (headers.size > MAX_TRACKED) headers.delete(headers.keys().next().value); }
+    /* An acknowledgement of OUR last position, riding with theirs. */
+    if (v.a != null) acknowledged(from, v.a);
     /* Ordered per CLIENT, not per ship: two tabs of one ship each number their
      * own positions, and ship-level recency is decided by `t` downstream. */
     const k = from ?? who;
@@ -300,7 +349,7 @@ export function createMovementRelay({
 
     const accepted=onPosition(who, { x: v.x / SUB, y: v.y / SUB, dir: v.d,
                                       scene: v.z === 1 ? 'vatican' : 'main' },
-               { t: v.t, seq: v.s, host: v.h ?? null, client: from,
+               { t: v.t, seq: v.s, host: v.h ?? null, client: from, gen: v.g ?? 0,
                  //  Undefined, not false, from a sender that does not send them:
                  //  the receiver then works movement out from the positions.
                  vx: v.vx == null ? undefined : v.vx / SUB,
@@ -312,6 +361,13 @@ export function createMovementRelay({
     if(accepted!==false)acknowledgements.set(from,v.s);
   }
 
+  function acknowledged(source, s) {
+    const d = deliveries.get(source);
+    if (users.has(source) && d && Number.isSafeInteger(s) && s > d.acked && s <= d.sent) {
+      d.acked = s; d.lastAckAt = now(); counts.ackReceived++;
+    }
+  }
+
   function flush() {
     if (!ws) return;
     if ((!joined && now() - openedAt >= 15000) || now() - lastHeard >= 35000) {
@@ -321,43 +377,54 @@ export function createMovementRelay({
       lastPing = now(); raw({ type: 'ping' });
     }
     if (!joined || state !== LIVE) return;
-    if(now()-lastAckFlush>=ACK_MS && ws.bufferedAmount<=BUFFER_LIMIT){
+    /* Repair only for a PERSON nothing is getting through to: every client of
+     * theirs is behind. One stalled client beside a live one is a dead tab, not
+     * a lost position. And only THEY are sent it again -- everybody else
+     * already has it. */
+    if(!pending && latest && now()-lastRepair>=REPAIR_MS){
+      let repaired=false;
+      for(const ship of routes){const c=clientsOf(ship);if(c.length>0 && c.every(stalled)){for(const id of c)resend.add(id);repaired=true;}}
+      if(repaired){lastRepair=now();counts.repairs++;}
+    }
+    const position = pending ?? (resend.size ? latest : null);
+    if (position) {
+      const targets = [];
+      for (const [id, who] of users) if (routes.has(who) && (pending || resend.has(id))) targets.push(id);
+      /* Nobody entitled to see us is here yet: keep the position for when they
+       * arrive instead of throwing it away. */
+      if (!targets.length) { if (pending) counts.unrouted++; resend.clear(); }
+      else if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; }
+      else {
+        const s = ++seq;
+        let all = true;
+        for (const id of targets) {
+          if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; all = false; break; }
+          const was = told.get(id);
+          const header = !was || was.h !== (position.host ?? '') || was.g !== (position.gen || 0) || now() - was.at >= HEADER_MS;
+          const ack = acknowledgements.get(id) ?? null;
+          const value = encodePosition(position, s, { header, ack });
+          if (!raw({ type: 'usermessage', source: clientId, dest: id, kind: KIND, value })) { all = false; break; }
+          if (header) told.set(id, { h: position.host ?? '', g: position.gen || 0, at: now() });
+          if (ack !== null) { acknowledgements.delete(id); counts.ackSent++; }
+          resend.delete(id);
+          const d=deliveries.get(id)??{sent:0,acked:0,lastAckAt:0,firstUnackedAt:now()};
+          if(d.sent===d.acked)d.firstUnackedAt=now();
+          d.sent=s;d.lastSentAt=now();deliveries.set(id,d);
+          counts.sent++;
+        }
+        /* A local send only queues bytes. Application ACKs independently verify
+         * delivery; repair always resends the latest position, never a journey. */
+        if (all && pending) pending = null;
+      }
+    }
+    /* Acknowledgements nobody's position carried this tick go on their own. */
+    if(acknowledgements.size && now()-lastAckFlush>=ACK_MS && ws.bufferedAmount<=BUFFER_LIMIT){
       lastAckFlush=now();
       for(const [id,s] of acknowledgements){
         if(ws.bufferedAmount>BUFFER_LIMIT || !raw({type:'usermessage',source:clientId,dest:id,kind:ACK_KIND,value:{s}}))break;
         acknowledgements.delete(id);counts.ackSent++;
       }
     }
-    /* Repair only for a PERSON nothing is getting through to: every client of
-     * theirs is behind. One stalled client beside a live one is a dead tab, not
-     * a lost position. */
-    if(!pending && latest && now()-lastRepair>=REPAIR_MS && [...routes].some(ship=>{const c=clientsOf(ship);return c.length>0 && c.every(stalled);})){
-      pending=latest;lastRepair=now();counts.repairs++;
-    }
-    if(!pending)return;
-    const targets = [];
-    for (const [id, who] of users) if (routes.has(who)) targets.push(id);
-    /* Nobody entitled to see us is here yet: keep the position for when they
-     * arrive instead of throwing it away. */
-    if (!targets.length) { counts.unrouted++; return; }
-    if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; return; }
-    const value = { s: ++seq, t: pending.t, x: pending.x, y: pending.y, d: pending.dir,
-                    ...(pending.scene === 'vatican' ? { z: 1 } : {}),
-                    ...(pending.host ? { h: pending.host } : {}),
-                    ...(pending.vx || pending.vy ? { vx: pending.vx, vy: pending.vy } : {}),
-                    m: pending.moving ? 1 : 0 };
-    let all = true;
-    for (const id of targets) {
-      if (ws.bufferedAmount > BUFFER_LIMIT) { counts.dropped++; all = false; break; }
-      if (!raw({ type: 'usermessage', source: clientId, dest: id, kind: KIND, value })) { all = false; break; }
-      const d=deliveries.get(id)??{sent:0,acked:0,lastAckAt:0,firstUnackedAt:now()};
-      if(d.sent===d.acked)d.firstUnackedAt=now();
-      d.sent=value.s;d.lastSentAt=now();deliveries.set(id,d);
-      counts.sent++;
-    }
-    /* A local send only queues bytes. Application ACKs independently verify
-     * delivery; repair always resends the latest position, never a journey. */
-    if (all) pending = null;
   }
 
   return {
@@ -401,13 +468,15 @@ export function createMovementRelay({
       pending = latest = { x: Math.round(p.x * SUB), y: Math.round(p.y * SUB), dir: p.dir, t: now(),
                   scene: p.scene === 'vatican' ? 'vatican' : 'main',
                   host: isShip(p.host) ? p.host : null,
-                  vx: wire(p.vx), vy: wire(p.vy), moving: !!p.moving };
+                  vx: wire(p.vx), vy: wire(p.vy), moving: !!p.moving,
+                  gen: Number.isSafeInteger(p.gen) && p.gen > 0 ? p.gen : 0 };
       if (urgent && now() - lastUrgent >= URGENT_MS) { lastUrgent = now(); flush(); }
     },
     /* Ships allowed to see us. Positions go to these and no others. */
     route(ships) {
       const next = new Set(ships);
-      if (latest && [...next].some(s => !routes.has(s))) pending = latest;
+      /* Newly allowed to see us: they, and only they, get our latest. */
+      if (latest) for (const s of next) if (!routes.has(s)) for (const id of clientsOf(s)) resend.add(id);
       routes = next;
       for(const id of deliveries.keys())if(!routes.has(users.get(id)))deliveries.delete(id);
     },
@@ -419,6 +488,20 @@ export function createMovementRelay({
     ships: roster,
     has: (ship) => { for (const who of users.values()) if (who === ship) return true; return false; },
     delivering: ship => { const c=clientsOf(ship); return c.length>0 && c.some(acking); },
+    /* One control message to every client of one ship that is here. False if
+     * they are not here, we are not live, or it would not fit. */
+    control(ship, body) {
+      if (!joined || state !== LIVE || !isShip(ship) || ship === our) return false;
+      const ids = clientsOf(ship);
+      if (!ids.length) return false;
+      let size = 0;
+      try { size = JSON.stringify(body).length; } catch { return false; }
+      if (size > CONTROL_MAX) { counts.controlDropped++; return false; }
+      let any = false;
+      for (const id of ids) if (raw({ type: 'usermessage', source: clientId, dest: id, kind: CONTROL_KIND, value: body })) any = true;
+      if (any) counts.controlSent++; else counts.controlDropped++;
+      return any;
+    },
     stats: () => ({
       ...counts, state, joined, permissions,
       peers: users.size, routed: routes.size,

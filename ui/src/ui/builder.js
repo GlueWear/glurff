@@ -11,9 +11,8 @@
  */
 import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf } from 'world/parts';
 import { paintCharacter } from 'world/paint';
+import { esc } from 'ui/html';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const title = (s) => String(s).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 export class Builder {

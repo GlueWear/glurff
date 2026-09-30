@@ -28,6 +28,14 @@ export const HEARTBEAT_MS = 20000;
 /* How long to wait for the note owner's ship to answer before saying so. A
  * remote allocation is an Ames round trip, so it is not instant. */
 export const ANSWER_MS = 12000;
+/* Asking again when nobody answered, or when the call server would not keep
+ * us: a few times, further apart each time, then stop and say so. The note's
+ * own snapshots still re-ask the moment its call changes -- that is news, and
+ * news is always worth acting on; silence is not. */
+export const RETRY_MS = [2000, 6000, 15000, 30000, 60000];
+/* Re-making the private credential watch after it failed. Without it a grant
+ * has nowhere to arrive, so this one does not give up while we are in a room. */
+export const WATCH_RETRY_MS = [1000, 3000, 8000, 20000];
 
 /* Noltbook's grant, in the shape SfuSession already speaks. Nothing is
  * reinterpreted: the same token, the same group, the same ICE servers. */
@@ -53,12 +61,48 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
    * reporting it every time would be noise. */
   let ended = false;
   let subscribed = null;
+  let tries = 0, retrying = null, watchTries = 0, rewatch = null;
 
   const poke = (a, data) => { try { Promise.resolve(action(a, data)).catch(() => {}); } catch {} };
   const say = (status, why = null) => { trace('note-call', { note: note ?? '', status, reason: why ?? '' }); onStatus?.(status, why); };
 
   function stopBeat() { if (beat) stopEvery(beat); beat = null; }
   function stopWaiting() { cancel(waiting); waiting = null; }
+  function stopRetry() { cancel(retrying); retrying = null; }
+
+  /* ONE path for every automatic re-ask, so a failing call server and a
+   * silent note owner cannot, between them, turn into a request per event. */
+  function again(reason) {
+    if (!note || retrying) return false;
+    if (tries >= RETRY_MS.length) {
+      trace('note-call', { note, status: 'gave-up', reason, tries });
+      say('failed', reason === 'no answer' ? 'note owner not answering' : 'call unreachable');
+      return false;
+    }
+    const delay = RETRY_MS[tries++];
+    trace('note-call', { note, status: 'retry', reason, delay, tries });
+    retrying = later(() => { retrying = null; if (note) { callId = null; ask(); } }, delay);
+    return true;
+  }
+
+  /* The credential path. A failure here used to be rethrown into a promise
+   * nobody held -- an unhandled rejection -- and then nothing tried again, so
+   * a grant minted afterwards had nowhere to land. */
+  function subscribe() {
+    if (subscribed) return;
+    cancel(rewatch); rewatch = null;
+    let made;
+    try { made = Promise.resolve(watch((fact) => api.receive(fact))); }
+    catch (e) { made = Promise.reject(e); }
+    subscribed = made.then(() => { watchTries = 0; }, (e) => {
+      subscribed = null;
+      trace('note-call', { note: note ?? '', status: 'watch-failed', reason: String(e?.message ?? e ?? '').slice(0, 80) });
+      if (!note) return;
+      say('waiting', 'no credential channel');
+      const delay = WATCH_RETRY_MS[Math.min(watchTries++, WATCH_RETRY_MS.length - 1)];
+      rewatch = later(() => { rewatch = null; if (note) { subscribe(); ask(); } }, delay);
+    });
+  }
 
   /* Ask for the call. Starting and joining are the same intent from here --
    * Noltbook decides which it is, and does the right thing when somebody beat
@@ -75,11 +119,11 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
     stopWaiting();
     waiting = later(() => {
       waiting = null;
-      if (note && !callId) say('waiting', 'no answer');
+      if (note && !callId) { say('waiting', 'no answer'); again('no answer'); }
     }, ANSWER_MS);
   }
 
-  return {
+  const api = {
     /* The room we are standing in is leased to this note. */
     async enter(next) {
       if (note === next) return;
@@ -91,13 +135,7 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
       /* One subscription for the life of the tab: the credential path is
        * same-ship and carries no backlog, so re-subscribing would only lose
        * grants that arrive while it is being re-made. */
-      if (!subscribed) {
-        subscribed = watch((fact) => this.receive(fact)).catch((e) => {
-          subscribed = null;
-          say('failed', 'no credential channel');
-          throw e;
-        });
-      }
+      subscribe();
       ask();
       stopBeat();
       beat = every(() => { if (note) poke('call-heartbeat', { noteId: note }); }, HEARTBEAT_MS);
@@ -114,6 +152,7 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
       if (p.type !== 'granted') return false;
       if (p.participant && p.participant !== our) return false;
       stopWaiting();
+      stopRetry();
       callId = p.callId ?? null;
       onGrant?.(grantOf(p));
       return true;
@@ -131,7 +170,9 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
         return;
       }
       ended = false;
-      if (callId && live.callId !== callId) { callId = null; ask(snap); }
+      /* A live call where there was none, or a new one: news. Ask now, and
+       * let the back-off start again from the beginning. */
+      if (callId && live.callId !== callId) { callId = null; tries = 0; stopRetry(); ask(snap); }
       else if (!callId) {
         const participants = Array.isArray(live.participants) ? live.participants : [];
         const admitted = participants.includes(our);
@@ -150,11 +191,17 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
 
     /* The credential is short-lived; Noltbook reissues on request. */
     renew() { if (note) poke('renew-call-access', { noteId: note }); },
-    retry() { if (note) ask(); },
+    /* The call server would not keep us: re-ask, backed off. */
+    retry(reason = 'call failed') { return again(reason); },
+    /* Media actually flowing: whatever went wrong before is over. */
+    connected() { tries = 0; stopRetry(); },
 
     leave() {
       stopBeat();
       stopWaiting();
+      stopRetry();
+      cancel(rewatch); rewatch = null;
+      tries = 0;
       if (note) poke('leave-call', { noteId: note });
       note = null;
       callId = null;
@@ -166,5 +213,7 @@ export function createNoteCall({ our, onGrant, onStatus, calls = () => ({}),
     note: () => note,
     callId: () => callId,
     inCall: () => !!note && !!callId,
+    retries: () => tries,
   };
+  return api;
 }

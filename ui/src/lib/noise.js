@@ -7,7 +7,10 @@ export async function processMicrophone(rawStream) {
   let ctx, node, source, output, closed = false, timer;
   const stopProcessor = () => { node?.port.postMessage({type:'stop'});source?.disconnect();node?.disconnect();output?.getTracks().forEach(t=>t.stop());ctx?.close().catch(()=>{}); };
   const cleanup = () => { if (closed) return;closed=true;stopProcessor();rawStream.getTracks().forEach(t=>t.stop()); };
-  if (!noiseReduction() || !window.AudioWorkletNode || !window.AudioContext) return {stream:rawStream,cleanup};
+  /* `raw` and `context` go back too: the call watches the real microphone
+   * and the processing, not only what comes out -- a processed track stays
+   * "live" and sends silence after the microphone behind it has gone. */
+  if (!noiseReduction() || !window.AudioWorkletNode || !window.AudioContext) return {stream:rawStream,cleanup,raw,context:null};
   try {
     ctx = new AudioContext({sampleRate:48000,latencyHint:'interactive'});
     await Promise.race([(async()=>{
@@ -21,10 +24,10 @@ export async function processMicrophone(rawStream) {
     source=ctx.createMediaStreamSource(rawStream);
     const dest=ctx.createMediaStreamDestination();source.connect(node).connect(dest);output=dest.stream;
     node.onprocessorerror=()=>{ if(closed)return;node.disconnect();raw.applyConstraints({noiseSuppression:{ideal:true}}).catch(()=>{});source.disconnect();source.connect(dest); };
-    return {stream:output,cleanup};
+    return {stream:output,cleanup,raw,context:ctx};
   } catch {
     closed=true;stopProcessor();
     await raw.applyConstraints({noiseSuppression:{ideal:true}}).catch(()=>{});
-    return {stream:rawStream,cleanup:()=>rawStream.getTracks().forEach(t=>t.stop())};
+    return {stream:rawStream,cleanup:()=>rawStream.getTracks().forEach(t=>t.stop()),raw,context:null};
   } finally {clearTimeout(timer);}
 }

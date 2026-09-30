@@ -18,10 +18,14 @@ import { our } from 'lib/api';
 import { bioHtml, externalAvatar } from 'lib/profile-text';
 import { sendNock, sendBlocked } from 'lib/wallet';
 import { paintCharacter } from 'world/paint';
-import * as ob from 'urbit-ob';
+/* urbit-ob, and the big-number library behind it, is loaded the first time a
+ * profile card is opened rather than with the app: nothing else needs it. */
+let ob = null, obLoading = null;
+const loadOb = () => obLoading ??= import('urbit-ob')
+  .then((m) => { ob = m.clan ? m : m.default ?? m; return ob; }, () => null);
+import { esc } from 'ui/html';
+import { MAX_CLOCKS, LABEL_MAX, SIZE_MIN, SIZE_MAX, validZone, localZone, addClock, zoneChoices, GOLD_HUE } from 'lib/clocks';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const canvasBlob = (canvas, quality) => new Promise((resolve) =>
   canvas.toBlob(resolve, 'image/jpeg', quality));
@@ -57,6 +61,7 @@ async function resizeAvatar(file) {
  * will produce. A comet is self-signed and stops the walk on its own.
  */
 function azimuth(ship) {
+  if (!ob) return null;
   let rank, point;
   try {
     rank = ob.clan(ship);
@@ -93,8 +98,17 @@ const PAL_TITLE = {
   none: 'Send a pal request',
 };
 
+/* A time zone dropdown with `zone` chosen: every zone the browser knows, by
+ * region; see zoneChoices. */
+function zoneSelect(zone) {
+  return `<select class="clock-zone">${zoneChoices(zone).map(({ region, zones }) => {
+    const opts = zones.map((z) => `<option value="${esc(z.zone)}"${z.zone === zone ? ' selected' : ''}>${esc(z.label)}</option>`).join('');
+    return region ? `<optgroup label="${esc(region)}">${opts}</optgroup>` : opts;
+  }).join('')}</select>`;
+}
+
 export class ProfileCard {
-  constructor(root, { onOpenDm, look, onEditCharacter } = {}) {
+  constructor(root, { onOpenDm, look, onEditCharacter, presenceOf, onWave, clocks = null, onArrangeClocks } = {}) {
     this.root = root;
     this.root.className = 'card-overlay';
     this.root.hidden = true;
@@ -104,6 +118,13 @@ export class ProfileCard {
      * editor is opened by clicking it. */
     this.look = look ?? (() => null);
     this.onEditCharacter = onEditCharacter ?? (() => {});
+    /* Whether they are in the world with us, and asleep since when; and how to
+     * wave at them. See lib/waves. */
+    this.presenceOf = presenceOf ?? (() => null);
+    this.onWave = onWave ?? (async () => ({ ok: false, why: 'absent' }));
+    /* Our clocks in the sky, edited with the rest of our profile; see lib/clocks. */
+    this.clocks = clocks;
+    this.onArrangeClocks = onArrangeClocks ?? (() => {});
     this.sending = false;
     this.editing = false;
     this.saving = false;
@@ -146,6 +167,83 @@ export class ProfileCard {
     this.root.innerHTML = '';
   }
 
+  /* ---- OUR CLOCKS: text, time zone and size for each, and more of them.
+   * Every change shows in the sky at once and is kept a moment later; the list
+   * is only redrawn when a clock is added or removed, never under the caret. */
+  paintClocks() {
+    const list = this.root.querySelector('.clock-list');
+    if (!list) return;
+    const all = this.clocks.get().clocks;
+    list.innerHTML = all.map((c, i) => `<div class="clock-row" data-id="${esc(c.id)}">
+      <div class="clock-top"><span class="dim">${i === 0 ? 'YOUR PLANET' : `CLOCK ${i + 1}`}</span>${i === 0 ? '' : '<button type="button" class="clock-remove" title="Remove this clock">&times;</button>'}</div>
+      <label><span>TEXT</span><input class="clock-label" maxlength="${LABEL_MAX}" value="${esc(c.label)}" autocomplete="off"></label>
+      <label><span>${i === 0 ? 'YOUR TIME ZONE' : 'TIME ZONE'}</span>${zoneSelect(c.zone)}</label>
+      ${i === 0 ? '<button type="button" class="clock-here">USE THIS COMPUTER\'S TIME ZONE</button>' : ''}
+      <label><span>SIZE</span><input class="clock-size" type="range" min="${SIZE_MIN * 100}" max="${SIZE_MAX * 100}" step="5" value="${Math.round(c.size * 100)}"></label>
+      <label><span>DAY COLOUR</span><span class="hue-row"><input class="clock-hue" type="range" min="0" max="359" step="1" value="${c.hue ?? GOLD_HUE}" title="Its colour by day; night stays grey"><button type="button" class="clock-gold"${c.hue === null ? ' disabled' : ''} title="Back to gold">GOLD</button></span></label>
+    </div>`).join('');
+    const add = this.root.querySelector('.b-add-clock');
+    if (add) add.hidden = all.length >= MAX_CLOCKS;
+  }
+
+  wireClocks() {
+    const box = this.root.querySelector('.card-clocks');
+    if (!box) return;
+    this.paintClocks();
+    const change = (id, fn) => this.clocks.update((s) => {
+      const c = s.clocks.find((k) => k.id === id);
+      if (c) fn(c, s);
+      return s;
+    });
+    const idOf = (el) => el.closest('.clock-row')?.dataset.id;
+    box.addEventListener('input', (e) => {
+      const t = e.target, id = idOf(t);
+      if (!id) return;
+      if (t.classList.contains('clock-label')) change(id, (c) => { c.label = t.value; });
+      if (t.classList.contains('clock-size')) change(id, (c) => { c.size = Number(t.value) / 100; });
+      if (t.classList.contains('clock-hue')) {
+        change(id, (c) => { c.hue = Math.round(Number(t.value)) % 360; });
+        const gold = t.closest('.clock-row').querySelector('.clock-gold');
+        if (gold) gold.disabled = false;
+      }
+    });
+    box.addEventListener('change', (e) => {
+      const t = e.target, id = idOf(t);
+      if (!id || !t.classList.contains('clock-zone')) return;
+      const zone = t.value.trim();
+      if (validZone(zone)) change(id, (c) => { c.zone = zone; });
+    });
+    box.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t.closest('.b-arrange')) { this.close(); this.onArrangeClocks(); return; }
+      if (t.closest('.b-add-clock')) {
+        this.clocks.update((s) => addClock(s, s.clocks[0]?.zone === localZone() ? 'UTC' : localZone()) ?? s);
+        this.paintClocks();
+        return;
+      }
+      const id = idOf(t);
+      if (!id) return;
+      if (t.closest('.clock-remove')) {
+        this.clocks.update((s) => ({ ...s, clocks: s.clocks.filter((c) => c.id !== id) }));
+        this.paintClocks();
+      }
+      if (t.closest('.clock-gold')) {
+        change(id, (c) => { c.hue = null; });
+        const row = t.closest('.clock-row');
+        row.querySelector('.clock-hue').value = GOLD_HUE;
+        t.disabled = true;
+        return;
+      }
+      if (t.closest('.clock-here')) {
+        const zone = localZone();
+        change(id, (c) => { c.zone = zone; });
+        const select = t.closest('.clock-row').querySelector('.clock-zone');
+        if (![...select.options].some((o) => o.value === zone)) select.insertAdjacentHTML('afterbegin', `<option value="${esc(zone)}">${esc(zone)}</option>`);
+        select.value = zone;
+      }
+    });
+  }
+
   /* A line under the buttons, without rebuilding the card under the caret. */
   say(text) {
     this.status = text;
@@ -157,6 +255,8 @@ export class ProfileCard {
     const ship = this.ship;
     const status = palStatus(ship);
     const blocked = status === 'blocked';
+    /* The rank and sponsor line fills in a moment later the first time. */
+    if (!ob) loadOb().then((loaded) => { if (loaded && this.ship === ship && !this.root.hidden && !this.editing) this.paint(); });
     const az = azimuth(ship);
     const av = avatarUrl(ship);
     const notes = nb.remoteNotes[ship] ?? [];
@@ -166,6 +266,8 @@ export class ProfileCard {
     const profile = nb.profiles[ship] ?? {};
     const bio = profileBio(ship);
     const externalUrl = profile.avatar?.type === 'external' ? profile.avatar.url ?? '' : '';
+    const here = ship === our ? null : this.presenceOf(ship);
+    const idleMin = Number.isFinite(here?.idleSince) ? Math.max(1, Math.round((Date.now() - here.idleSince) / 60000)) : null;
 
     this.root.innerHTML = `
       <div class="card">
@@ -185,7 +287,7 @@ export class ProfileCard {
           <div class="card-sprite-slot"></div>
           <div class="card-me-text">${ship === our
             ? '<span class="dim">Your character</span><button class="b-edit">EDIT CHARACTER</button>'
-            : '<span class="dim">In Glurff now</span>'}</div>
+            : `<span class="dim">${idleMin ? `In Glurff · idle ${idleMin} min` : 'In Glurff now'}</span>`}</div>
         </div>` : ''}
         ${ship === our ? `${this.editing ? '' : '<div class="card-btns"><button class="b-profile-edit">EDIT PROFILE</button></div>'}
         ${this.editing ? `<form class="card-profile-form">
@@ -201,8 +303,14 @@ export class ProfileCard {
             <button type="submit" class="b-profile-save"${this.saving ? ' disabled' : ''}>${this.saving ? 'SAVING…' : 'SAVE'}</button>
           </div>
           <div class="profile-edit-status" role="status">${esc(this.editError)}</div>
-        </form>` : ''}` : `
+        </form>
+        ${this.clocks ? `<div class="card-clocks">
+          <div class="clocks-head"><span>CLOCKS</span><button type="button" class="b-arrange" title="Drag your clocks where you want them">ARRANGE</button></div>
+          <div class="clock-list"></div>
+          <button type="button" class="b-add-clock">ADD CLOCK</button>
+        </div>` : ''}` : ''}` : `
         <div class="card-btns">
+          ${here?.inWorld && !blocked ? '<button class="b-wave" title="Get their attention">WAVE</button>' : ''}
           <button class="b-send">SEND $NOCK</button>
           <button class="b-dm">${dm ? 'OPEN DM' : 'DM'}</button>
           <button class="b-pal pal-${esc(status)}" title="${esc(PAL_TITLE[status] ?? PAL_TITLE.none)}">${PAL_LABEL[status] ?? 'ADD PAL'}</button>
@@ -242,6 +350,7 @@ export class ProfileCard {
       retry.onclick = () => retryProfile(ship);
       retry.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); retryProfile(ship); } };
     }
+    if (ship === our && this.editing && this.clocks) this.wireClocks();
     if (ship === our) {
       const edit = q('.b-profile-edit');
       if (edit) edit.onclick = () => {
@@ -333,6 +442,14 @@ export class ProfileCard {
         }
       };
     }
+    const wave = q('.b-wave');
+    if (wave) wave.onclick = async () => {
+      wave.disabled = true;
+      const r = await this.onWave(ship);
+      if (this.ship !== ship) return;
+      wave.disabled = false;
+      this.say(r.ok ? 'Waved 👋' : r.why === 'soon' ? 'You just waved. Give them a moment.' : 'Not in Glurff right now.');
+    };
     q('.b-dm').onclick = () => { this.onOpenDm(ship); this.close(); };
     q('.b-pal').onclick = () => {
       if (blocked) return;

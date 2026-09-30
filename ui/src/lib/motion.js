@@ -20,6 +20,9 @@ const START_DELAY = 250;          //  until we have measured anything
 const MARGIN_MS = 40;
 const RESET_GAP_MS = 2000, SNAP_TILES = 12;
 const PREDICT_MS = 150, EASE_MS = 220;
+/* Somebody still marked walking with nothing new from them for this long has
+ * stopped; their "stop" was lost. Senders repeat a walk ten times a second. */
+export const STALE_WALK_MS = 800;
 const WINDOW = 20;                //  how many recent messages shape the delay
 
 export class MotionBuffer {
@@ -108,15 +111,25 @@ export class MotionBuffer {
    * Bounded, and blocked by the same walls they are. Somebody who has stopped
    * is never predicted anywhere. */
   predict(last, ahead) {
-    if (!last.moving || (!last.vx && !last.vy)) return last;
+    /* Moving with no velocity -- a slow-path position, whose "moving" is only
+     * that it differs from the one before -- is not predicted anywhere, and
+     * stops walking on the same clock as everything else. */
+    if (!last.moving || (!last.vx && !last.vy))
+      return last.moving && ahead >= STALE_WALK_MS ? {...last, moving: false} : last;
     const seconds = Math.min(ahead, PREDICT_MS) / 1000;
     let x = last.x, y = last.y;
     const nx = last.x + last.vx * seconds;
     if (!this.solid(nx, last.y)) x = nx;
     const ny = last.y + last.vy * seconds;
     if (!this.solid(x, ny)) y = ny;
-    return {x, y, dir: last.dir, moving: true};
+    /* WALKING IN PLACE. The position stops after PREDICT_MS but the legs used
+     * to go on for ever, because the last thing heard said "moving". Long
+     * enough past it, they have stopped. */
+    return {x, y, dir: last.dir, moving: ahead < STALE_WALK_MS};
   }
+
+  /* Is the newest thing we have from them still "walking"? */
+  walking() { return !!this.samples.at(-1)?.moving; }
 
   point(now) {
     const raw = this.sample(now - this.delay);

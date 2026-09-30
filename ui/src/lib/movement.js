@@ -16,6 +16,11 @@
  * position over presence at most once every FALLBACK_MS. When every viewer is
  * on the relay, moving sends nothing through Eyre or Ames at all.
  *
+ * THE WORLD ROOM. Given `world` -- the world's host ship -- everybody's first
+ * session is that ship's world room, which its AGENT opens and keeps; nobody's
+ * browser opens, reopens or releases it. See movement-session for when we fall
+ * back to sessions of our own and how we return.
+ *
  * ADMISSION AND LIFETIME. The host claims the room's place on its own ship and
  * opens the room once. Everyone else -- and the host itself, afterwards -- gets
  * a token by knocking the host's SHIP, whose agent admits them and extends the
@@ -44,6 +49,17 @@ const RENEW_MARGIN_MS = 30000;
 const MAX_RENEW_MS = 120000;
 /* An admission request that has had no answer for this long is not going to get one. */
 const ADMIT_DEADLINE_MS = 30000;
+/* ACCESS BEFORE BREAK: how long to wait for a candidate host's grant, and how
+ * to back off after one that never comes. Capped, so a ship on the wrong side
+ * of an Ames partition asks now and then rather than constantly -- and never
+ * gives up its working relay while it waits. */
+export const CANDIDATE_TIMEOUT_MS = 20000;
+export const CANDIDATE_BACKOFF_MS = 15000;
+export const CANDIDATE_BACKOFF_MAX_MS = 5 * 60 * 1000;
+/* CONNECTED BEFORE BREAK: a grant proves the candidate's ship answers, not
+ * that its relay room will have us. The candidate's relay gets this long to
+ * go live beside the working one before the switch is abandoned. */
+export const PROBE_TIMEOUT_MS = 15000;
 
 export function createMovement({
   our,
@@ -62,6 +78,18 @@ export function createMovement({
   expected = () => [],                       //  who the app says is in here with us
   makeSession = createMovementSession,
   makeRelay = createMovementRelay,
+  random = Math.random,
+  /* Our session's agent-issued generation, carried on every relay packet so
+   * the people drawing us can tell our sessions apart without our clock. */
+  generation = () => 0,
+  /* A control message from a ship on the relay: see CONTROL_KIND in
+   * lib/movement-relay. Either relay's -- the working one or a probe -- since
+   * the sender is authenticated by the relay either way. */
+  onControl = () => {},
+  /* Who is on the working relay changed while it was live: (ships, left). */
+  onRelayRoster = () => {},
+  /* The world's host ship: its world room is where everybody goes first. */
+  world = null,
 } = {}) {
   let current = null;
   let claimed = false;                       //  we created this session's room
@@ -78,8 +106,20 @@ export function createMovement({
   let roster = new Set();
   let inFlight = null;                       //  local poke ACK, independent of session lifetime
   let newestGrant = null;
+  /* A better session we have heard about but not yet proven we can reach:
+   * {host, term, place, key, tries, timer, state, grant, probe}. `probe` is
+   * a second relay, joining the candidate's room beside the working one. */
+  let pending = null;
+  /* Backoff REMEMBERED per candidate, across withdrawals. A report goes stale
+   * after LIVE_WINDOW_MS and the candidate is withdrawn; the next report
+   * proposes it again. Without this memory each re-proposal started counting
+   * from zero, so an unreachable host was asked every half minute forever
+   * instead of backing off. key -> {tries, until}. */
+  const tried = new Map();
   let startedAt = null;
-  let readyLatched = false;
+  /* When the relay was last seen to stop being live, and whether it ever was:
+   * readiness is judged from how long positions have been off the relay. */
+  let everLive = false, downSince = null;
   const firstSeen = new Map();                //  ship -> local ms first visible
   /* Receipt time and the sender's last motion flag are separate from presence.
    * A stationary peer is allowed to be quiet forever; a peer whose last packet
@@ -96,42 +136,181 @@ export function createMovement({
   const unheard = () => {
     try { return expected().filter((s) => !heardShips.has(s)); } catch { return []; }
   };
-  const session = makeSession({ our, now, trace, expected: unheard, onChange: changed });
-  const relay = makeRelay({
+  const session = makeSession({ our, now, trace, expected: unheard, onChange: changed,
+    onCandidate: candidate, world });
+  /* The world room is its host AGENT's: never opened, reopened or released
+   * from a browser -- opening it again would throw out everybody inside. */
+  const home = session.world?.() ?? null;
+  const isWorld = (s) => !!home && !!s && s.host === home.host && s.place === home.place;
+  /* Two relays can exist at once, briefly: the working one and a probe of
+   * the candidate's room. Whichever is `relay` is the working one; the other's
+   * status goes to probeStatus, and its roster is not ours until adopted. */
+  const spawnRelay = () => { const r = makeRelay({
     our, now, later, cancel, every, stopEvery,
     ...(socket ? { socket } : {}),
     diagnostic: trace,
-    onStatus: relayStatus,
+    onStatus: (state, reason) => { if (r === relay) relayStatus(state, reason); else probeStatus(r, state, reason); },
     onPosition: (ship, spot, meta) => {
       /* The relay is transport, never permission. */
       if (!visible(ship)) { counts.ignored++; return false; }
+      /* Motion is recorded only for a packet that was ACCEPTED as newer. A late
+       * packet from an old browser used to set "moving" here even though the
+       * avatar had already rejected it -- and a peer that looks moving but
+       * never arrives reads as stalled, which splits huddles. An `apply` that
+       * says nothing is taken as acceptance, for older callers. */
+      if (apply(ship, spot, meta) === false) { counts.stale++; return true; }
       counts.applied++;
       peerMotion.set(ship, { at: now(), moving: meta?.moving === true });
-      apply(ship, spot, meta);
       return true;
     },
-    onRoster: (ships) => {
-      /* Someone entitled to see us just arrived on the relay: give them our
-       * position now rather than whenever we next move. */
-      const viewers = presence.viewers();
-      const gained = [...ships].some((s) => !roster.has(s) && viewers.has(s));
-      roster = new Set(ships);
-      if (gained && last) { relay.route(viewers); relay.send(last); }
-    },
-  });
+    onRoster: (ships) => { if (r === relay) rosterFrom(ships); },
+    /* Not filtered by `visible`: presence itself rides this channel, and is
+     * how somebody BECOMES visible. The receiver checks membership. */
+    onControl: (who, body) => onControl(who, body),
+  }); return r; };
+  /* Someone entitled to see us just arrived on the relay: give them our
+   * position now rather than whenever we next move. */
+  function rosterFrom(ships) {
+    const viewers = presence.viewers();
+    const gained = [...ships].some((s) => !roster.has(s) && viewers.has(s));
+    const left = [...roster].filter((s) => !ships.has(s));
+    roster = new Set(ships);
+    /* Only while live: our own relay dropping is not everybody leaving. */
+    if (relay.live()) { try { onRelayRoster(new Set(ships), left); } catch {} }
+    if (gained && last) { relay.route(viewers); relay.send(last); }
+  }
+  let relay = spawnRelay();
+
+  /* ------------------------------------------------ access before break */
+
+  const say = (p, reason, extra = {}) => trace('movement-candidate', {
+    host: p?.host ?? '', generation: p?.term ?? 0, place: p?.place ?? 0,
+    tries: p?.tries ?? 0, reason, ...extra });
+
+  /* The session proposes a better session, or withdraws one. */
+  function candidate(c) {
+    if (!c) { dropPending('withdrawn'); return; }
+    const k = `${c.host}/${c.term}`;
+    if (pending && pending.key === k) return;          //  same candidate: no churn
+    dropPending('superseded');
+    const t = now();
+    for (const [key, v] of tried) if (t - v.until > CANDIDATE_BACKOFF_MAX_MS * 2) tried.delete(key);
+    const prior = tried.get(k);
+    pending = { host: c.host, term: c.term, place: c.place, key: k,
+                tries: prior?.tries ?? 0, timer: null, state: 'idle', grant: null };
+    if (!started) return;
+    /* Still inside the backoff from last time: wait it out, don't ask again. */
+    if (prior && prior.until > t) {
+      const p = pending;
+      p.state = 'backoff';
+      p.timer = later(() => askCandidate(p), prior.until - t);
+      return;
+    }
+    askCandidate(pending);
+  }
+
+  const backoff = (tries) => Math.round(Math.min(CANDIDATE_BACKOFF_MAX_MS,
+    CANDIDATE_BACKOFF_MS * 2 ** Math.max(0, tries - 1)) * (0.8 + 0.4 * random()));
+
+  /* Knock on the candidate's host. Never `open`: it is not our room, and its
+   * host's BROWSER need not be anywhere -- a grant from its ship is the proof. */
+  function askCandidate(p) {
+    if (pending !== p || !started) return;
+    cancel(p.timer);
+    p.tries++;
+    p.state = 'requesting';
+    counts.knocks++;
+    say(p, 'requested');
+    /* Charged NOW, not only on timeout. A request withdrawn before its answer
+     * was due is neither a success nor a recorded failure, and would otherwise
+     * be asked again the moment the candidate was next reported. */
+    tried.set(p.key, { tries: p.tries, until: now() + CANDIDATE_TIMEOUT_MS + backoff(p.tries) });
+    quietly(agent.knock(p.host, p.place));
+    p.timer = later(() => candidateFailed(p, 'timeout'), CANDIDATE_TIMEOUT_MS);
+  }
+
+  /* No grant, a refusal, or a relay room that would not have us. The relay we
+   * have stays exactly as it is -- it was never let go. */
+  function candidateFailed(p, reason) {
+    if (pending !== p) return;
+    cancel(p.timer);
+    if (p.probe) {
+      const probe = p.probe; p.probe = null; p.grant = null;
+      probe.close('rollback');
+      say(p, 'rolled-back', { detail: reason });
+    }
+    p.state = 'backoff';
+    const wait = backoff(p.tries);
+    tried.set(p.key, { tries: p.tries, until: now() + wait });
+    say(p, reason, { wait });
+    trace('movement-candidate', { host: current?.host ?? '', generation: current?.term ?? 0,
+      place: current?.place ?? 0, tries: p.tries, reason: 'retained' });
+    p.timer = later(() => askCandidate(p), wait);
+    /* The world host would not have us: set it aside for a while, so the
+     * sessions of our own can settle among themselves meanwhile. */
+    if (isWorld(p)) session.unreachable?.({ host: p.host, term: p.term });
+  }
+
+  function dropPending(reason) {
+    if (!pending) return;
+    cancel(pending.timer);
+    if (pending.probe) { const probe = pending.probe; pending.probe = null; probe.close(reason || 'dropped'); }
+    if (reason) say(pending, reason);
+    pending = null;
+  }
+
+  /* The candidate's relay room, joining beside the working one. */
+  function probeStatus(r, state, reason) {
+    const p = pending;
+    if (!p || p.probe !== r) return;
+    if (state === LIVE) {
+      cancel(p.timer); p.timer = null;
+      say(p, 'probe-live');
+      if (!session.commit({ host: p.host, term: p.term })) dropPending('refused');
+      return;
+    }
+    if (state === FAILED || state === EXPIRED || state === REFUSED)
+      candidateFailed(p, `probe-${state}${reason ? ':' + reason : ''}`);
+  }
 
   function changed(next, why) {
     const prev = current;
+    /* A committed handoff arrives already holding the grant that proved the
+     * host reachable, and -- normally -- a relay already live in its room.
+     * Use them, rather than knocking and dialling again for the same thing. */
+    const matches = why === 'handoff' && next && pending?.grant &&
+      pending.place === next.place && pending.host === next.host;
+    const handoff = matches ? pending.grant : null;
+    const probe = matches && pending.probe?.live() ? pending.probe : null;
+    if (probe) pending.probe = null;          //  adopted, not dropped
+    dropPending(handoff ? null : 'moved');
     clearRequest();
     cancel(renewTimer); renewTimer = null;
-    relay.close(why);
+    /* Swap BEFORE closing, so the old relay's goodbye reaches nobody who
+     * would read it as our relay going down. */
+    const old = relay;
+    if (probe) relay = probe;
+    old.close(why);
     /* Stop admitting people to a session we have left. Only on an actual move:
      * closing the tab never reaches here, so a host's room outlives its tab. */
-    if (prev && prev.host === our && prev.place !== next?.place) quietly(agent.release(prev.place));
+    if (prev && prev.host === our && !isWorld(prev) && prev.place !== next?.place) quietly(agent.release(prev.place));
     current = next;
     newestGrant = null;
     claimed = !!next && next.host === our && (why === 'claimed' || why === 'failover');
     if (!next) return;
+    if (handoff) {
+      newestGrant = { gen: handoff.gen, expires: handoff.expires };
+      if (probe) {
+        session.relay('live');
+        rosterFrom(relay.ships?.() ?? new Set());
+        relay.route(presence.viewers());
+        if (last) relay.send(last, true);
+      } else relay.connect(handoff);
+      scheduleRenew(handoff);
+      trace('movement-candidate', { host: next.host, generation: next.term, place: next.place,
+        reason: 'connected' });
+      return;
+    }
     // Opening atomically claims the movement place in our agent. A separate
     // claim poke could arrive after a remote knock on a busy Eyre channel.
     if (started) requestAccess();
@@ -189,6 +368,8 @@ export function createMovement({
   }
 
   function relayStatus(state, reason) {
+    if (state === LIVE) { everLive = true; downSince = null; }
+    else if (downSince === null) downSince = now();
     session.relay(state === LIVE ? 'live' : state);
     if (state === LIVE) {
       if (request) { cancel(request.timer); request.timer = null; request.tries = 0; }
@@ -227,6 +408,30 @@ export function createMovement({
     const [rawPlace, who, , host] = String(p?.context ?? '').split('/');
     const place = Number(String(rawPlace).replace(/\./g, ''));
     if (!isMovementPlace(place)) return false;
+    /* An answer about the candidate. Checked first: it is, by definition, not
+     * the session we are on. Exact host and place -- and so term -- or it is a
+     * late answer about a candidate we have already given up on. */
+    if (started && pending && who === our && place === pending.place && host === pending.host) {
+      if (name === 'call-failed') { candidateFailed(pending, `failed:${String(p?.err ?? 'unknown')}`); return true; }
+      if (name !== 'call-granted' || p.participant !== our) return true;
+      if (!Number.isFinite(p.expires) || p.expires <= now() + 5000) { counts.stale++; return true; }
+      counts.grants++;
+      pending.grant = { sfu: p.sfu, group: p.group, token: p.token, expires: p.expires,
+                        renewAfter: p.renewAfter, place, gen: p.gen ?? 0 };
+      say(pending, 'granted');
+      tried.delete(pending.key);
+      /* Not yet: the switch happens when the candidate's relay room is LIVE,
+       * with the working relay still up beside it. */
+      if (!pending.probe) {
+        const p = pending;
+        cancel(p.timer);
+        p.state = 'probing';
+        p.probe = spawnRelay();
+        p.timer = later(() => candidateFailed(p, 'probe-timeout'), PROBE_TIMEOUT_MS);
+        if (p.probe.connect(p.grant) === false) candidateFailed(p, 'probe-grant');
+      }
+      return true;
+    }
     if (!started || !current || place !== current.place || who !== our || host !== current.host) { counts.stale++; return true; }
     if (name === 'call-failed') { failed(String(p?.err ?? 'unknown')); return true; }
     if (name !== 'call-granted' || p.participant !== our) return true;
@@ -251,7 +456,8 @@ export function createMovement({
     session.relay('failed');
     /* Our own room has gone -- lease lapsed while we were away. It is ours to
      * recreate, once, and nobody holds a live token for it. */
-    if (current.host === our && ['room-unavailable', 'room-ended', 'expired', 'no-such-room', 'lease-expired'].includes(err) &&
+    if (current.host === our && !isWorld(current) &&
+        ['room-unavailable', 'room-ended', 'expired', 'no-such-room', 'lease-expired'].includes(err) &&
         request && !request.reopened) {
       request.reopened = true;
       request.opened = false;
@@ -262,20 +468,20 @@ export function createMovement({
   }
 
   /* The slow path, only for viewers the relay is not reaching. */
-  function fallback(force) {
+  /* NO AMES BACKUP. Positions go over the relay or not at all: a second,
+   * slower copy over Ames is what let two paths disagree about where somebody
+   * was. A viewer the relay is not reaching sees us where we last were, the
+   * relay's own repair resends our newest position, and a stall is written
+   * down -- nothing is sent over Urbit. */
+  function fallback() {
     if (!last) return;
-    const viewers = presence.viewers();
-    const targets = relay.live() ? new Set([...viewers].filter((s) => !(relay.delivering?.(s) ?? relay.has(s)))) : viewers;
-    if (!targets.size) { dirty = false; return; }
-    const t = now();
-    // A stopped avatar may still have an unacknowledged final position.
-    const stalled=relay.live() && [...targets].some(s=>relay.has(s));
-    if (!force && ((!dirty && !stalled) || t - lastFallback < FALLBACK_MS)) return;
     dirty = false;
+    if (!relay.live()) return;
+    const stalled = [...presence.viewers()].filter((s) => relay.has(s) && !(relay.delivering?.(s) ?? true));
+    const t = now();
+    if (!stalled.length || t - lastFallback < FALLBACK_MS) return;
     lastFallback = t;
-    counts.fallback++;
-    if(stalled)trace('movement-delivery-stalled',{count:targets.size,reason:'position-unacknowledged'});
-    presence.publishTo(targets);
+    trace('movement-delivery-stalled', { count: stalled.length, reason: 'position-unacknowledged' });
   }
 
   function tick() {
@@ -296,6 +502,16 @@ export function createMovement({
     }
   }
 
+  function trusted() {
+    if (!started) return false;
+    if (relay.live() || session.role() === 'degraded') return true;
+    /* Never live yet: the startup grace. Live before: long enough off the
+     * relay that every peer is on the slow path (see confidence). */
+    const since = everLive ? downSince : startedAt;
+    if (since === null) return false;
+    return now() - since >= (everLive ? PEER_GRACE_MS : CALL_GRACE_MS);
+  }
+
   function confidence(ship) {
     if (relay.live() && relay.has(ship)) {
       const motion = peerMotion.get(ship);
@@ -303,9 +519,8 @@ export function createMovement({
       if (!motion.moving) return 'live-stationary';
       return now() - motion.at <= 3000 ? 'live-moving' : 'stalled';
     }
-    const first = firstSeen.get(ship);
-    if (session.role() === 'degraded' || (first !== undefined && now() - first >= PEER_GRACE_MS))
-      return 'slow-fallback';
+    /* Not on our relay: whatever we last heard is old, and with no slow path
+     * nothing newer is coming until they are. */
     return 'absent';
   }
 
@@ -322,6 +537,7 @@ export function createMovement({
      * keeps admitting the people still in it. */
     stop(reason = 'stopped') {
       started = false;
+      dropPending('exit');
       stopEvery(pump); pump = null;
       clearRequest();
       cancel(renewTimer); renewTimer = null;
@@ -339,7 +555,7 @@ export function createMovement({
       const moving = p.moving ?? (!!previous && sameScene && (previous.x !== p.x || previous.y !== p.y));
       const speed = (from, to) => (previous && sameScene && moving && seconds > 0 && seconds < 1 ? (to - from) / seconds : 0);
       last = { x: p.x, y: p.y, dir: p.dir, scene, host: p.host ?? null, moving,
-               vx: speed(previous?.x, p.x), vy: speed(previous?.y, p.y) };
+               vx: speed(previous?.x, p.x), vy: speed(previous?.y, p.y), gen: generation() };
       lastAt = at;
       dirty = true;
       const changed = !previous || previous.dir !== last.dir || previous.moving !== last.moving || previous.scene !== last.scene;
@@ -360,22 +576,37 @@ export function createMovement({
       for (const ship of peerMotion.keys()) if (!seen.has(ship)) peerMotion.delete(ship);
       heardShips = seen;
     },
-    /* Positions are good enough to START calls on: the relay is carrying them,
-     * movement has settled for the slow path, or we have waited long enough
-     * that holding calls back would be worse than trying. Latched, because this
-     * gates starting calls and a later relay hiccup must never hang one up. */
-    ready() {
-      if (readyLatched) return true;
-      if (relay.live() || session.role() === 'degraded' ||
-          (startedAt !== null && now() - startedAt >= CALL_GRACE_MS)) readyLatched = true;
-      return readyLatched;
+    /* THREE DECISIONS, NOT ONE. This used to be a single answer, latched true
+     * forever the first time the relay went live -- so after a later relay
+     * outage a new huddle could be formed, or a room's host changed, from
+     * positions that had stopped arriving.
+     *
+     *   keep    an existing call survives any relay trouble. Always true:
+     *           nothing here ever hangs one up.
+     *   start   positions are good enough to START a call or form a huddle:
+     *           the relay is carrying them, the session has fallen back to
+     *           the slow path, or positions have been off the relay long
+     *           enough that the slow path has taken over.
+     *   roster  good enough to CHANGE who is in a call or who hosts it: as
+     *           start, and not while we are switching movement sessions --
+     *           positions are about to move from one relay to another. */
+    readiness() {
+      const start = trusted();
+      return { keep: true, start, roster: start && !pending?.probe };
     },
+    ready: () => trusted(),
+    rosterReady: () => trusted() && !pending?.probe,
     /* Whether our picture of this ship's position is current. */
     confidence,
     reliable(ship) {
-      return ['live-stationary','live-moving','slow-fallback'].includes(confidence(ship));
+      return ['live-stationary','live-moving'].includes(confidence(ship));
     },
     result,
+    /* The live channel: is this ship reachable over the relay right now, and
+     * send them one control message if so. */
+    onRelay: (ship) => relay.live() && relay.has(ship),
+    control: (ship, body) => relay.control?.(ship, body) ?? false,
+    relayLive: () => relay.live(),
     announce: () => session.announce(),
     current: () => session.current(),
     stats: () => ({
@@ -383,10 +614,14 @@ export function createMovement({
       relay: relay.stats(),
       ...counts,
       request: request ? { tries: request.tries } : null,
+      candidate: pending ? { host: pending.host, term: pending.term, tries: pending.tries,
+                             state: pending.state, probe: pending.probe?.state?.() ?? null } : null,
       pending: !!inFlight,
       grantExpires: relay.expires(),
       authorizedViewers:[...presence.viewers()],
-      ready: readyLatched,
+      ready: trusted(),
+      readiness: { start: trusted(), roster: trusted() && !pending?.probe, everLive,
+                   downFor: downSince === null ? 0 : now() - downSince },
       confidence:Object.fromEntries([...heardShips].sort().map((ship)=>[ship,confidence(ship)])),
     }),
   };

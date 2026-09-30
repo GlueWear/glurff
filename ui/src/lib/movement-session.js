@@ -38,12 +38,37 @@
  * NOT A LOCK. Participants that cannot see each other will run separate
  * sessions, as rooms already do. When they come into view, the ordering above
  * converges them.
+ *
+ * THE WORLD HOST FIRST (2026-09-29). A glurff names its host ship, and that
+ * ship's agent keeps ONE relay room for everybody -- the WORLD session, at
+ * WORLD_TERM -- opened by the first ask, with no browser of the host's
+ * involved. Given `world`, everybody goes straight to it: no settle window,
+ * no claim, nothing to race. Everything above is now the FALLBACK, for when
+ * the host cannot be reached: a world session not live within WORLD_WAIT_MS
+ * (and nobody else live on it) is set aside for WORLD_RETRY_MS, doubling to
+ * WORLD_RETRY_MAX_MS, and sessions of our own are found or started as before.
+ * Once the wait is over the world is proposed again -- access before break,
+ * so a working fallback is kept until the host has let us in -- and everybody
+ * returns to it. It outranks every other session, and its term is the top
+ * one, so clients from before it existed rank it first as well.
  */
 
 /* Clear of rooms (1-7) and proximity huddles (1000-900999). Mirrored in
  * sur/glurff.hoon as movement-base; the two MUST agree. */
 export const MOVEMENT_BASE = 950000;
 export const MAX_TERM = 49999;
+/* The world host's room. Mirrored as world-term in sur/glurff.hoon; the two
+ * MUST agree. Sessions of our own stay below it. */
+export const WORLD_TERM = MAX_TERM;
+/* How long the world session gets to go live before we fall back, and how long
+ * it is then set aside before being tried again. */
+export const WORLD_WAIT_MS = 30000;
+export const WORLD_RETRY_MS = 60000;
+export const WORLD_RETRY_MAX_MS = 5 * 60 * 1000;
+/* A session we are switching to stays a candidate this much longer than a
+ * plain report would, so a slow switch is not withdrawn half way: reports from
+ * people off our relay arrive minutes apart now, not seconds. */
+export const HOLD_MS = 40000;
 
 /* Listen this long before claiming on a cold start. Long enough for a
  * discovery round to come back over a slow Urbit path; a claim that loses
@@ -72,6 +97,10 @@ export const FAILOVER_WINDOW_MS = 10 * 60 * 1000;
 /* Live-duration buckets. Coarse on purpose; see the header. */
 export const TIER_MS = 30000;
 export const MAX_TIER = 3;
+/* How long a relay counts as healthy after it last was. A websocket reconnect
+ * passes through non-live states for a moment; without this, that moment was
+ * enough to drop access-before-break and jump straight to an unreachable host. */
+export const RELAY_GRACE_MS = 15000;
 
 export const SEEKING = 'seeking';
 export const HOST = 'host';
@@ -91,6 +120,7 @@ const tier = (age) => Math.min(MAX_TIER, Math.floor(Math.max(0, age || 0) / TIER
 /* A total order, so every participant sorting the same candidates reaches the
  * same answer. Negative means `a` is the better session. */
 export function compare(a, b) {
+  if (!!a.world !== !!b.world) return a.world ? -1 : 1;
   if (a.term !== b.term) return b.term - a.term;
   const ta = tier(a.age), tb = tier(b.age);
   if (ta !== tb) return tb - ta;
@@ -101,7 +131,23 @@ export function compare(a, b) {
 export function createMovementSession({ our, now = Date.now, onChange = () => {}, trace = () => {},
   /* Who the app believes is in here with us, whether or not they have answered
    * yet. Empty by default, which is the old behaviour exactly. */
-  expected = () => [] } = {}) {
+  expected = () => [],
+  /* ACCESS BEFORE BREAK. When given, a better session heard about while our own
+   * relay is healthy is only PROPOSED: the caller asks the candidate's host for
+   * access and calls commit() once a grant for exactly that session arrives.
+   *
+   * Hearing about a session proves only that the ship that TOLD us can reach
+   * it. ~natlut-minryx, able to talk to ~disden but not to ~dolten, heard from
+   * ~disden that ~dolten's term 24 was live, abandoned its own working term 23
+   * on the spot, and then could never get a token for 24. A grant is the one
+   * thing that proves WE can reach the host.
+   *
+   * Without it -- the old callers, and the tests written for them -- a better
+   * session is adopted at once, exactly as before. */
+  onCandidate = null,
+  /* The world's host ship, or null for no world session (the old behaviour
+   * exactly). See THE WORLD HOST FIRST above. */
+  world = null } = {}) {
   let role = SEEKING;
   let current = null;              //  {host, term, place}
   let started = now();             //  local ms, start of the settle window
@@ -112,8 +158,23 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
   let maxTerm = 0;
   const heard = new Map();         //  ship -> {host, term, live, age, at}
   const failovers = [];            //  local ms of our own recent failover claims
+  let proposed = null;             //  {host, term, place} awaiting its host's grant
+  let lastLiveAt = null;           //  local ms our relay was last live
+  const home = isShip(world) ? { host: world, term: WORLD_TERM } : null;
+  let worldFails = 0, worldDownUntil = 0;
+  /* Sessions of our own stay below the world's term. */
+  const top = home ? WORLD_TERM - 1 : MAX_TERM;
 
   const key = (s) => (s ? `${s.host}/${s.term}` : '');
+  const isWorld = (s) => !!home && !!s && s.host === home.host && s.term === WORLD_TERM;
+  const worldUp = () => !!home && now() >= worldDownUntil;
+  function worldFailed(why) {
+    if (!home) return;
+    worldFails++;
+    const wait = Math.min(WORLD_RETRY_MAX_MS, WORLD_RETRY_MS * 2 ** (worldFails - 1));
+    worldDownUntil = now() + wait;
+    trace('movement-session', { host: home.host, generation: WORLD_TERM, reason: `world-${why}`, wait });
+  }
 
   function valid(mv) {
     return !!mv && isShip(mv.host) && Number.isSafeInteger(mv.term) && mv.term >= 1 &&
@@ -134,7 +195,7 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
     const received = Number.isFinite(at) ? Math.min(at, now()) : now();
     heard.set(from, { host: mv.host, term: mv.term, live: mv.live,
                       age: Math.min(mv.age ?? 0, 86400000), at: received });
-    maxTerm = Math.max(maxTerm, mv.term);
+    if (!isWorld(mv)) maxTerm = Math.max(maxTerm, Math.min(mv.term, top));
   }
 
   function candidates() {
@@ -142,14 +203,20 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
     const found = new Map();
     const add = (host, term, live, age, eligible) => {
       const k = `${host}/${term}`;
-      const c = found.get(k) ?? { host, term, live: false, age: 0, eligible: false };
+      const c = found.get(k) ?? { host, term, live: false, age: 0, eligible: false,
+                                  world: isWorld({ host, term }) };
       c.live = c.live || live;
       c.age = Math.max(c.age, age);
       c.eligible = c.eligible || eligible;
       found.set(k, c);
     };
+    /* The world is always worth going to, unless we have just failed to. */
+    if (worldUp()) add(home.host, home.term, false, 0, true);
     for (const h of heard.values()) {
-      if (t - h.at >= LIVE_WINDOW_MS) continue;
+      if (isWorld(h) && !worldUp() && !isWorld(current)) continue;
+      /* The session we are switching to is held a while longer. */
+      const held = proposed && h.host === proposed.host && h.term === proposed.term;
+      if (t - h.at >= LIVE_WINDOW_MS + (held ? HOLD_MS : 0)) continue;
       /* Only a session somebody is connected to can pull us. That covers a
        * pal announcing a session that does not exist, and a failover claim
        * whose own service is down. Simultaneous claims still resolve: each goes
@@ -173,19 +240,33 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
 
   function adopt(next, why) {
     if (key(next) === key(current)) return;
+    proposed = null;
+    lastLiveAt = null;       //  health belongs to a relay, and this is a new one
     current = next ? { host: next.host, term: next.term, place: placeOf(next.term) } : null;
     role = current ? (current.host === our ? HOST : GUEST) : SEEKING;
     liveSince = null;
     trying = current ? now() : null;
     adoptedAt = current ? now() : null;
-    if (current) maxTerm = Math.max(maxTerm, current.term);
+    if (current && !isWorld(current)) maxTerm = Math.max(maxTerm, current.term);
     trace('movement-session', { host: current?.host ?? '', generation: current?.term ?? 0, reason: why });
     onChange(current ? { ...current } : null, why);
   }
 
+  /* Offer a candidate, once. The same session reported again and again by
+   * whoever heard about it is one proposal, not a stream of them. */
+  function propose(next) {
+    if (key(next) === key(proposed)) return;
+    proposed = next ? { host: next.host, term: next.term, place: placeOf(next.term) } : null;
+    if (proposed) trace('movement-candidate', { host: proposed.host, generation: proposed.term,
+      place: proposed.place, reason: 'proposed' });
+    try { onCandidate(proposed ? { ...proposed } : null); } catch {}
+  }
+  const healthy = () => liveSince !== null ||
+    (lastLiveAt !== null && now() - lastLiveAt < RELAY_GRACE_MS);
+
   function tick() {
     const t = now();
-    for (const [from, h] of heard) if (t - h.at >= LIVE_WINDOW_MS * 2) heard.delete(from);
+    for (const [from, h] of heard) if (t - h.at >= LIVE_WINDOW_MS * 2 + HOLD_MS) heard.delete(from);
     while (failovers.length && t - failovers[0] >= FAILOVER_WINDOW_MS) failovers.shift();
 
     if (role === DEGRADED) {
@@ -207,17 +288,36 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
         try { waiting = expected().some((s) => isShip(s) && s !== our && !heard.has(s)); } catch {}
         if (waiting) return;
       }
-      adopt({ host: our, term: Math.min(MAX_TERM, maxTerm + 1) }, 'claimed');
+      adopt({ host: our, term: Math.min(top, maxTerm + 1) }, 'claimed');
       return;
     }
 
-    /* Converge on the best session anyone visible can vouch for. */
+    /* Converge on the best session anyone visible can vouch for -- but a relay
+     * that WORKS is not abandoned for one we have only heard about. It is
+     * proposed, and we move when its host grants us access; see onCandidate. A
+     * session of our own needs no such proof, and neither does leaving a relay
+     * that is already down: that is ordinary failover, unchanged. */
     const best = candidates()[0];
-    if (best && key(best) !== key(current)) { adopt(best, 'converged'); return; }
+    if (best && key(best) !== key(current)) {
+      if (onCandidate && best.host !== our && healthy()) { propose(best); return; }
+      adopt(best, 'converged'); return;
+    }
+    /* Nothing better any more: stop asking. */
+    if (proposed) propose(null);
+
+    /* The world host cannot be reached, and nobody else is getting through
+     * either: set it aside, and find or start a session of our own. */
+    if (isWorld(current) && liveSince === null && trying !== null &&
+        t - trying >= WORLD_WAIT_MS && !othersLive(current)) {
+      worldFailed('unreachable');
+      started = t;
+      adopt(null, 'world-unreachable');
+      return;
+    }
 
     /* Failover, only on evidence the service is gone for everyone. */
     if (liveSince === null && trying !== null && t - trying >= FAILOVER_MS && !othersLive(current)) {
-      if (failovers.length >= MAX_FAILOVERS || current.term >= MAX_TERM) {
+      if (failovers.length >= MAX_FAILOVERS || current.term >= top) {
         const was = current;
         current = null;
         liveSince = null;
@@ -238,8 +338,10 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
   function relay(state) {
     if (!current) return;
     if (state === 'live') {
+      lastLiveAt = now();
       if (liveSince === null) liveSince = now();
       trying = null;
+      if (isWorld(current)) { worldFails = 0; worldDownUntil = 0; }
     } else {
       liveSince = null;
       if (trying === null) trying = now();
@@ -256,6 +358,23 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
      * start had spent it already and claimed a competing session at once. */
     start: () => { started = now(); },
     current: () => (current ? { ...current } : null),
+    /* The candidate's host granted us access to exactly this session: we can
+     * reach it, so move. Anything else is a late answer to a question we have
+     * stopped asking, and changes nothing. */
+    commit(c) {
+      if (!proposed || !c || key(c) !== key(proposed)) return false;
+      const next = proposed;
+      trace('movement-candidate', { host: next.host, generation: next.term, place: next.place,
+        reason: 'committed' });
+      adopt(next, 'handoff');
+      return true;
+    },
+    proposed: () => (proposed ? { ...proposed } : null),
+    /* The movement layer could not get into this session. For the world, that
+     * sets it aside like an unreachable host; anything else backs off there. */
+    unreachable(s) { if (isWorld(s)) worldFailed('refused'); },
+    /* The world session, if this world has a host. */
+    world: () => (home ? { ...home, place: placeOf(home.term) } : null),
     role: () => role,
     ready: () => role === HOST || role === GUEST,
     /* What we tell visible peers, riding the presence snapshot. */
@@ -264,6 +383,9 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
           age: adoptedAt !== null ? now() - adoptedAt : 0 }
       : null),
     stats: () => ({ role, host: current?.host ?? null, term: current?.term ?? 0,
-                    live: liveSince !== null, heard: heard.size, failovers: failovers.length }),
+                    live: liveSince !== null, heard: heard.size, failovers: failovers.length,
+                    proposed: proposed ? `${proposed.host}/${proposed.term}` : null,
+                    world: home ? { host: home.host, onIt: isWorld(current),
+                                    downFor: Math.max(0, worldDownUntil - now()) } : null }),
   };
 }

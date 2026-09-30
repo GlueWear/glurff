@@ -1,10 +1,10 @@
 import { createMediaAdapter, parseMediaRef, youtubeRef } from 'lib/player-providers';
 import { playbackPosition } from 'lib/player-state';
 import { SCREEN_RECTS } from 'world/hotspots';
+import { esc } from 'ui/html';
 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
 
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function mediaQuestion(surface, current) {
   return new Promise(resolve => {

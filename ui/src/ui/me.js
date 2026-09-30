@@ -7,9 +7,8 @@
  */
 import { displayName, avatarUrl, onChange } from 'lib/noltbook';
 import { our } from 'lib/api';
+import { esc } from 'ui/html';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Me {
   constructor(root, { onOpen } = {}) {

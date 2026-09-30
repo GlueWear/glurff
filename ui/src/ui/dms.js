@@ -17,18 +17,23 @@ import {
   openDm, messagesFor, postMessage, markRead, subscribeNote, onChange,
   requestProfile, retryProfile, searchMessages, noteUrl,
 } from 'lib/noltbook';
-import { runSearch, normalizeSearch, MIN_BODY_QUERY } from 'lib/search';
+/* Search -- and urbit-ob with its big-number library behind it -- loads the
+ * first time somebody searches, not with the app. */
+let searchLib = null, searchLoading = null;
+const loadSearch = () => searchLoading ??= import('lib/search').then((m) => (searchLib = m), () => null);
+import { normalizeSearch, MIN_BODY_QUERY } from 'lib/search-basics';
 import { our } from 'lib/api';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>';
+/* An envelope: private messages, and not to be mistaken for the room's chat.
+ * Search lives inside, as the field at the top of the menu. */
+const MESSAGES_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg>';
 const avatar = (ship) => `<span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>`;
 const NOTE_TYPE = { gossip: 'gossip', group: 'group', notebook: 'note' };
 const openNote = (id) => window.open(noteUrl(id), '_blank', 'noopener');
 
 import { render as renderText } from 'ui/media';
+import { esc } from 'ui/html';
 
 export class Dms {
   constructor(root, { onShowProfile } = {}) {
@@ -41,20 +46,33 @@ export class Dms {
     this.searchTimer = null;
     this.open = null;        //  {noteId, ship, unsub}
     this.root.innerHTML = `
-      <button class="dm-btn" title="Search" aria-label="Search">${SEARCH_ICON}<i class="dot" hidden></i></button>
+      <button class="dm-btn" title="Messages" aria-label="Messages and search">${MESSAGES_ICON}<i class="dot" hidden></i></button>
       <div class="dm-panel" hidden></div>
       <div class="dm-window" hidden></div>`;
     this.btn = this.root.querySelector('.dm-btn');
     this.panel = this.root.querySelector('.dm-panel');
     this.win = this.root.querySelector('.dm-window');
-    this.btn.onclick = () => this.togglePanel();
-    /* Clicking away closes the panel, the way every other menu here does --
-     * having to find the button again to put it away was a trap. The open
-     * conversation is left alone: that is a window, not a menu. */
+    /* The envelope puts away whatever is open, or opens the menu. */
+    this.btn.onclick = () => { if (this.open) this.closeAll(); else this.togglePanel(); };
+    /* Clicking away closes the menu, the way every other menu here does --
+     * having to find the button again to put it away was a trap. And the same
+     * for a conversation: a click anywhere outside it puts it away, with
+     * nothing left open behind it. A profile card opened from it is part of
+     * it, though: clicking there leaves the conversation where it is. */
     document.addEventListener('pointerdown', (e) => {
-      if (this.panelOpen && !this.root.contains(e.target)) this.togglePanel();
+      const t = e.target;
+      if (this.panelOpen && !this.root.contains(t)) this.togglePanel();
+      if (this.open && !this.win.contains(t) && !this.btn.contains(t) &&
+          !t?.closest?.('.card-overlay, dialog, [role="dialog"]')) this.closeAll();
     });
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.panelOpen) this.togglePanel(); });
+    /* Escape puts away the top thing only. Captured, so a profile card over
+     * the conversation is still open when we look -- its own handler closes
+     * it after this one. */
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (this.panelOpen) this.togglePanel();
+      else if (this.open && !document.querySelector('.card-overlay:not([hidden])')) this.closeAll();
+    }, { capture: true });
     /* The list, the dot, search results and the open conversation all follow
      * the store. */
     onChange(() => {
@@ -124,8 +142,12 @@ export class Dms {
   }
 
   results(q) {
+    if (!searchLib) {
+      loadSearch().then((m) => { if (m && this.query.trim() === q) this.paintPanel(); });
+      return '<div class="dim pad">searching…</div>';
+    }
     const answer = nb.search && this.searchReq && nb.search.reqId === this.searchReq ? nb.search : null;
-    const r = runSearch(q, nb, { our, hits: answer });
+    const r = searchLib.runSearch(q, nb, { our, hits: answer });
     if (!r.notes.length && !r.messages.length && !r.people.length && !r.unknownShip && !r.tooShort && answer)
       return '<div class="dim pad">no matches</div>';
     const group = (title) => `<div class="dm-group">${title}</div>`;
@@ -221,6 +243,13 @@ export class Dms {
     this.scrollDown();
   }
 
+  /* Put the conversation away, and the menu with it. */
+  async closeAll() {
+    this.panelOpen = false;
+    await this.closeWindow();
+    this.paint();
+  }
+
   async closeWindow() {
     if (!this.open) return;
     try { await this.open.unsub(); } catch (e) {}
@@ -241,16 +270,14 @@ export class Dms {
         <div class="dm-head">
           ${avatar(ship)}
           <button class="who" title="Their profile">${esc(displayName(ship))}</button>
-          <button class="dm-close" title="Back to search">&times;</button>
+          <button class="dm-close" title="Close">&times;</button>
         </div>
         <div class="dm-body"></div>
         <form class="dm-send"><input placeholder="Message ${esc(displayName(ship))}" autocomplete="off"></form>`;
       this.body = this.win.querySelector('.dm-body');
-      /* The cross goes BACK to the search you came through, rather than
-       * closing everything and leaving you looking at the world again. */
-      this.win.querySelector('.dm-close').onclick = () => {
-        this.closeWindow().then(() => { this.panelOpen = true; this.paint(); this.panel.querySelector('input')?.focus(); });
-      };
+      /* The cross puts the conversation away and nothing else opens: going
+       * back to the menu meant closing two things to get back to the world. */
+      this.win.querySelector('.dm-close').onclick = () => this.closeAll();
       /* Their name is how you get to who they are -- the same click as
        * everywhere else, rather than a lone "i" beside it. */
       this.win.querySelector('.who').onclick = () => this.onShowProfile(ship);

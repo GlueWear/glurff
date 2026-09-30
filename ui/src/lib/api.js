@@ -50,12 +50,16 @@ export function initApi() {
  * superseded by a newer one must stop holding subscriptions open. */
 export const closeChannel = () => { try { api?.delete?.(); } catch {} };
 
-export const poke = (app, mark, json) => {
+/* `ackTimeout`: how long to wait for our own ship to take this poke before
+ * settling it as unknown. Call control asks for a short one; see
+ * CONTROL_ACK_MS in lib/connection. */
+export const poke = (app, mark, json, { ackTimeout } = {}) => {
   if(exiting) {
     exitPokes.push({id:api.getEventId(),action:'poke',ship:api.ship,app,mark,json});
     return Promise.resolve();
   }
-  return api.poke({ app, mark, json, onError: (e) => console.error(`${app}/${mark}`, e) });
+  return api.poke({ app, mark, json, ...(ackTimeout ? { ackTimeout } : {}),
+    onError: (e) => console.error(`${app}/${mark}`, e) });
 };
 
 /* Facts arrive as single-key objects: {'peer-here': {...}}. Handlers get

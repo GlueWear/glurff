@@ -68,10 +68,70 @@
       lease=(unit held:g)
       sprite-lab=?
   ==
+::  state-4 adds the SESSION LEASE: which one browser session this ship is
+::  using Glurff from. See `live` in /sur.
++$  state-4
+  $:  %4
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+  ==
+::  state-5 adds the per-ship METER on pokes from other ships (see `meter` in
+::  /sur), HOST-SHIP ADMISSION -- who our browser has let into each of our
+::  calls, so our agent can let them back in alone -- and the leased room's
+::  DOOR.
++$  state-5
+  $:  %5
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      admits=(map place:g (set @p))
+      door=(unit door:g)
+  ==
+::  state-6 adds THE WORLD ROOM: the relay room this ship keeps for everybody
+::  when it is the world's host. `~` until somebody first asks to be let in.
+::  See `world-room` in /sur.
++$  state-6
+  $:  %6
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      admits=(map place:g (set @p))
+      door=(unit door:g)
+      world=(unit world-room:g)
+  ==
+::  state-7 adds OUR SETTINGS: owner-local JSON from our own browser -- the
+::  clocks in the sky, our time zone -- kept so they follow us to any browser.
+::  See `prefs-max` in /sur.
++$  state-7
+  $:  %7
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      admits=(map place:g (set @p))
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-3
+=|  state-7
 =*  state  -
 ^-  agent:gall
 =<
@@ -82,7 +142,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '')
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -95,8 +155,16 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
-  =/  now-state=(unit state-3)
-    =/  res  (mule |.(!<(state-3 old)))
+  =/  seven=(unit state-7)
+    =/  res  (mule |.(!<(state-7 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  =/  current=(unit state-6)
+    ?^  seven  ~
+    =/  res  (mule |.(!<(state-6 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  =/  now-state=(unit state-5)
+    ?^  current  ~
+    =/  res  (mule |.(!<(state-5 old)))
     ?:(?=(%| -.res) ~ `p.res)
   ::  An older lease was permanent and had no occupancy at all. It is carried
   ::  over rather than dropped -- a live lease is somebody's room and must not
@@ -109,22 +177,45 @@
     ^-  (unit held:g)
     ?~  was  ~
     `[place.u.was note.u.was 1 ~ `when ~]
-  =/  parsed=(unit state-3)
+  =/  parsed=(unit state-5)
     ?^  now-state  now-state
+    ::  Meters start empty: they only ever describe the last ten seconds.
+    =/  res  (mule |.(!<(state-4 old)))
+    ?.  ?=(%| -.res)
+      =/  was=state-4  p.res
+      `[%5 look.was rev.was hosting.was lease.was sprite-lab.was live.was ~ ~ ~]
+    ::  No session is carried over: the next browser to renew takes it.
+    =/  res  (mule |.(!<(state-3 old)))
+    ?.  ?=(%| -.res)
+      =/  was=state-3  p.res
+      `[%5 look.was rev.was hosting.was lease.was sprite-lab.was ~ ~ ~ ~]
     =/  res  (mule |.(!<(state-2 old)))
     ?.  ?=(%| -.res)
       =/  was=state-2  p.res
-      `[%3 look.was rev.was hosting.was (lift lease.was now.bowl) sprite-lab.was]
+      `[%5 look.was rev.was hosting.was (lift lease.was now.bowl) sprite-lab.was ~ ~ ~ ~]
     =/  res  (mule |.(!<(state-1 old)))
     ?.  ?=(%| -.res)
       =/  was=state-1  p.res
-      `[%3 look.was rev.was hosting.was (lift lease.was now.bowl) %.n]
+      `[%5 look.was rev.was hosting.was (lift lease.was now.bowl) %.n ~ ~ ~ ~]
     =/  res  (mule |.(!<(state-0 old)))
     ?:  ?=(%| -.res)  ~
     =/  was=state-0  p.res
-    `[%3 look.was rev.was hosting.was ~ %.n]
-  ?~  parsed  on-init
-  :_  this(state u.parsed)
+    `[%5 look.was rev.was hosting.was ~ %.n ~ ~ ~ ~]
+  ::  The world room starts unknown: the first ask after the upgrade opens it
+  ::  afresh, which is right for a room this agent never kept.
+  =/  next=(unit state-6)
+    ?^  current  current
+    ?~  parsed  ~
+    =/  was=state-5  u.parsed
+    `[%6 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was ~]
+  ::  Settings start empty: the client's defaults.
+  =/  last=(unit state-7)
+    ?^  seven  seven
+    ?~  next  ~
+    =/  was=state-6  u.next
+    `[%7 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was '']
+  ?~  last  on-init
+  :_  this(state u.last)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-poke
@@ -148,6 +239,9 @@
       %glurff-room
     ?>  =(src.bowl our.bowl)
     =+  !<([op=@tas place=@ud ttl=@ud session=@ud who=(list @p)] vase)
+    ::  The world room is opened by asks alone (see +world-knock). Opening it
+    ::  from a browser would throw out everybody inside.
+    ?:  &(=(%open op) =(place world-place:g))  `this
     =.  hosting
       ?:  ?&(?=(%open op) (gth place movement-base:g) (lth place 1.000.000))
         (~(put by hosting) place %open)
@@ -236,6 +330,12 @@
   ::  The subject is src.bowl and nothing in the payload can override it.
       %glurff-remote
     =+  !<(rem=remote:g vase)
+    ::  Metered and size-checked BEFORE anything else happens: a ship past its
+    ::  allowance, or sending an oversized body, is dropped here and costs our
+    ::  browser nothing.
+    =^  ok  state  (meter:hc src.bowl)
+    ?.  ok  `this
+    ?.  (fits:hc rem)  `this
     =^  cards  state  (do-remote:hc src.bowl rem)
     [cards this]
   ::
@@ -247,6 +347,7 @@
       %noltbook-calls-access
     ?>  =(src.bowl our.bowl)
     =+  !<(res=call-result:gc vase)
+    =.  state  (world-heard:hc res)
     [(grant-cards:hc res) this]
   ::
   ::  A grant handed to us by a room's host.
@@ -275,11 +376,17 @@
     ::  people as soon as they next move, which is within a beat.
     ?>  =(our.bowl src.bowl)
     :_  this
-    :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev sprite-lab])]
-        ::  The lease outlives the tab, so a fresh page is told about it at
-        ::  once rather than finding out when somebody walks in.
-        [%give %fact ~ %glurff-update !>(`update:g`[%our-lease (shown:hc lease)])]
-    ==
+    %+  weld
+      :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev sprite-lab])]
+          ::  The lease outlives the tab, so a fresh page is told about it at
+          ::  once rather than finding out when somebody walks in.
+          [%give %fact ~ %glurff-update !>(`update:g`[%our-lease (shown:hc lease)])]
+          ::  Our settings, so the page draws our clocks from the start.
+          [%give %fact ~ %glurff-update !>(`update:g`[%our-prefs prefs])]
+      ==
+    ::  And which session is live, so a page opened beside it knows at once.
+    ?~  live  ~
+    ~[[%give %fact ~ %glurff-update !>(`update:g`[%session tab.u.live gen.u.live])]]
   ::
       [%call-access ~]
     ::  Credential delivery. Owner-local only: this path carries a Galene join
@@ -344,9 +451,9 @@
       ::  ordinary room. Our own browser hears the fact; the ships that were in
       ::  the room hear it directly, because their picture of the lease came
       ::  from a roster that may no longer have anybody publishing it.
-      :_  this(lease ~)
+      :_  this(lease ~, door ~)
       %+  weld
-        (spray:hc (sitters:hc u.lease) [%lease-gone place.h gen.h])
+        (spray:hc (told:hc h) [%lease-gone place.h gen.h])
       ~[(fact:hc [%our-lease ~])]
     =^  cards  h  (arm:hc h (due:hc h))
     [cards this(lease `h)]
@@ -434,6 +541,14 @@
   |=  h=held:g
   ^-  (list @p)
   ~(tap in (~(gas in *(set @p)) (turn ~(tap by seats.h) |=([s=seat:g *] who.s))))
+::  Everybody who could know about this lease: the people sitting in the room
+::  and the note's members, who were told which note it is.
+++  told
+  |=  h=held:g
+  ^-  (list @p)
+  =/  here=(set @p)  (~(gas in *(set @p)) (sitters h))
+  ?~  door  ~(tap in here)
+  ~(tap in (~(uni in here) members.u.door))
 ++  shown
   |=  h=(unit held:g)
   ^-  (unit lease:g)
@@ -478,7 +593,7 @@
 ::  its OWN seat: no guest can release a lease, and no guest can evict another.
 ++  seat-change
   |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
-  ^-  (quip card state-3)
+  ^-  (quip card state-7)
   ?~  lease  `state
   =/  h=held:g  u.lease
   ?.  =(place place.h)  `state
@@ -550,6 +665,74 @@
       %agent  [our.bowl %noltbook-calls]
       %poke  %noltbook-calls-action  !>(act)
   ==
+::  ---- THE WORLD ROOM (see `world-room` in /sur) ----
+::
+::  Somebody asks to be let into our world's relay room. We open it ourselves
+::  -- create the room and admit them, in one ordered request -- when it has
+::  never been opened, when its lease must have lapsed because nobody has asked
+::  for longer than it lasts, or when asks have failed for longer than a room
+::  takes to come up. Anything else is an ordinary admission, and the ask
+::  extends the lease. A room that may still be working is never opened
+::  afresh: that would throw out everybody inside.
+++  world-knock
+  |=  who=@p
+  ^-  (quip card state-7)
+  =/  =place:g  world-place:g
+  =/  held=(map place:g lock-mode:g)  (~(put by hosting) place %open)
+  =/  fresh=?
+    ?~  world  %.y
+    ?|  (gth now.bowl (add asked.u.world (mul ~s1 movement-ttl:g)))
+        ?~(failing.u.world %.n (gth now.bowl (add u.failing.u.world world-reopen:g)))
+    ==
+  ?:  fresh
+    :_  state(hosting held, world `[now.bowl ~])
+    :~  %-  calls-poke
+        :*  %ensure-access
+            (call-req place `@ud`(shas %glurff-world now.bowl) %ensure who)
+            (room-key place)  movement-ttl:g  who  %glurff
+            (call-ctx place who 0)
+        ==
+    ==
+  :_  state(hosting held, world `[now.bowl ?~(world ~ failing.u.world)])
+  :~  %-  calls-poke
+      :*  %renew-access
+          (call-req place `@ud`(shas %glurff-admit now.bowl) %access who)
+          (room-key place)  who  %glurff
+          (call-ctx place who 0)
+      ==
+      %-  calls-poke
+      :*  %renew
+          (call-req place `@ud`(div now.bowl ~m1) %renew our.bowl)
+          (room-key place)
+          movement-ttl:g
+      ==
+  ==
+::  What became of a request about the world room. Failing because the room is
+::  not there starts the clock towards opening it afresh; anybody let in shows
+::  it is working, and stops it.
+++  world-heard
+  |=  res=call-result:gc
+  ^-  state-7
+  ?~  world  state
+  ?-    -.res
+      %granted
+    ?.  (world-context context.res)  state
+    state(world `u.world(failing ~))
+  ::
+      %failed
+    ?.  (world-context context.res)  state
+    ?.  ?=(?(%room-unavailable %room-ended) err.res)  state
+    ?^  failing.u.world  state
+    state(world `u.world(failing `now.bowl))
+  ==
+::  Is this correlation about the world room? See +call-ctx: it starts with
+::  the place.
+++  world-context
+  |=  c=@t
+  ^-  ?
+  =/  head=tape  (trip (cat 3 (scot %ud world-place:g) '/'))
+  =(head (scag (lent head) (trip c)))
+::
 ::  Route one completed grant. A failure carries no secret and goes to our own
 ::  browser; a credential goes to exactly one ship and never to a fact anyone
 ::  else can watch.
@@ -583,7 +766,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-3)
+  ^-  (quip card state-7)
   ?-    -.act
       %move
     :_  state
@@ -627,19 +810,24 @@
     =/  prev=(unit @da)  ?~(lease ~ armed.u.lease)
     =/  h=held:g  [place.act note.act gen ~ `now.bowl prev]
     =^  cards  h  (arm h (due h))
-    :_  state(lease `h)
-    (snoc cards (fact [%our-lease (shown `h)]))
+    ::  A different note is a different door: our browser sends the new one.
+    ::  Whoever could see the old lease is told it is over.
+    =/  over=(list card)
+      ?~  lease  ~
+      (spray (told u.lease) [%lease-gone place.u.lease gen.u.lease])
+    :_  state(lease `h, door ~)
+    (weld over (snoc cards (fact [%our-lease (shown `h)])))
   ::
       %unlease
     ?~  lease  `state
-    :_  state(lease ~)
+    :_  state(lease ~, door ~)
     ;:  weld
       ?~  armed.u.lease  ~
       ~[[%pass /lease %arvo %b %rest u.armed.u.lease]]
       ::  The people standing in the room are told by name. Releasing by hand
       ::  used to rely on our own browser republishing the roster, which is no
       ::  use to anybody once that browser is closed.
-      (spray (sitters u.lease) [%lease-gone place.u.lease gen.u.lease])
+      (spray (told u.lease) [%lease-gone place.u.lease gen.u.lease])
       ~[(fact [%our-lease ~])]
     ==
   ::
@@ -656,6 +844,70 @@
       %sprite-lab
     :_  state(sprite-lab enabled.act)
     ~[(fact [%our-look look rev enabled.act])]
+  ::
+    ::  OUR SETTINGS, from our own browser: kept as given and handed back to
+    ::  every page of ours. Never read here, never sent to another ship.
+      %prefs
+    ?.  (lte (met 3 text.act) prefs-max:g)  `state
+    :_  state(prefs text.act)
+    ~[(fact [%our-prefs text.act])]
+  ::
+    ::  THE SESSION LEASE. See `live` in /sur. The same session renewing keeps
+    ::  its generation; a new one taking over gets a new, larger one; a session
+    ::  that is not live and does not `take` is told who is, and stands down.
+      %session
+    ?:  =(0 (met 3 tab.act))  `state
+    =/  mint
+      |=  prev=@ud
+      ^-  (quip card state-7)
+      =/  ms=@ud  (div (sub now.bowl ~1970.1.1) (div ~s1 1.000))
+      =/  gen=@ud  (max +(prev) ms)
+      :_  state(live `[tab.act gen now.bowl])
+      ~[(fact [%session tab.act gen])]
+    ?~  live  (mint 0)
+    ?.  (lth now.bowl (add at.u.live session-ttl:g))
+      (mint gen.u.live)
+    ?:  =(tab.act tab.u.live)
+      `state(live `[tab.act gen.u.live now.bowl])
+    ?.  take.act
+      [~[(fact [%session tab.u.live gen.u.live])] state]
+    (mint gen.u.live)
+  ::
+    ::  HOST-SHIP ADMISSION: who our browser has let into our call at a place.
+    ::  Bounded, like the call itself.
+      %admits
+    ?~  ships.act  `state(admits (~(del by admits) place.act))
+    ?:  (gth (lent ships.act) 64)  `state
+    `state(admits (~(put by admits) place.act (silt ships.act)))
+  ::
+      %call-knock
+    ?:  =(host.act our.bowl)  `state
+    :_  state
+    ~[(tell host.act [%call-knock place.act attempt.act mode.act])]
+  ::
+    ::  THE DOOR of the room we lease. Members new to it are told which note it
+    ::  is; members dropped from it are told the lease is over for them.
+      %lease-door
+    ?~  lease  `state(door ~)
+    ?:  (gth (lent members.act) 256)  `state
+    =/  mem=(set @p)  (~(del in (silt members.act)) our.bowl)
+    =/  was=(set @p)  ?~(door ~ members.u.door)
+    =/  fresh=?
+      ?~  door  %.y
+      !=(vis.act vis.u.door)
+    =/  tell-them=(list @p)
+      ?:  fresh  ~(tap in mem)
+      ~(tap in (~(dif in mem) was))
+    =/  gone=(list @p)  ~(tap in (~(dif in was) mem))
+    :_  state(door `[mem vis.act])
+    %+  weld
+      (spray tell-them [%lease-info place.u.lease note.u.lease vis.act gen.u.lease])
+    (spray gone [%lease-gone place.u.lease gen.u.lease])
+  ::
+      %lease-ask
+    ?:  =(host.act our.bowl)  `state
+    :_  state
+    ~[(tell host.act [%lease-ask place.act])]
   ::
       %lock
     ?.  (~(has by hosting) place.act)  `state
@@ -692,9 +944,44 @@
 ::
 ::  ---- from another ship ----
 ::
+::  One more poke from `who`: is it within their allowance? The meter map is
+::  pruned of finished windows once it grows, so a crowd of ships that each
+::  poked once cannot make it grow without bound.
+++  meter
+  |=  who=@p
+  ^-  [? state-7]
+  =/  cur=meter:g  (~(gut by meters) who [now.bowl 0])
+  =?  cur  (gte now.bowl (add at.cur remote-window:g))  [now.bowl 0]
+  =.  n.cur  +(n.cur)
+  =/  kept=(map @p meter:g)
+    ?.  (gth ~(wyt by meters) 512)  meters
+    %-  malt
+    %+  skim  ~(tap by meters)
+    |=  [p=@p m=meter:g]
+    (lth now.bowl (add at.m remote-window:g))
+  =/  ok=?  (lte n.cur remote-burst:g)
+  ::  Said once per window, not once per dropped poke.
+  ~?  =(n.cur +(remote-burst:g))  [%glurff-over-allowance who]
+  [ok state(meters (~(put by kept) who cur))]
+::  Is some browser of ours watching this path?
+++  watched
+  |=  =path
+  ^-  ?
+  %+  lien  ~(val by sup.bowl)
+  |=([=ship p=^path] =(p path))
+::  No text from another ship bigger than our own browser would send.
+++  fits
+  |=  rem=remote:g
+  ^-  ?
+  ?+  -.rem  %.y
+    %presence-event  (lte (met 3 body.rem) remote-body:g)
+    %room-event      (lte (met 3 body.rem) remote-body:g)
+    %wearing         (lte (met 3 (jam look.rem)) remote-body:g)
+    %lease-info      (lte (met 3 note.rem) 256)
+  ==
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-3)
+  ^-  (quip card state-7)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])
@@ -726,6 +1013,57 @@
       %lease-gone
     :_(state ~[(fact [%lease-gone who place.rem gen.rem])])
   ::
+    ::  A guest's ship asking for our call. Somebody our browser already let in
+    ::  is let in again here, with nobody's browser involved -- which is what
+    ::  keeps a call alive through a host's slow or sleeping tab. Anybody else
+    ::  is put to our browser, which applies the room's rules; with no browser
+    ::  to ask, and no record of them, the answer is no.
+      %call-knock
+    ?.  ?|(=(%access mode.rem) =(%renew-access mode.rem))  `state
+    =/  ok=(unit (set @p))  (~(get by admits) place.rem)
+    ?:  ?&(?=(^ ok) (~(has in u.ok) who))
+      :_  state
+      ::  Each tagged action built on its own: a computed tag inside one tuple
+      ::  does not nest in the calls action union (see %knock).
+      :~  ?:  =(%renew-access mode.rem)
+            %-  calls-poke
+            :*  %renew-access
+                (call-req place.rem attempt.rem %renew-access who)
+                (room-key place.rem)  who  %glurff
+                (call-ctx place.rem who attempt.rem)
+            ==
+          %-  calls-poke
+          :*  %access
+              (call-req place.rem attempt.rem %access who)
+              (room-key place.rem)  who  %glurff
+              (call-ctx place.rem who attempt.rem)
+          ==
+          (fact [%admitted who place.rem attempt.rem])
+      ==
+    ?:  (watched /world)
+      :_(state ~[(fact [%call-knocked who place.rem attempt.rem mode.rem])])
+    :_(state ~[(tell who [%call-refused place.rem attempt.rem %not-hosting])])
+  ::
+      %call-refused
+    :_(state ~[(fact [%call-refused who place.rem attempt.rem why.rem])])
+  ::
+    ::  THE DOOR. A member is told which note; anybody else, only that the room
+    ::  is private. Nothing is said about a room we do not lease.
+      %lease-ask
+    ?~  lease  `state
+    ?.  =(place.rem place.u.lease)  `state
+    =/  private=card  (tell who [%lease-private place.u.lease gen.u.lease])
+    ?~  door  :_(state ~[private])
+    ?.  (~(has in members.u.door) who)  :_(state ~[private])
+    :_  state
+    ~[(tell who [%lease-info place.u.lease note.u.lease vis.u.door gen.u.lease])]
+  ::
+      %lease-info
+    :_(state ~[(fact [%lease-info who place.rem note.rem vis.rem gen.rem])])
+  ::
+      %lease-private
+    :_(state ~[(fact [%lease-private who place.rem gen.rem])])
+  ::
       %room-event
     ?.  ?&((gth place.rem 0) ?|((lte place.rem last-room:g) =(place.rem vatican-room:g)) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
       `state
@@ -735,6 +1073,7 @@
     :_(state ~[(fact [%refused who place.rem why.rem])])
   ::
       %knock
+    ?:  =(place.rem world-place:g)  (world-knock who)
     ::  Someone is asking to be let into a room we hold. `%ask` is the browser's
     ::  decision, so it is surfaced rather than answered here; every other mode
     ::  is answered immediately, and a refusal is a value, never silence.

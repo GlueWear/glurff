@@ -20,6 +20,36 @@ import { applyOutput } from 'lib/devices';
 
 const PROTOCOL_VERSION = '2';
 const LABEL_CAMERA = 'camera';
+/* One publication's own retries, independent of the call. */
+export const PUBLICATION_TRIES = 4;
+export const PUBLICATION_BACKOFF_MS = [1000, 3000, 8000, 15000];
+/* CONNECT BEFORE BREAK: how long a replacement socket gets to be accepted by
+ * the call server before we give up on it and keep the call we have. */
+export const SWITCH_TIMEOUT_MS = 15000;
+/* BROKEN MEDIA, NOT JUST BROKEN CONNECTIONS. WebRTC can say "connected" while
+ * no audio is arriving at all. Every MEDIA_WATCH_MS each audio connection's
+ * byte counter is read; one that has not moved for MEDIA_STALL_MS on a
+ * connected link is stalled. Then, one step at a time: an ICE restart, and if
+ * that has not brought bytes back within MEDIA_RECOVER_MS, that one stream is
+ * rebuilt. Muting unpublishes, so a muted person has no stream to mistake for
+ * a broken one; Opus keeps sending through silence. Audio only: a still screen
+ * share legitimately sends nothing. */
+export const MEDIA_WATCH_MS = 2000;
+export const MEDIA_STALL_MS = 6000;
+export const MEDIA_RECOVER_MS = 8000;
+/* A STREAM THAT NEVER STARTED is as broken as one that stopped. Chrome only
+ * creates the audio counter once the first packet has arrived, so a stream
+ * that had never carried a sound had nothing to watch, and was skipped: a
+ * listener hearing nothing, with every connection saying "connected". One that
+ * should carry audio now counts from zero.
+ *
+ * NOT FOREVER, though. When the SOURCE is silent -- a microphone that has died
+ * at the other end -- rebuilding the stream changes nothing, and rebuilding it
+ * every fifteen seconds is churn everybody sees. After MEDIA_MAX_REBUILDS for
+ * one person's audio within MEDIA_GIVEUP_MS we stop and wait for sound; the
+ * other end's own microphone check is what tells them. */
+export const MEDIA_MAX_REBUILDS = 2;
+export const MEDIA_GIVEUP_MS = 3 * 60 * 1000;
 
 /* Audio falls off between these radii, in tiles. Inside FULL you hear someone
  * at full volume; past SILENT they are muted but still connected, so walking
@@ -37,8 +67,22 @@ export function gainForDistance(d) {
 }
 
 export class SfuSession {
-  constructor({ our, onStream, onStreamRemoved, onPeerLeft, onStatus, onUsers, onPermissions } = {}) {
+  constructor({ our, onStream, onStreamRemoved, onPeerLeft, onStatus, onUsers, onPermissions,
+                onPublication, onPeerState, onMedia } = {}) {
     this.our = our;
+    /* One publication succeeding or giving up, reported on its own. A camera
+     * that cannot be sent is not a failed CALL, and must not be reported as
+     * one: that used to tear down healthy voice to retry a screen share. */
+    this.onPublication = onPublication ?? (() => {});
+    /* A single peer connection's WebRTC state changing -- for diagnostics. */
+    this.onPeerState = onPeerState ?? (() => {});
+    this.pubTries = new Map();     //  publication id -> attempts that failed
+    this.pubTimers = new Map();    //  publication id -> retry timer
+    this.renegotiated = new Set(); //  down stream ids we have asked to restart ICE
+    this.restarted = new Set();    //  up stream ids we have re-offered with an ICE restart
+    this.onMedia = onMedia ?? (() => {});   //  (id, direction, state, ship): stalled / restart / rebuild / recovered
+    this.mediaTimer = null;
+    this.checkingMedia = false;
     this.onUsers = onUsers ?? (() => {});
     this.onStream = onStream ?? (() => {});
     this.onStreamRemoved = onStreamRemoved ?? (() => {});
@@ -51,6 +95,9 @@ export class SfuSession {
     this.mayPresent = true;
 
     this.ws = null;
+    /* A replacement socket joining beside the live one: {grant, clientId, ws,
+     * timer}. See connectBeside. */
+    this.next = null;
     this.grant = null;
     this.clientId = null;
     this.username = null;
@@ -68,7 +115,13 @@ export class SfuSession {
 
   /* -------------------------------------------------------- connection */
 
-  connect(grant) {
+  connect(grant, { overlap = false } = {}) {
+    /* CONNECT BEFORE BREAK. Moving to another room used to close the live one
+     * first and then dial the new one, so a replacement that never came up
+     * left nothing at all. With `overlap` and a live call, the new socket joins
+     * BESIDE the old one, and the old one is let go only once the call server
+     * has accepted us into the new room. */
+    if (overlap && this.ws && this.joined && this.grant) { this.connectBeside(grant); return; }
     /* Quietly: there is usually nothing to supersede, and reporting it leaves
      * a stale 'superseded' sitting in the UI next to a healthy connection. */
     this.close(null);
@@ -87,10 +140,75 @@ export class SfuSession {
 
     ws.onopen = () => {
       if (this.ws !== ws) return;
-      /* Pipelining is permitted: handshake then join without waiting. */
-      this.send({ type: 'handshake', version: [PROTOCOL_VERSION], id: this.clientId });
-      this.send({ type: 'join', kind: 'join', group: grant.group, token: grant.token });
+      this.hello(ws, grant, this.clientId);
     };
+    this.bindSocket(ws);
+  }
+
+  /* Pipelining is permitted: handshake then join without waiting. */
+  hello(ws, grant, id) {
+    const raw = (m) => { try { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); } catch {} };
+    raw({ type: 'handshake', version: [PROTOCOL_VERSION], id });
+    raw({ type: 'join', kind: 'join', group: grant.group, token: grant.token });
+  }
+
+  /* The replacement: joined on its own socket, with the live call untouched.
+   * Only the join is handled here -- no media is requested or offered until it
+   * is promoted, so the two rooms never both carry our audio. */
+  connectBeside(grant) {
+    this.abandonNext(null);
+    const next = { grant, clientId: cryptoId(), ws: null, timer: null };
+    this.next = next;
+    let ws;
+    try { ws = new WebSocket(grant.sfu); }
+    catch { this.abandonNext('connect'); return; }
+    next.ws = ws;
+    ws.onopen = () => { if (this.next === next) this.hello(ws, grant, next.clientId); };
+    ws.onmessage = (ev) => {
+      if (this.next !== next) return;
+      let m = null;
+      try { m = JSON.parse(ev.data); } catch { return; }
+      if (m?.type === 'ping') { try { ws.send(JSON.stringify({ type: 'pong' })); } catch {} return; }
+      if (m?.type !== 'joined') return;
+      if (m.kind === 'fail') { this.abandonNext('join-refused'); return; }
+      if (m.kind !== 'join') return;
+      if (m.username !== this.our || grant.participant !== m.username) { this.abandonNext('identity-mismatch'); return; }
+      this.promote(next, m);
+    };
+    ws.onclose = () => { if (this.next === next) this.abandonNext('connect'); };
+    ws.onerror = () => { if (this.next === next) this.abandonNext('connect'); };
+    next.timer = setTimeout(() => { if (this.next === next) this.abandonNext('join-timeout'); }, SWITCH_TIMEOUT_MS);
+  }
+
+  /* The call server took us into the new room: now, and only now, the old one
+   * goes. Publications carry over -- they are re-offered on the new socket. */
+  promote(next, m) {
+    clearTimeout(next.timer);
+    this.next = null;
+    this.close(null);
+    this.grant = next.grant;
+    this.clientId = next.clientId;
+    this.ws = next.ws;
+    this.bindSocket(next.ws);
+    this.onJoined(m);
+  }
+
+  /* The replacement did not make it. The live call is exactly as it was; the
+   * caller is told, so it can go back to it. */
+  abandonNext(why) {
+    const n = this.next;
+    if (!n) return false;
+    this.next = null;
+    clearTimeout(n.timer);
+    try { n.ws?.close(); } catch {}
+    if (why) this.onStatus('handoff-failed', why);
+    return true;
+  }
+
+  /* Is a replacement joining beside the live call right now? */
+  switching() { return !!this.next; }
+
+  bindSocket(ws) {
     ws.onmessage = (ev) => {
       if (this.ws !== ws) return;
       let m = null;
@@ -204,6 +322,7 @@ export class SfuSession {
 
     if (m.kind === 'join') {
       this.joined = true;
+      this.watchMedia();
       this.onStatus('connected');
       /* The empty key is the default that matches any label the server offers. */
       this.send({ type: 'request', request: { '': ['audio', 'video'] } });
@@ -215,6 +334,10 @@ export class SfuSession {
   /* Capture belongs to the user's media toggles. Connections may change as
    * huddles split; preserve enabled tracks and their IDs across that change. */
   refreshGrant(grant) {
+    /* A socket that failed or was closed keeps its old grant for reference,
+     * but a credential for it is no renewal: there is nothing to renew. Say
+     * so, and the caller connects afresh. */
+    if(!this.ws)return false;
     if(!this.grant || grant.participant!==this.our || grant.group!==this.grant.group || grant.sfu!==this.grant.sfu)return false;
     // Extending a lease increments gen without replacing the Galene group.
     // A delayed credential must not roll the current lease back.
@@ -242,6 +365,7 @@ export class SfuSession {
     const pc = new RTCPeerConnection({ iceServers: iceFrom(this.grant) });
     const u = { pc, ...q, localIce: [], remoteIce: [], sent: false };
     this.up.set(id, u);
+    this.watchPeer(pc, id, 'up');
     pc.onicecandidate = ({ candidate }) => {
       if (!candidate || this.up.get(id) !== u) return;
       if (u.sent) this.send({ type: 'ice', id, candidate });
@@ -264,7 +388,93 @@ export class SfuSession {
       if (this.up.get(id) !== u) return;
       pc.close();
       this.up.delete(id);
-      this.onStatus('failed', 'publish-failed');
+      this.retryPublication(id, 'publish-failed');
+    }
+  }
+
+  /* ONE PUBLICATION, RETRIED ON ITS OWN. Bounded: after a few failures it is
+   * reported as failed to the media layer and left alone, while the call and
+   * every other publication carry on. */
+  retryPublication(id, reason) {
+    if (!this.publications.has(id)) return;
+    clearTimeout(this.pubTimers.get(id));
+    const tries = (this.pubTries.get(id) ?? 0) + 1;
+    this.pubTries.set(id, tries);
+    if (tries > PUBLICATION_TRIES) {
+      this.pubTimers.delete(id);
+      this.onPublication(id, 'failed', reason);
+      return;
+    }
+    this.onPublication(id, 'retrying', reason);
+    this.pubTimers.set(id, setTimeout(() => {
+      this.pubTimers.delete(id);
+      if (this.publications.has(id) && !this.up.has(id)) void this.startPublication(id, this.publications.get(id));
+    }, PUBLICATION_BACKOFF_MS[Math.min(tries - 1, PUBLICATION_BACKOFF_MS.length - 1)]));
+  }
+
+  /* Rebuild one upstream connection from scratch: close what the server holds
+   * for it and offer again under the same id. */
+  rebuildPublication(id, reason) {
+    const u = this.up.get(id);
+    if (u) {
+      this.send({ type: 'close', id });
+      try { u.pc.close(); } catch {}
+      this.up.delete(id);
+    }
+    this.retryPublication(id, reason);
+  }
+
+  /* WATCH THE CONNECTION, NOT ONLY THE SOCKET. The signalling socket can be
+   * healthy while one audio or video connection has failed underneath it --
+   * somebody present who sends nothing. Record both states, and repair just
+   * that connection: an upstream one is rebuilt, a downstream one is asked to
+   * restart ICE once, and dropped if that does not bring it back. */
+  watchPeer(pc, id, direction) {
+    const report = () => {
+      const state = pc.connectionState ?? '', ice = pc.iceConnectionState ?? '';
+      const rec = direction === 'up' ? this.up.get(id) : this.down.get(id);
+      if (!rec || rec.pc !== pc) return;
+      rec.connectionState = state; rec.iceState = ice;
+      this.onPeerState(id, direction, state, ice, rec.ship ?? this.our);
+      if (state === 'connected' && direction === 'up') { this.pubTries.delete(id); this.restarted.delete(id); }
+      if (state === 'connected' && direction === 'down') this.renegotiated.delete(id);
+      const failed = state === 'failed' || ice === 'failed';
+      if (!failed) return;
+      if (direction === 'up') {
+        /* ICE restart first -- cheap, keeps the same stream on the server --
+         * and a full rebuild only if that does not bring it back. */
+        if (!this.restarted.has(id)) { this.restarted.add(id); void this.restartUp(id); return; }
+        this.restarted.delete(id);
+        this.rebuildPublication(id, 'ice-failed');
+        return;
+      }
+      if (!this.renegotiated.has(id)) {
+        this.renegotiated.add(id);
+        this.send({ type: 'renegotiate', id });
+        return;
+      }
+      this.renegotiated.delete(id);
+      this.dropDown(id);
+    };
+    pc.onconnectionstatechange = report;
+    pc.oniceconnectionstatechange = report;
+  }
+
+  /* Re-offer one upstream connection with new ICE credentials, as Galene's own
+   * client does: same id, kind 'renegotiate'. */
+  async restartUp(id) {
+    const u = this.up.get(id);
+    if (!u) return;
+    try {
+      u.pc.restartIce?.();
+      const offer = await u.pc.createOffer({ iceRestart: true });
+      await u.pc.setLocalDescription(offer);
+      if (this.up.get(id) !== u) return;
+      this.onPublication(id, 'restarting', 'ice-failed');
+      this.send({ type: 'offer', id, source: this.clientId, username: this.username,
+        kind: 'renegotiate', label: u.label, sdp: u.pc.localDescription.sdp });
+    } catch {
+      if (this.up.get(id) === u) { this.restarted.delete(id); this.rebuildPublication(id, 'ice-restart-failed'); }
     }
   }
 
@@ -274,6 +484,7 @@ export class SfuSession {
   hasPublication(id) { return this.publications.has(id); }
 
   unpublish(id) {
+    clearTimeout(this.pubTimers.get(id)); this.pubTimers.delete(id); this.pubTries.delete(id);
     const q = this.publications.get(id);
     for (const track of q?.stream.getTracks() ?? []) track.stop();
     this.publications.delete(id);
@@ -285,8 +496,45 @@ export class SfuSession {
     }
   }
 
+  /* Try again to start audio the browser refused to autoplay. Records the
+   * outcome the same way attach does, so the diagnostics stop saying
+   * "refused" once it works. Returns how many elements were retried. */
   resume() {
-    for (const d of this.down.values()) d.audioEl?.play().catch(() => {});
+    let tried = 0;
+    for (const d of this.down.values()) {
+      const el = d.audioEl;
+      if (!el || (d.played === true && !el.paused)) continue;
+      tried++;
+      Promise.resolve(el.play?.()).then(() => { d.played = true; }, () => { d.played = false; });
+    }
+    return tried;
+  }
+  /* Is any received audio waiting on a user gesture? */
+  blocked() {
+    for (const d of this.down.values()) if (d.audioEl && d.played === false) return true;
+    return false;
+  }
+
+  /* One compact line of state for the call timeline: signalling, credential,
+   * each connection's WebRTC and ICE state, what arrived, and autoplay. */
+  summary() {
+    const pc = (r) => `${r.connectionState ?? r.pc?.connectionState ?? '?'}/${r.iceState ?? r.pc?.iceConnectionState ?? '?'}`;
+    const tracks = {};
+    for (const d of this.down.values()) {
+      if (!d.ship) continue;
+      const t = tracks[d.ship] ??= { audio: 0, video: 0, pcs: [] };
+      for (const k of d.stream?.getTracks?.() ?? []) if (k.readyState === 'live') t[k.kind === 'video' ? 'video' : 'audio']++;
+      t.pcs.push(pc(d));
+    }
+    return {
+      socket: this.ws ? (['connecting', 'open', 'closing', 'closed'][this.ws.readyState] ?? '?') : 'none',
+      joined: this.joined, switching: !!this.next,
+      group: this.grant?.group ?? null, gen: this.grant?.gen ?? 0,
+      users: this.users.size, present: this.mayPresent,
+      up: [...this.up.values()].map((u) => `${u.label ?? '?'}:${pc(u)}`),
+      down: tracks,
+      autoplayBlocked: this.blocked(),
+    };
   }
 
   async flushRemoteIce(rec) {
@@ -324,6 +572,7 @@ export class SfuSession {
       const pc = new RTCPeerConnection({ iceServers: iceFrom(this.grant) });
       d = { id:m.id, source:m.source, label:m.label??LABEL_CAMERA, pc, ship: shipOf(m.username ?? this.users.get(m.source)), audioEl: null, stream: null, remoteIce: [], localIce: [], sent: false };
       this.down.set(m.id, d);
+      this.watchPeer(pc, m.id, 'down');
 
       pc.onicecandidate = (e) => {
         if (!e.candidate || this.down.get(m.id) !== d) return;
@@ -361,8 +610,12 @@ export class SfuSession {
     try {
       await u.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp });
       await this.flushRemoteIce(u);
+      this.onPublication(m.id, 'answered');
     } catch (e) {
+      /* An answer we cannot apply leaves a publication that looks present and
+       * sends nothing. It used to be logged and left like that. Rebuild it. */
       console.error('[sfu] remote answer rejected');
+      if (this.up.get(m.id) === u) this.rebuildPublication(m.id, 'answer-rejected');
     }
   }
 
@@ -385,7 +638,122 @@ export class SfuSession {
         u.pc.close();
       } catch (e) {}
       this.up.delete(m.id);
+      /* The server closed something we are still publishing. That used to be
+       * the end of it: the button said "on" and nothing was sent. Offer it
+       * again, backed off -- unless we may not publish right now, which is a
+       * mute and is put back when `present` returns. */
+      if (this.publications.has(m.id) && this.mayPresent) this.retryPublication(m.id, 'server-closed');
     }
+  }
+
+  /* ---------------------------------------------------- the media watchdog */
+
+  watchMedia() {
+    clearInterval(this.mediaTimer);
+    this.mediaTimer = setInterval(() => { void this.checkMedia(); }, MEDIA_WATCH_MS);
+  }
+
+  /* Audio bytes a connection has moved so far, or null if it carries none. */
+  async audioBytes(pc, direction) {
+    let stats;
+    try { stats = await pc.getStats(); } catch { return null; }
+    const type = direction === 'down' ? 'inbound-rtp' : 'outbound-rtp';
+    const field = direction === 'down' ? 'bytesReceived' : 'bytesSent';
+    let bytes = null;
+    stats?.forEach?.((r) => {
+      if (r.type === type && (r.kind ?? r.mediaType) === 'audio' && Number.isFinite(r[field])) bytes = (bytes ?? 0) + r[field];
+    });
+    return bytes;
+  }
+
+  async checkMedia(now = Date.now()) {
+    if (this.checkingMedia || !this.joined) return;
+    this.checkingMedia = true;
+    this.noSound ??= new Map();      //  ship -> ms we stopped hearing them
+    this.gaveUp ??= new Map();       //  `${direction}/${ship}/${label}` -> {count, since}
+    try {
+      const records = [...[...this.down].map(([id, r]) => [id, r, 'down']), ...[...this.up].map(([id, r]) => [id, r, 'up'])];
+      for (const [id, rec, direction] of records) {
+        if ((direction === 'down' ? this.down : this.up).get(id) !== rec) continue;
+        let bytes = await this.audioBytes(rec.pc, direction);
+        if (bytes === null) {
+          if (!(rec.stream?.getAudioTracks?.().length > 0)) continue;   //  no audio on this one
+          bytes = 0;                                                    //  audio due, none yet
+        }
+        const who = rec.ship ?? this.our, key = `${direction}/${who}/${rec.label ?? ''}`;
+        const m = rec.media ??= { bytes, at: now, stage: 0, stageAt: 0 };
+        if (bytes > m.bytes) {
+          if (m.stage) this.onMedia(id, direction, 'recovered', who);
+          m.bytes = bytes; m.at = now; m.stage = 0;
+          this.gaveUp.delete(key);
+          if (direction === 'down' && this.noSound.delete(who)) this.onMedia(id, direction, 'sound', who);
+          continue;
+        }
+        const linked = (rec.pc.connectionState ?? 'connected') === 'connected';
+        if (!linked || now - m.at < MEDIA_STALL_MS) continue;
+        if (direction === 'down' && !this.noSound.has(who)) this.noSound.set(who, m.at);
+        if (m.stage === 0) {
+          const gave = this.gaveUp.get(key);
+          if (gave && gave.count >= MEDIA_MAX_REBUILDS && now - gave.since < MEDIA_GIVEUP_MS) {
+            /* Rebuilt twice already and still silent: it is the source. */
+            m.stage = 3; m.stageAt = now;
+            this.onMedia(id, direction, 'gave-up', who);
+            continue;
+          }
+          /* One ICE restart first: cheap, and the same stream on the server. */
+          m.stage = 1; m.stageAt = now;
+          this.onMedia(id, direction, 'restart', who);
+          if (direction === 'down') this.send({ type: 'renegotiate', id });
+          else { this.restarted.add(id); void this.restartUp(id); }
+        } else if (m.stage === 1 && now - m.stageAt >= MEDIA_RECOVER_MS) {
+          /* Still nothing: rebuild just this stream. */
+          m.stage = 2; m.stageAt = now;
+          const gave = this.gaveUp.get(key);
+          if (!gave || now - gave.since >= MEDIA_GIVEUP_MS) this.gaveUp.set(key, { count: 1, since: now });
+          else gave.count++;
+          this.onMedia(id, direction, 'rebuild', rec.ship ?? this.our);
+          if (direction === 'up') this.rebuildPublication(id, 'media-stalled');
+          else {
+            this.send({ type: 'abort', id });
+            this.dropDown(id);
+            this.send({ type: 'request', request: { '': ['audio', 'video'] } });
+          }
+        }
+      }
+    } finally { this.checkingMedia = false; }
+  }
+
+  /* People whose audio should be reaching us and is not -- stalled, or never
+   * started. Their call tile says so: it is not the listener's speakers. */
+  soundless() {
+    const here = new Set([...this.down.values()].map((d) => d.ship));
+    return new Set([...(this.noSound ?? new Map()).keys()].filter((s) => here.has(s)));
+  }
+
+  /* Every audio stream the watchdog is following, for the diagnostics. */
+  mediaState(now = Date.now()) {
+    const rows = [];
+    for (const [direction, map] of [['up', this.up], ['down', this.down]]) {
+      for (const r of map.values()) if (r.media) rows.push({ direction, who: r.ship ?? this.our,
+        label: r.label ?? '', bytes: r.media.bytes, quietMs: now - r.media.at, stage: r.media.stage });
+    }
+    return { streams: rows, soundless: [...this.soundless()] };
+  }
+
+  /* How much sound our own publication is carrying, as the browser measures it
+   * before encoding: `energy` only grows while there is sound -- even the
+   * faint hiss every working microphone picks up. Null where not measured. */
+  async upAudio(id) {
+    const u = this.up.get(id);
+    if (!u) return null;
+    let stats;
+    try { stats = await u.pc.getStats(); } catch { return null; }
+    let energy = null, bytes = null;
+    stats?.forEach?.((r) => {
+      if (r.type === 'media-source' && r.kind === 'audio' && Number.isFinite(r.totalAudioEnergy)) energy = (energy ?? 0) + r.totalAudioEnergy;
+      if (r.type === 'outbound-rtp' && (r.kind ?? r.mediaType) === 'audio' && Number.isFinite(r.bytesSent)) bytes = (bytes ?? 0) + r.bytesSent;
+    });
+    return { energy, bytes };
   }
 
   dropDown(id) {
@@ -397,7 +765,10 @@ export class SfuSession {
     } catch (e) {}
     this.down.delete(id);
     this.onStreamRemoved(id, d.ship);
-    if (d.ship && ![...this.down.values()].some(other => other.ship === d.ship)) this.onPeerLeft(d.ship);
+    if (d.ship && ![...this.down.values()].some(other => other.ship === d.ship)) {
+      this.noSound?.delete(d.ship);
+      this.onPeerLeft(d.ship);
+    }
   }
 
   /* ------------------------------------------------------ positional audio */
@@ -533,6 +904,9 @@ export class SfuSession {
         started: d.played,
         silenced: this.silent(d.ship),
         volume: d.audioEl ? Math.round(d.audioEl.volume * 100) : null,
+        /* The connection underneath, which can fail while signalling is fine. */
+        connection: d.connectionState ?? d.pc?.connectionState ?? null,
+        ice: d.iceState ?? d.pc?.iceConnectionState ?? null,
       };
     }
     return out;
@@ -581,6 +955,10 @@ export class SfuSession {
   /* --------------------------------------------------------------- close */
 
   close(why) {
+    this.abandonNext(null);
+    clearInterval(this.mediaTimer); this.mediaTimer = null;
+    for (const t of this.pubTimers.values()) clearTimeout(t);
+    this.pubTimers.clear(); this.pubTries.clear(); this.renegotiated.clear(); this.restarted.clear();
     for (const id of [...this.down.keys()]) this.dropDown(id);
     for (const [id, u] of this.up) {
       this.send({ type: 'close', id });

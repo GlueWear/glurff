@@ -183,8 +183,13 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .contacts-btn .dot { position: absolute; right: -3px; top: -3px; width: 11px; height: 11px;
   border-radius: 50%; border: 1px solid #141820; background: #3b82f6; }
 .contacts-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 320px;
-  max-height: 65vh; overflow-y: auto; scrollbar-width: thin; background: rgba(10,12,18,.96);
+  max-height: 65vh; display: flex; flex-direction: column; background: rgba(10,12,18,.96);
   border: 1px solid #2a3244; border-radius: 4px; }
+/* The search stays put; the list under it scrolls. */
+.contacts-search { background: rgba(15,19,29,.9); border: none; border-bottom: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .4rem .5rem; border-radius: 4px 4px 0 0; flex: none; }
+.contacts-search:focus { outline: none; border-bottom-color: #7fd6c3; }
+.contacts-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
 .contacts-group { padding: .45rem .5rem .25rem; font-size: 10px; letter-spacing: .08em;
   text-transform: uppercase; color: #7b879b; border-bottom: 1px solid rgba(42,50,68,.5); }
 .contact-row { display: flex; align-items: center; gap: .4rem; padding: .45rem .5rem;
@@ -234,6 +239,7 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .card-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
 .card-btns button { flex: 1 1 auto; }
 .card-btns .danger { border-color: #a3524b; color: #d98b83; }
+.card-btns .b-wave { border-color: #7fd6c3; color: #7fd6c3; }
 .card-btns .b-pal.pal-none { border-color: #2a3244; color: #c9d4e4; background: rgba(15,19,29,.85); }
 .card-notes { display: flex; flex-direction: column; gap: .2rem;
   border-top: 1px solid #2a3244; padding-top: .5rem; }
@@ -254,6 +260,41 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .profile-edit-actions .spacer { flex: 1; }
 .profile-edit-actions .b-profile-clear { color: #d98b83; border-color: #a3524b; }
 .profile-edit-status { min-height: 1.2em; color: #e0a44a; font-size: 11px; }
+/* Our clocks in the sky, under the profile form. */
+.card-clocks { display: flex; flex-direction: column; gap: .45rem; border-top: 1px solid #2a3244;
+  padding-top: .6rem; margin-top: .3rem; }
+.clocks-head { display: flex; align-items: center; justify-content: space-between;
+  color: #9aa7bd; font-size: 10px; letter-spacing: .08em; }
+.clock-list { display: flex; flex-direction: column; gap: .45rem; }
+.clock-row { display: flex; flex-direction: column; gap: .3rem; padding: .45rem;
+  border: 1px solid #2a3244; border-radius: 4px; background: rgba(15,19,29,.6); }
+.clock-top { display: flex; align-items: center; justify-content: space-between; font-size: 10px; letter-spacing: .06em; }
+.clock-row label { display: flex; flex-direction: column; gap: .2rem; color: #9aa7bd; font-size: 10px; letter-spacing: .05em; }
+.clock-row select, .clock-row input:not([type="range"]) { width: 100%; box-sizing: border-box; background: rgba(15,19,29,.9); color: #c9d4e4;
+  border: 1px solid #2a3244; border-radius: 3px; padding: .35rem; font: 12px Arial,sans-serif; }
+.clock-row input:focus, .clock-row select:focus { outline: none; border-color: #7fd6c3; }
+.clock-row input.bad { border-color: #a3524b; }
+.clock-row input[type="range"] { width: 100%; accent-color: #7fd6c3; }
+/* The day colour slider shows the colours it picks from. */
+.hue-row { display: flex; align-items: center; gap: .4rem; }
+.clock-row input.clock-hue { flex: 1; -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, hsl(0,85%,60%), hsl(60,85%,60%), hsl(120,85%,60%), hsl(180,85%,60%),
+    hsl(240,85%,60%), hsl(300,85%,60%), hsl(359,85%,60%)); }
+.clock-row input.clock-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: #f4f6fa; border: 2px solid #17141f; cursor: pointer; }
+.clock-row input.clock-hue::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%;
+  background: #f4f6fa; border: 2px solid #17141f; cursor: pointer; }
+.clock-gold { font-size: 10px; flex: none; }
+.clock-gold:disabled { opacity: .45; cursor: default; }
+.clock-remove { background: none; border: none; color: #d98b83; font-size: 16px; line-height: 1; cursor: pointer; padding: 0 .2rem; }
+.clock-here { align-self: flex-start; font-size: 10px; }
+/* Arranging the clocks: a bar that says so, and how to stop. */
+.arrange-bar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 42;
+  display: flex; align-items: center; gap: .7rem; max-width: calc(100vw - 32px);
+  background: rgba(10,12,18,.95); color: #d8e2f0; border: 1px solid #7fd6c3; border-radius: 6px;
+  padding: 6px 8px 6px 14px; font-size: 12px; }
+.arrange-bar button { background: rgba(127,214,195,.14); color: #7fd6c3; border: 1px solid #7fd6c3;
+  border-radius: 4px; padding: 2px 10px; font: inherit; cursor: pointer; }
 
 .builder { position:fixed; z-index:20; left:50%; top:50%; transform:translate(-50%,-50%);
   width:min(560px,94vw); max-height:90vh; overflow:auto; background:#202938; border:1px solid #718096;
@@ -478,3 +519,38 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .shot-overlay .shot { max-width: 92vw; max-height: 82vh; object-fit: contain;
   border-radius: 6px; box-shadow: 0 12px 60px #000a; image-rendering: auto; }
 .shot-name { font-size: 12px; }
+/* Reconnecting: the relay or our own ship's channel is down. See main.js. */
+.net-pill { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 40;
+  background: rgba(10,12,18,.92); color: #f0c674; border: 1px solid #5a4a22; border-radius: 999px;
+  padding: 4px 14px; font-size: 12px; pointer-events: none; }
+.net-pill[hidden] { display: none; }
+/* Call tiles for somebody whose camera is off: their picture, or initials,
+ * where the camera would be. See Rail.participants. */
+.tile .face, .tile .initials { display: block; width: 100%; aspect-ratio: 4 / 3; }
+.tile .face { object-fit: cover; background: #111522; }
+.tile .initials { display: flex; align-items: center; justify-content: center; font-size: 28px;
+  font-weight: 700; color: #c9d4e4; background: linear-gradient(135deg, #1d2233, #2a2140); }
+.tile .face[hidden], .tile .initials[hidden], .tile video[hidden] { display: none; }
+.tile span { display: flex; gap: 4px; align-items: baseline; }
+.tile span .who { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile span .tags { color: #e0a44a; font-size: 9px; white-space: nowrap; }
+/* A passing notice: "you stepped outside" and the like. See main.js. */
+.toast { position: fixed; top: 44px; left: 50%; transform: translateX(-50%); z-index: 41;
+  background: rgba(10,12,18,.94); color: #d8e2f0; border: 1px solid #2a3244; border-radius: 6px;
+  padding: 6px 14px; font-size: 12px; pointer-events: none; }
+.toast[hidden] { display: none; }
+/* Our microphone is on but nothing is coming out of it. */
+.mic-trouble { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; padding: .35rem .5rem;
+  border: 1px solid #a3524b; border-radius: 4px; background: rgba(163,82,75,.14); color: #f0c4be; font-size: 11px; }
+.mic-trouble span { flex: 1 1 auto; }
+.mic-trouble button { flex: none; background: none; border: 1px solid #d98b83; color: #f0c4be; border-radius: 4px;
+  padding: 2px 8px; font: inherit; cursor: pointer; }
+/* Somebody waved at us: under the ordinary notices, and clickable. */
+.wave-toast { position: fixed; top: 78px; left: 50%; transform: translateX(-50%); z-index: 41;
+  display: flex; align-items: center; gap: .6rem; max-width: calc(100vw - 32px);
+  background: rgba(10,12,18,.95); color: #d8e2f0; border: 1px solid #7fd6c3; border-radius: 6px;
+  padding: 6px 8px 6px 14px; font-size: 12px; }
+.wave-toast b { color: #fff6dc; }
+.wave-toast button { background: rgba(127,214,195,.14); color: #7fd6c3; border: 1px solid #7fd6c3;
+  border-radius: 4px; padding: 2px 8px; font: inherit; cursor: pointer; white-space: nowrap; }
+.wave-toast button:hover { background: rgba(127,214,195,.26); }

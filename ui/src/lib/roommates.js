@@ -48,6 +48,14 @@ export const INTRO_LEASE_MS = 300000;
 export const MEMBER_REFRESH_MS = 20000;
 /* How long something not yet vouched for is held. */
 export const HOLD_MS = 30000;
+/* A FOLLOWER'S LIST GOES STALE. An ordinary room's host sends its list only
+ * when it changes, so one lost update used to be believed until we walked
+ * out. A follower now asks again (room-hello) when its list is this old, and
+ * sooner -- backed off -- while it has no list at all. */
+export const LIST_RESYNC_MS = 60000;
+export const LIST_ASK_MS = [3000, 8000, 20000, 60000];
+/* Three missed resyncs and the list is not believed any more. */
+export const LIST_EXPIRE_MS = 200000;
 const MODES = new Set(['open', 'ask', 'locked']);
 const MAX_INTRODUCED = 512, MAX_HELD = 64;
 
@@ -126,6 +134,8 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   const INVITE_TTL_MS = 90000;
   let sequence = 0;
   let saidMembers = 0;
+  let listAt = 0;           //  when the host last gave us the list we follow
+  let helloAt = 0, hellos = 0;
   const eligible = ship => isShip(ship) && member(our) && member(ship) && !blocked(ship);
   const guestsOf = r => [...r.guests].filter(eligible);
 
@@ -216,7 +226,12 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   const listMessage = (l) => ({ kind: 'room-roster', place: l.place, host: l.host, rev: l.rev,
     mode: l.mode, share: l.share, guests: [...l.guests].sort(),
     ...(l.note ? { note: l.note } : {}),
-    ...(l.vis ? { vis: l.vis } : {}) });
+    ...(l.vis ? { vis: l.vis } : {}),
+    /* The lease's generation, so a guest renews its seat against the lease it
+     * actually joined. The presence summary carried it; this direct roster --
+     * the one a guest follows -- did not, and a guest could end up renewing
+     * against generation 0 and being refused. */
+    ...(l.gen ? { gen: l.gen } : {}) });
 
   /* The list changed: everyone on it hears the new one, and only newcomers get
    * our state -- everyone else already has it.
@@ -315,6 +330,7 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     if (!hosted && following?.place === place && following.host === hostShip) return;
     leave();
     following = { place, host: hostShip };
+    helloAt = now(); hellos = 1;
     /* ASK FOR THE LIST. Joining an ordinary room's call is itself the request
      * to be on its list, and the host answers with one. A LEASED room's call
      * is Noltbook's and Glurff asks it for nothing, so without this the host
@@ -432,9 +448,12 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
           leave();
           following = { place: r.place, host: from };
         }
-        if (list && list.host === r.host && list.place === r.place && r.rev <= list.rev) return;
+        /* The same list again is not news, but it IS the host still being
+         * there and still saying so: the list stays fresh. */
+        if (list && list.host === r.host && list.place === r.place && r.rev <= list.rev) { listAt = now(); hellos = 0; return; }
         const before = list?.guests ?? new Set();
         list = r;
+        listAt = now(); hellos = 0;
         if (!r.guests.has(our)) trace('room-list', { place: r.place, host: from, reason: 'not-on-list', count: r.guests.size });
         reconcile();
         notify('list');
@@ -513,9 +532,32 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     if (touched || count !== states.size + viewers.size + held.size) notify('membership');
   }
 
+  /* Ask the host we follow for its list, at most every so often. */
+  function askList(t, force = false) {
+    if (!following || following.host === our) return false;
+    const has = !!list && list.place === following.place && list.host === following.host;
+    const wait = has && !force ? LIST_RESYNC_MS : LIST_ASK_MS[Math.min(hellos, LIST_ASK_MS.length - 1)];
+    if (t - (has && !force ? Math.max(listAt, helloAt) : helloAt) < wait) return false;
+    helloAt = t; hellos++;
+    trace('room-list', { place: following.place, host: following.host, reason: has ? 'resync' : 'ask', count: hellos });
+    emit(following.host, { kind: 'room-hello', place: following.place, host: following.host });
+    return true;
+  }
+
   function tick() {
     refreshMembership();
     const t = now();
+    if (following && following.host !== our) {
+      const has = !!list && list.place === following.place && list.host === following.host;
+      /* Not heard for three resyncs: whatever it said then is not the room now. */
+      if (has && t - listAt >= LIST_EXPIRE_MS) {
+        trace('room-list', { place: list.place, host: list.host, reason: 'expired', count: list.guests.size });
+        list = null;
+        reconcile();
+        notify('expired');
+      }
+      askList(t);
+    }
     if (hosted) {
       let dropped = false;
       for (const [who, g] of hosted.guests) {
@@ -549,6 +591,9 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
 
   return {
     host, admit, left, inCall, follow, leave, heard, introduce, publish, receive, tick, audience, refreshMembership,
+    /* Ask for the list now -- the call watchdog's first repair. Still rate
+     * limited, by the no-list back-off. */
+    resync: () => (hosted ? (publishList(list?.guests ?? new Set(), true), true) : askList(now(), true)),
     /* The people we can see because of a room, with their latest state. */
     peers() {
       const out = new Map();
@@ -591,10 +636,24 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
      * put them on this list -- which is how two members of a secret note ended
      * up in the same room, invisible to one another. The host sets the list
      * from the note itself. */
-    setMembers(ships) {
+    setMembers(ships, first = []) {
       if (!hosted) return false;
       if (!eligible(our)) return false;
-      const want = new Set([our, ...(ships ?? []).filter(eligible)]);
+      /* ONE LIMIT, BOTH ENDS. A receiver refuses any list longer than
+       * MAX_GUESTS, and a leased note can have more members than that -- at 33
+       * every member refused the whole list and nobody learned anything. The
+       * list is cut here instead, keeping the people actually in the room
+       * first, then everybody else in a stable order. Members beyond the limit
+       * are not on the list; for a SECRET note that means they cannot be told
+       * the room's note until somebody leaves it. */
+      const pool = (ships ?? []).filter(eligible).filter((s) => s !== our);
+      const here = new Set((first ?? []).filter((s) => pool.includes(s)));
+      const ordered = [...[...here].sort(), ...pool.filter((s) => !here.has(s)).sort()];
+      const kept = ordered.slice(0, MAX_GUESTS - 1);
+      if (ordered.length > kept.length)
+        trace('room-list', { place: hosted.place, host: our, reason: 'capped',
+          count: kept.length + 1, left: ordered.length - kept.length });
+      const want = new Set([our, ...kept]);
       const same = want.size === hosted.guests.size && [...want].every((s) => hosted.guests.has(s));
       for (const who of [...hosted.guests.keys()]) if (!want.has(who)) {
         hosted.guests.delete(who);
@@ -700,11 +759,13 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
       let forgot = false;
       const asked = invites.get(place);
       if (asked && asked.host === host && matches(asked.gen)) { invites.delete(place); forgot = true; }
-      if (list && list.place === place && list.host === host && list.note && matches(list.gen)) {
+      /* A SECRET lease is reported with no note, only its visibility: that is
+       * a lease too, and has to be forgotten too. */
+      if (list && list.place === place && list.host === host && (list.note || list.vis) && matches(list.gen)) {
         list = { ...list, note: null, vis: null, gen: 0 }; forgot = true;
       }
       for (const [ship, r] of reports) {
-        if (r.place === place && r.host === host && r.note && matches(r.gen)) {
+        if (r.place === place && r.host === host && (r.note || r.vis) && matches(r.gen)) {
           reports.set(ship, { ...r, note: null, vis: null, gen: 0 }); forgot = true;
         }
       }
@@ -712,6 +773,33 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
       return forgot;
     },
     noteOf(place, host) { return this.leaseOf(place, host).note; },
+    /* THE DOOR ANSWERED: the lease owner's agent told us which note this room
+     * is. Held like an invite -- it is one -- and filled into the list we
+     * follow if that list came without it, as a secret room's does now that
+     * lists travel the relay. */
+    leaseInfo(host, place, note, vis, gen = 0) {
+      if (!isRoom(place) || !eligible(host) || !isNote(note)) return false;
+      invites.set(place, { host, note, vis: isVis(vis) ? vis : null, gen: Number.isSafeInteger(gen) ? gen : 0, at: now() });
+      if (list && list.place === place && list.host === host && !list.note) list = { ...list, note, vis: isVis(vis) ? vis : list.vis };
+      trace('room-list', { place, host, reason: 'lease-info' });
+      notify('lease');
+      return true;
+    },
+    /* Leases we can see reported -- a room is leased, and how open it is --
+     * without knowing which note: a SECRET note's id stays off the relay, so
+     * its members ask the owner for it. [{host, place, gen, vis}] */
+    unknownLeases() {
+      const out = new Map();
+      const add = (host, place, vis, gen) => {
+        if (!isRoom(place) || !eligible(host) || host === our || !vis) return;
+        const asked = fresh(place);
+        if (asked && asked.host === host && asked.note) return;
+        out.set(`${host}/${place}`, { host, place, vis, gen: gen ?? 0 });
+      };
+      if (list && !list.note) add(list.host, list.place, list.vis, list.gen);
+      for (const r of reports.values()) if (!r.note) add(r.host, r.place, r.vis, r.gen);
+      return [...out.values()];
+    },
     current: () => (list && eligible(list.host) ? { place: list.place, host: list.host, rev: list.rev, guests: guestsOf(list).sort(),
       note: list.note ?? null } : null),
     guests: () => (hosted ? hosted.guests.size : list?.guests.size ?? 0),

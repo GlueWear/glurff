@@ -8,6 +8,7 @@ import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
 import { roomById, GAME_ROOM } from 'world/places';
 import { render as renderText } from 'ui/media';
 import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
+import { esc } from 'ui/html';
 
 
 export class Hud {
@@ -239,10 +240,11 @@ export class Hud {
     const kind = note === RUMORS_NOTE ? 'anonymous'
       : leased ? 'chat saved to noltbook'
       : note ? 'saved' : 'chat is not saved';
+    /* The title can be a note's name, which its creator chose: escaped. */
     const saved = this.room === 0
-      ? `<a class="dim" href="${noteUrl(COMMONS_NOTE)}" target="_blank" rel="noopener noreferrer">saved in Noltbook ↗</a>`
-      : `<span class="dim">${kind}</span>`;
-    const label = `${title} ${saved}`;
+      ? `<a class="dim" href="${esc(noteUrl(COMMONS_NOTE))}" target="_blank" rel="noopener noreferrer">saved in Noltbook ↗</a>`
+      : `<span class="dim">${esc(kind)}</span>`;
+    const label = `${esc(title)} ${saved}`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
     this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
     if (!this.chatOpen) return;
