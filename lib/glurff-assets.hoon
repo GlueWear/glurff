@@ -7,9 +7,9 @@
   ^-  (list [@t asset])
   :~
     ['/apps/glurff/' /lib/glurff/site/index/html 610 'text/html; charset=utf-8']
-    ['/apps/glurff/assets/index-34eab659.js' /lib/glurff/site/assets/index-34eab659/js 63.423 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/index-a0e87f37.js' /lib/glurff/site/assets/index-a0e87f37/js 1.088.390 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/search-68858769.js' /lib/glurff/site/assets/search-68858769/js 1.634 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-3a14faba.js' /lib/glurff/site/assets/index-3a14faba/js 63.423 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-c7d6842f.js' /lib/glurff/site/assets/index-c7d6842f/js 1.100.987 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/search-a825a11d.js' /lib/glurff/site/assets/search-a825a11d/js 1.634 'application/javascript; charset=utf-8']
     ['/apps/glurff/characters/beard.png' /lib/glurff/site/characters/beard/png 15.745 'image/png']
     ['/apps/glurff/characters/body.png' /lib/glurff/site/characters/body/png 7.111 'image/png']
     ['/apps/glurff/characters/bottom.png' /lib/glurff/site/characters/bottom/png 4.948 'image/png']
@@ -677,6 +677,6 @@
     ['/apps/glurff/map/vatican-over.png' /lib/glurff/site/map/vatican-over/png 11.062 'image/png']
     ['/apps/glurff/map/vatican.jpg' /lib/glurff/site/map/vatican/jpg 308.256 'image/jpeg']
     ['/apps/glurff/map/world.jpg' /lib/glurff/site/map/world/jpg 478.785 'image/jpeg']
-    ['/apps/glurff/style.css' /lib/glurff/site/style/css 38.239 'text/css; charset=utf-8']
+    ['/apps/glurff/style.css' /lib/glurff/site/style/css 40.275 'text/css; charset=utf-8']
   ==
 --

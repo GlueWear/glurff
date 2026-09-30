@@ -100,6 +100,24 @@ export function zoneTime(ms, zone = DEFAULT_ZONE) {
   return out;
 }
 
+/* WHAT A PLANET SAYS WHEN YOU HOVER OVER IT: the time there, in words --
+ * "3:42 PM", the day (another zone may be on another one), the place and how
+ * far it is from UTC. */
+const wordings = new Map();
+export function clockTime(ms, zone = DEFAULT_ZONE) {
+  const z = validZone(zone) ? zone : DEFAULT_ZONE;
+  let f = wordings.get(z);
+  if (!f) {
+    f = { time: new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: '2-digit', hour12: true }),
+          day: new Intl.DateTimeFormat('en-US', { timeZone: z, weekday: 'short' }) };
+    wordings.set(z, f);
+  }
+  const at = new Date(ms);
+  return { time: f.time.format(at), day: f.day.format(at), zone: z,
+    place: z === 'UTC' ? 'UTC' : z.split('/').pop().replace(/_/g, ' '),
+    offset: z === 'UTC' ? '' : zoneOffset(z, ms) };
+}
+
 /* The hands, as angles clockwise from twelve o'clock. */
 export function hands({ h, m, s }) {
   const TAU = Math.PI * 2;

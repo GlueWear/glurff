@@ -293,6 +293,32 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
   display: flex; align-items: center; gap: .7rem; max-width: calc(100vw - 32px);
   background: rgba(10,12,18,.95); color: #d8e2f0; border: 1px solid #7fd6c3; border-radius: 6px;
   padding: 6px 8px 6px 14px; font-size: 12px; }
+/* Reading a clock: the time there, the day, and where. */
+.clock-tip { position: fixed; z-index: 40; pointer-events: none; padding: 5px 9px; border-radius: 5px;
+  background: rgba(10,12,18,.94); border: 1px solid #2a3244; color: #d8e2f0; font-size: 12px; line-height: 1.35;
+  white-space: nowrap; }
+.clock-tip b { font-size: 14px; color: #fff6dc; }
+/* An app opened from a spot on the map. */
+.app-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 45;
+  background: rgba(10,12,18,.97); border: 1px solid #2a3244; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.6);
+  display: flex; flex-direction: column; max-width: 96vw; max-height: 94vh; }
+.app-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .35rem .6rem;
+  border-bottom: 1px solid #2a3244; color: #d8e2f0; font-size: 12px; letter-spacing: .06em; }
+.app-x { background: none; border: none; color: #9aa7bd; font-size: 18px; line-height: 1; cursor: pointer; }
+.app-body { display: flex; }
+.app-frame { display: block; border: 0; background: #101010; }
+.app-note { padding: 1.2rem 1.4rem; font-size: 13px; }
+.app-card { display: flex; gap: .9rem; padding: 1.1rem 1.2rem; width: min(420px, 90vw); color: #d8e2f0; }
+.app-icon { flex: none; width: 64px; height: 64px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.app-icon img { width: 100%; height: 100%; object-fit: cover; }
+.app-words { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.app-name { font-size: 15px; font-weight: bold; color: #fff6dc; }
+.app-info { font-size: 12px; color: #c9d4e4; }
+.app-status { font-size: 12px; min-height: 1.2em; }
+.app-status.bad { color: #e0a44a; }
+.app-get { align-self: flex-start; margin-top: .3rem; background: rgba(127,214,195,.14); color: #7fd6c3; border: 1px solid #7fd6c3;
+  border-radius: 4px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.app-get:disabled { opacity: .5; cursor: default; }
 .arrange-bar button { background: rgba(127,214,195,.14); color: #7fd6c3; border: 1px solid #7fd6c3;
   border-radius: 4px; padding: 2px 10px; font: inherit; cursor: pointer; }
 

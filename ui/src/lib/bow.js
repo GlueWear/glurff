@@ -10,6 +10,19 @@ export const MELEE_REACH = Object.freeze({
   pitchfork: 1.65, spear: 1.75, longsword: 1.5, waraxe: 1.4,
 });
 export const VECTORS = {up:[0,-1], down:[0,1], left:[-1,0], right:[1,0]};
+/* FREE AIM (2026-09-30). A projectile can fly at any angle: its shot carries
+ * `aim`, a unit vector, AND `dir`, the nearest of the four -- which is how a
+ * character faces, how a swing goes, and all an older client understands. */
+export const PROJECTILES = ['bow','slingshot'];
+export const nearestDir = (vx,vy) => Math.abs(vx)>Math.abs(vy) ? (vx<0?'left':'right') : (vy<0?'up':'down');
+const validAim = a => Array.isArray(a) && a.length===2 && a.every(Number.isFinite) &&
+  Math.abs(Math.hypot(a[0],a[1])-1)<0.05;
+/* The way from `p` to `target`, as a unit vector; null when there is none. */
+export function aimAt(p,target) {
+  if(!p || !target || !Number.isFinite(target.x) || !Number.isFinite(target.y))return null;
+  const dx=target.x-p.x, dy=target.y-p.y, d=Math.hypot(dx,dy);
+  return d<1e-6 ? null : [dx/d,dy/d];
+}
 const keyOf = (ship,id) => ship+'/'+id;
 const validPoint = p => p && Number.isFinite(p.x) && Number.isFinite(p.y) &&
   p.x>=0 && p.y>=0 && p.x<=1024 && p.y<=1024;
@@ -55,12 +68,15 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
     if (e.kind==='arrow' || e.kind==='strike') {
       if (!validPoint(e.from) || !Object.hasOwn(VECTORS,e.dir) || !['main','vatican'].includes(e.scene) ||
           !Number.isFinite(e.t0) || Math.abs(t-e.t0)>5000)return false;
+      /* A free-aimed shot must say which way, properly; a swing never does. */
+      if (e.aim!==undefined && (e.kind!=='arrow' || !validAim(e.aim)))return false;
       const weapon=e.kind==='strike' ? e.weapon : (e.weapon ?? 'bow');
       if (e.kind==='strike' ? !Object.hasOwn(MELEE_REACH,weapon) : !['bow','slingshot'].includes(weapon))return false;
       const key=keyOf(who,e.id);
       if(seen.has(key) || t-(lastReceived.get(who)??-Infinity)<FIRE_COOLDOWN-100)return false;
       lastReceived.set(who,t);
-      const shot={...e,weapon,from:{...e.from},who,key,distance:0,
+      const [ax,ay]=e.aim ?? VECTORS[e.dir], len=Math.hypot(ax,ay);
+      const shot={...e,weapon,from:{...e.from},who,key,distance:0,vec:[ax/len,ay/len],
         /* Unsynchronised ship clocks cannot leave arrows hanging in midair. */
         began:t-Math.max(0,Math.min(350,t-e.t0)),point:{...e.from},stopped:false,hits:new Set()};
       seen.set(key,{shot,until:t+10000});
@@ -78,14 +94,19 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
     }
     return false;
   }
-  function fire() {
+  /* Attack: the way we face, or -- given `target`, a point in the world --
+   * toward it: a projectile exactly, a swing the nearest of the four ways. */
+  function fire(target=null) {
     const p=self(), t=now();
     const weapon=p?.weapon ?? (p?.bow ? 'bow' : null);
     if(!p || !weapon || p.locked || t-fired<FIRE_COOLDOWN ||
        !Object.hasOwn(VECTORS,p.dir) ||
-       !['bow','slingshot'].includes(weapon) && !Object.hasOwn(MELEE_REACH,weapon))return false;
+       !PROJECTILES.includes(weapon) && !Object.hasOwn(MELEE_REACH,weapon))return false;
+    const aim=aimAt(p,target);
+    const dir=aim ? nearestDir(aim[0],aim[1]) : p.dir;
     const event={kind:Object.hasOwn(MELEE_REACH,weapon)?'strike':'arrow',
-      id:id(),from:{x:p.x,y:p.y},dir:p.dir,scene:p.scene,t0:t};
+      id:id(),from:{x:p.x,y:p.y},dir,scene:p.scene,t0:t};
+    if(aim && event.kind==='arrow')event.aim=aim.map(v=>Math.round(v*1000)/1000);
     if(weapon!=='bow')event.weapon=weapon;
     if(!receive(our,event))return false;
     fired=t; Promise.resolve(send(event)).catch(()=>{}); return true;
@@ -99,7 +120,7 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
       const speed=s.weapon==='slingshot'?SLING_SPEED:ARROW_SPEED;
       const range=s.weapon==='slingshot'?SLING_RANGE:ARROW_RANGE;
       const target=Math.min(range,Math.max(0,(t-s.began)/1000*speed));
-      const [vx,vy]=VECTORS[s.dir];
+      const [vx,vy]=s.vec ?? VECTORS[s.dir];
       // Small swept steps stop at thin walls and cannot skip a victim at low FPS.
       while(s.distance<target) {
         const next=Math.min(target,s.distance+1/32);

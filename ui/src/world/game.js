@@ -9,6 +9,8 @@ import { versioned } from '../lib/build.js';
 import { MotionBuffer } from 'lib/motion';
 import { Space, SPACE_COLOR } from './space.js';
 import { bubbleText, WAVE_MS } from './bubbles.js';
+import { projectileTexture, TIP } from './projectiles.js';
+import { nearestDir } from '../lib/bow.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
@@ -82,7 +84,12 @@ export const ZOOMS = [0.5, 1, 2, 3, 4, 5];
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved } = {}) {
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm } = {}) {
+    /* The "1" key: take our weapon out, or put it away. */
+    this.onArm = onArm ?? (() => {});
+    this.armed = false;
+    /* The pointer is over a clock in the sky, or no longer is: (id | null, x, y). */
+    this.onClockHover = onClockHover ?? (() => {});
     /* A clock in the sky was dragged somewhere new: (id, x, y, width, height). */
     this.onClockMoved = onClockMoved ?? (() => {});
     /* Is this room shut to us? A room leased to somebody's secret note is. */
@@ -174,14 +181,17 @@ export class Game {
       }
       this.panning = { x: e.clientX, y: e.clientY };
       this.panned = false;
+      this.pressed = true;
     });
     window.addEventListener('mousemove', (e) => {
       if (this.clockDrag) {
         const p = this.screenPoint(e);
         this.space.drag(this.clockDrag.id, p.x - this.clockDrag.dx, p.y - this.clockDrag.dy);
+        this.onClockHover(null);
         return;
       }
-      if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY); return; }
+      if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY); this.hoverClock(e); return; }
+      this.onClockHover(null);
       const dx = e.clientX - this.panning.x, dy = e.clientY - this.panning.y;
       if(!this.panning.anchored)this.anchorPanToCamera();
       if (Math.abs(dx) + Math.abs(dy) > 3) { this.panned = true; this.mount.style.cursor = 'grabbing'; }
@@ -196,11 +206,17 @@ export class Game {
         const d = this.space.drop();
         if (d) this.onClockMoved(d.id, d.x, d.y, this.space.size.w, this.space.size.h);
       }
-      this.panning = null; this.mount.style.cursor = '';
+      this.panning = null; this.pressed = false; this.mount.style.cursor = this.restCursor();
     };
+    /* ARMED, a click -- a press and release that did not drag -- attacks toward
+     * the pointer. Dragging still looks around. */
+    window.addEventListener('mouseup', (e) => {
+      if (e.button !== 0 || !this.pressed || this.panned || !this.armed || this.space?.arranging) return;
+      this.fireAt(e.clientX, e.clientY);
+    }, true);
     window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
     window.addEventListener('blur', release);
-    this.mount.addEventListener('mouseleave', () => this.showHotspot(null));
+    this.mount.addEventListener('mouseleave', () => { this.showHotspot(null); this.onClockHover(null); });
     window.addEventListener('blur', () => {this.keys.clear();this.running=false;});
     /* Wheel to zoom, which is what everyone reaches for first. */
     this.mount.addEventListener('wheel', (e) => {
@@ -225,6 +241,12 @@ export class Game {
     }
     if (k === 'b' && down && !e.repeat) {
       this.emote();
+      e.preventDefault();
+    }
+    /* "1": our weapon out, or away. Only the key on the main row -- the number
+     * pad's 1 is left alone. */
+    if (e.code === 'Digit1' && down && !e.repeat) {
+      this.onArm();
       e.preventDefault();
     }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
@@ -436,10 +458,12 @@ export class Game {
      * five times a second. The pose is remembered once every layer's art has
      * arrived, and a frame that would draw the same pose is skipped. A fall
      * rotates with its progress, so that counts as part of the pose. */
-    const key = `${dir}|${frame}|${animation}|${cycle}|${ch.scale}` +
+    const key = `${dir}|${frame}|${animation}|${cycle}|${ch.scale}|${ch.sheathed ? 1 : 0}` +
       (animation === 'die' ? `|${Math.round(progress * 32)}` : '');
     if (key === ch.posedKey && ch.look === ch.posedLook) return;
-    const frames = characterLayers(ch.look, dir, frame, animation, cycle);
+    /* A weapon put away is not drawn. */
+    const worn = ch.sheathed && ch.look?.weapon ? { ...ch.look, weapon: undefined } : ch.look;
+    const frames = characterLayers(worn, dir, frame, animation, cycle);
     const order = frames.map((f) => f.key).join(',');
     /* Layers are re-stacked only when WHICH layers are drawn changes -- a new
      * outfit, a weapon drawn, a mount -- not on every step. */
@@ -534,13 +558,16 @@ export class Game {
       if (shot.scene !== this.scene) continue;
       live.add(shot.key);
       let sprite = this.arrows.get(shot.key);
-      if (!sprite) { sprite = new Sprite(Texture.EMPTY); sprite.anchor.set(.5); this.arrows.set(shot.key,sprite); this.actors.addChild(sprite); }
-      const row = {down:0,left:1,right:1,up:2}[shot.dir];
-      const projectile=shot.weapon==='slingshot' ? EQUIPMENT.slingStone : EQUIPMENT.arrow;
-      const texture = frameTexture({url:artUrl(projectile.sheet),
-        x:(Math.floor(time/100)%projectile.frames)*32,y:row*32,w:32,h:32});
-      if (texture) sprite.texture = texture;
-      sprite.scale.set(this.characterScale*(shot.dir==='right'?-1:1),this.characterScale);
+      if (!sprite) {
+        /* Our own drawing, turned to wherever it is going; see world/projectiles. */
+        sprite = new Sprite(projectileTexture(shot.weapon));
+        const tip = TIP[shot.weapon === 'slingshot' ? 'stone' : 'arrow'];
+        sprite.anchor.set(tip.x, tip.y);
+        this.arrows.set(shot.key,sprite); this.actors.addChild(sprite);
+      }
+      const [vx, vy] = shot.vec ?? {up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[shot.dir];
+      sprite.rotation = Math.atan2(vy, vx);
+      sprite.scale.set(this.characterScale, this.characterScale);
       sprite.position.set(shot.point.x*this.tile,
         (shot.point.y-sceneInfo(this.scene).collisionOffsetY)*this.tile);
       sprite.zIndex = Math.round(shot.point.y*this.tile);
@@ -654,7 +681,7 @@ export class Game {
     this.hoveredHotspot = id;
     this.hotspotLayer?.removeChildren().forEach(child => child.destroy());
     if (!hotspot || !this.painting?.texture?.baseTexture || hotspot.scene !== this.scene) {
-      if (this.mount) this.mount.style.cursor = '';
+      if (this.mount) this.mount.style.cursor = this.restCursor();
       return;
     }
     const r = hotspot.rect;
@@ -684,6 +711,42 @@ export class Game {
     ch.dryTimer = setTimeout(() => this.poseCharacter(ch, ch.dir, ch.frame), 1800);
   }
 
+  /* ------------------------------------------------ weapons */
+
+  /* Out or away. Away, it is not drawn in our hand and clicks do what they
+   * always did; out, the pointer is a crosshair and a click attacks. */
+  setArmed(on) {
+    this.armed = !!on;
+    if (this.selfSprite) { this.selfSprite.sheathed = !this.armed; this.selfSprite.posedKey = null; this.poseCharacter(this.selfSprite, this.selfSprite.dir, this.selfSprite.frame); }
+    this.mount.style.cursor = this.restCursor();
+  }
+  /* Somebody else's weapon put away (their presence says so) or out. */
+  setSheathed(ship, sheathed) {
+    const ch = this.peers.get(ship)?.ch;
+    if (!ch || !!ch.sheathed === !!sheathed) return;
+    ch.sheathed = !!sheathed; ch.posedKey = null;
+  }
+  restCursor() { return this.armed ? 'crosshair' : ''; }
+
+  /* Attack toward a page point: turn to face the nearest way, tell everybody,
+   * and let the weapon fly exactly there (a swing goes the nearest way). */
+  fireAt(clientX, clientY) {
+    if (!this.bow || !this.selfSprite || !this.world) return false;
+    const r = this.mount.getBoundingClientRect();
+    const p = this.camera.toLocal({ x: clientX - r.left, y: clientY - r.top });
+    /* A shot's point is drawn raised by the scene's collision offset; aim so
+     * that it passes under the pointer. */
+    const target = { x: p.x / this.tile, y: p.y / this.tile + sceneInfo(this.scene).collisionOffsetY };
+    const dx = target.x - this.self.x, dy = target.y - this.self.y;
+    if (Math.hypot(dx, dy) < 1e-3) return false;
+    const dir = nearestDir(dx, dy);
+    if (dir !== this.self.dir && !this.self.moving) {
+      this.self.dir = dir;
+      this.onMove({ ...this.self });
+    }
+    return this.bow.fire(target);
+  }
+
   /* ------------------------------------------------ clocks in the sky */
 
   /* Our clocks, from our settings; see lib/clocks and world/space. */
@@ -692,9 +755,21 @@ export class Game {
   arrangeClocks(on) {
     this.space?.arrange(on);
     if (!on) this.clockDrag = null;
-    this.mount.style.cursor = '';
+    this.mount.style.cursor = this.restCursor();
   }
   arranging() { return !!this.space?.arranging; }
+  /* The settings a clock in the sky is drawn from. */
+  clockOf(id) { return this.space?.planets.get(id)?.clock ?? null; }
+  /* Which clock the pointer is over: one out in the sky, or -- while they are
+   * being arranged, in front of the map -- any. Only over the canvas itself. */
+  hoverClock(e) {
+    if (!this.space || !this.mount.contains(e.target)) { this.onClockHover(null); return; }
+    const hit = this.space.arranging
+      ? (() => { const p = this.screenPoint(e); return this.space.clockAt(p.x, p.y); })()
+      : this.skyClockAt(e.clientX, e.clientY);
+    this.onClockHover(hit?.id ?? null, e.clientX, e.clientY);
+  }
+
   /* A clock out in the sky -- not behind the map -- under this page point. */
   skyClockAt(clientX, clientY) {
     if (!this.space || !this.world) return null;

@@ -7,7 +7,7 @@ import { createBow } from 'lib/bow';
 import { createPlayerState } from 'lib/player-state';
 import { palStatus } from 'lib/noltbook';
 import { createWaves, createTitleFlash, WAVE_NOTICE_MS } from 'lib/waves';
-import { createClockSettings, anchor as clockAnchor } from 'lib/clocks';
+import { createClockSettings, anchor as clockAnchor, clockTime } from 'lib/clocks';
 import { IDLE_MS } from 'world/bubbles';
 import { esc } from 'ui/html';
 import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
@@ -36,7 +36,8 @@ import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
 import { showNoltbookDependency } from 'ui/dependency';
 import { showWorldMembership } from 'ui/world-membership';
-import { HOTSPOTS } from 'world/hotspots';
+import { HOTSPOTS, spotApp } from 'world/hotspots';
+import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
 
@@ -348,6 +349,35 @@ function arrangeClocks(on) {
   arrangeBar.hidden = !on;
 }
 arrangeBar.querySelector('button').onclick = () => arrangeClocks(false);
+/* HOVER A CLOCK to read it: the time there, the day, and where. Follows the
+ * pointer, and ticks while it is up. */
+const clockTip = document.createElement('div');
+clockTip.className = 'clock-tip'; clockTip.hidden = true; clockTip.setAttribute('role', 'tooltip');
+document.body.appendChild(clockTip);
+let tipFor = null, tipTimer = null;
+function paintClockTip() {
+  /* The planet as it is drawn, so the reading always matches what is seen. */
+  const c = game.clockOf(tipFor);
+  if (!c) { hideClockTip(); return; }
+  const t = clockTime(Date.now(), c.zone);
+  clockTip.innerHTML = `<div><b>${esc(t.time)}</b> <span class="dim">${esc(t.day)}</span></div>` +
+    `<div class="dim">${esc(t.place)}${t.offset ? ` · ${esc(t.offset)}` : ''}</div>`;
+}
+function hideClockTip() {
+  tipFor = null; clockTip.hidden = true;
+  clearInterval(tipTimer); tipTimer = null;
+}
+function showClockTip(id, x, y) {
+  if (!id) { if (tipFor) hideClockTip(); return; }
+  if (id !== tipFor) {
+    tipFor = id; paintClockTip();
+    clearInterval(tipTimer); tipTimer = setInterval(paintClockTip, 1000);
+  }
+  clockTip.hidden = false;
+  const w = clockTip.offsetWidth, h = clockTip.offsetHeight;
+  clockTip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 16))}px`;
+  clockTip.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, y + 16))}px`;
+}
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && game.arranging()) arrangeClocks(false); });
 
 const game = new Game(document.getElementById('stage'), {
@@ -383,6 +413,14 @@ const game = new Game(document.getElementById('stage'), {
   isClosed: (room) => R.roomClosed(room),
   isBlocked: (room) => R.roomBlocked(room),
   onRoomDoor: (room) => offerRoomDoor(room),
+  onClockHover: (id, x, y) => showClockTip(id, x, y),
+  /* "1": our weapon out, or away -- if we have one. */
+  onArm: () => {
+    if (!game.armed && !weaponReady()) { showNotice('No weapon yet: choose one in your character'); return; }
+    game.setArmed(!game.armed);
+    diagnostic('weapon', { reason: game.armed ? 'armed' : 'put-away' });
+    if (presenceStarted) presence.publish();
+  },
   /* A clock dragged somewhere new: kept from the nearest corner. */
   onClockMoved: (id, x, y, w, h) => clocks.update((s) => {
     const c = s.clocks.find((k) => k.id === id);
@@ -417,10 +455,13 @@ function sendWorldAction(event) {
     .filter(who => who !== our && palStatus(who) !== 'blocked');
   return G.sendWorldEffect(audience,event);
 }
+/* A weapon we could take out: equipment is on, and our character holds one. */
+const weaponReady = () => !!(builder.equipmentReady && state.look?.weapon?.part);
 const bow = createBow({
   our,
+  /* Only a weapon we have OUT can be used; see "1" above. */
   self: () => game.selfSprite && ({...game.self,
-    weapon: builder.equipmentReady ? game.selfSprite.look.weapon?.part : null,
+    weapon: builder.equipmentReady && game.armed ? game.selfSprite.look.weapon?.part : null,
     locked: game.selfSprite.animation.locked(performance.now()),
   }),
   visible: who => state.peers.has(who),
@@ -620,7 +661,7 @@ function applyPresence() {
     if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.chatPlace!==p.chatPlace ||
       old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
       old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene ||
-      old.idle!==p.idle || old.micOff!==p.micOff)
+      old.idle!==p.idle || old.micOff!==p.micOff || old.sheathed!==p.sheathed)
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
@@ -630,7 +671,9 @@ function applyPresence() {
 const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
   /* In a call with our microphone off: our stream stays in the call, silent,
    * so the others are told rather than left to guess. See lib/rooms. */
-  ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
+  ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),
+  /* A weapon we hold but have put away is not drawn for the others either. */
+  ...(state.look?.weapon?.part&&!game.armed?{sheathed:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
   huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
 const presence = createMemberPresence({
   our, session:crypto.randomUUID(),
@@ -667,7 +710,14 @@ playerStore = createPlayerState({
   changed: (surface,player,local) => { mediaUI?.stateChanged(surface,player); if(!local)presence.publish(); },
 });
 mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our });
-game.setHotspots(HOTSPOTS.map(h => ({ ...h, onActivate: () => mediaUI.activate(h.id) })));
+/* A spot either plays shared media (the jukebox, the screens) or opens an app
+ * the player runs on their own ship (see ui/app-panel). */
+const appRoot = document.createElement('div');
+document.body.appendChild(appRoot);
+const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID });
+window.__appPanel = appPanel;   // debug handle
+game.setHotspots(HOTSPOTS.map(h => ({ ...h,
+  onActivate: () => h.app ? appPanel.open(spotApp(h.app, WORLD_HOST)) : mediaUI.activate(h.id) })));
 window.__players = { store:playerStore, ui:mediaUI };
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
@@ -915,6 +965,7 @@ function onWorldFact(name, p, fromPresence=false) {
                       chatPlace: p.chatPlace,
                       idle: Number.isFinite(p.idle) ? p.idle : null,
                       micOff: p.micOff === true,
+                      sheathed: p.sheathed === true,
                       host: newer ? (p.host || null) : prev.host,
                       huddle: p.huddle ?? null,
                       motionT: newer ? stamp : prev.motionT,
@@ -927,6 +978,7 @@ function onWorldFact(name, p, fromPresence=false) {
       game.upsertPeer(p.who, spot, entry.look, displayName(p.who), newer ? p.stamp : prev.motionT);
       game.setAsleep(p.who, entry.idle !== null);
       if ((prev?.micOff ?? false) !== entry.micOff) R.roomsChanged();
+      game.setSheathed(p.who, entry.sheathed);
       /* Their character arrives on request, not on every beat -- it is far
        * bigger than a position. Ask once, when the revision moves. */
       if (!prev || prev.rev !== p.rev) G.fetchLook(p.who);
@@ -1067,6 +1119,8 @@ function onWorldFact(name, p, fromPresence=false) {
   refreshNames();
   onChange(refreshNames, c => c.field === 'profiles');
   worldReady = true;
+  /* Every visit starts with our weapon put away: a stray click never attacks. */
+  game.setArmed(false);
   /* Our clocks, if our settings came in before the sky was there. */
   game.setClocks(clocks.get().clocks);
   milestone('world-ready');

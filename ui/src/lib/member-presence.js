@@ -32,7 +32,9 @@ function validSnapshot(h) {
       /* Asleep since (their clock); absent when awake. */
       (h.idle !== undefined && (!Number.isFinite(h.idle) || h.idle < 0)) ||
       /* Microphone off in a call; absent when on. */
-      (h.micOff !== undefined && typeof h.micOff !== 'boolean')) return false;
+      (h.micOff !== undefined && typeof h.micOff !== 'boolean') ||
+      /* Weapon put away; absent when out, or when there is none. */
+      (h.sheathed !== undefined && typeof h.sheathed !== 'boolean')) return false;
   // Chat follows the sender's settled room, not a second guess from their
   // rounded position at a wall/doorway. Older clients omit this field.
   if (h.chatPlace !== undefined && (!num(h.chatPlace) ||
