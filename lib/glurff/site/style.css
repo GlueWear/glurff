@@ -580,3 +580,141 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .wave-toast button { background: rgba(127,214,195,.14); color: #7fd6c3; border: 1px solid #7fd6c3;
   border-radius: 4px; padding: 2px 8px; font: inherit; cursor: pointer; white-space: nowrap; }
 .wave-toast button:hover { background: rgba(127,214,195,.26); }
+
+/* ---- phones and touch ---------------------------------------------------- */
+/* PLAYING ON A PHONE. Everything above is the desktop's; these rules go on top.
+   Touch controls wherever touch is how the world is played (html.touch, set by
+   ui/touch-controls), and a phone's layout on a narrow or a short screen: the
+   call as a bar along the bottom, the chat as a panel over the world, menus and
+   cards the width of the screen, and room for the notch and the home bar.
+   --rail-h (the call bar's height) and --kb (how much of the page the on-screen
+   keyboard covers) are kept up to date by ui/touch-controls. */
+:root { --rail-h: 0px; --kb: 0px; --stick: 116px; --knob: 48px;
+  --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); }
+/* No double-tap zoom anywhere; and over the world, no browser panning, zooming,
+   selecting or long-press menus -- the world has its own gestures. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+#stage, #stage canvas { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* iOS zooms into any field under 16px the moment it is tapped, and stays zoomed. */
+@media (pointer: coarse) { input, select, textarea { font-size: 16px !important; } }
+.touch input, .touch select, .touch textarea { font-size: 16px !important; }
+
+/* The joystick, bottom left, and the sword button, bottom right. */
+.touch-controls { display: none; }
+.touch .touch-controls { display: block; }
+.stick { position: fixed; z-index: 8; left: calc(16px + var(--safe-l)); bottom: calc(16px + var(--safe-b));
+  width: var(--stick); height: var(--stick); border-radius: 50%; display: grid; place-items: center;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  background: radial-gradient(circle, rgba(10,12,18,.2) 0, rgba(10,12,18,.55) 70%);
+  border: 2px solid rgba(201,212,228,.3); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+.stick-knob { width: var(--knob); height: var(--knob); border-radius: 50%; pointer-events: none;
+  background: rgba(201,212,228,.5); border: 2px solid rgba(255,255,255,.65); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+.stick.held { border-color: rgba(127,214,195,.6); }
+.stick.held .stick-knob { background: rgba(127,214,195,.65); }
+.stick.run .stick-knob { background: rgba(224,164,74,.8); border-color: #ffe0a8; }
+.weapon-btn { position: fixed; z-index: 8; right: calc(16px + var(--safe-r)); bottom: calc(60px + var(--safe-b));
+  width: 56px; height: 56px; border-radius: 50%; padding: 0; display: grid; place-items: center;
+  background: rgba(10,12,18,.72); border: 2px solid rgba(201,212,228,.4); color: #c9d4e4; }
+.weapon-btn svg { width: 26px; height: 26px; }
+.weapon-btn.on { border-color: #e0a44a; color: #ffd28a; background: rgba(224,164,74,.22); }
+.chat-open .weapon-btn { display: none; }
+/* The call panel moves over for the joystick. */
+.touch #rail, .touch .call-panels { left: calc(var(--stick) + 32px + var(--safe-l)); }
+/* No hovering: an open chat shows all of itself and scrolls; the media
+   controls are always there; the size grips are big enough for a finger. */
+.touch .chat .stream { max-height: 40vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.touch .chat .stream .line:not(.recent) { display: block; }
+.touch .chat .stream .post-text { display: block; -webkit-line-clamp: none; }
+.touch .world-media .media-tools { opacity: 1; }
+.touch .tile .grip { width: 22px; height: 22px; }
+
+/* A phone, either way up. */
+@media (max-width: 700px), (max-height: 500px) {
+  /* The call: one bar -- where, how it is going, the buttons -- with its
+     settings opening above it. */
+  #rail { display: flex; flex-direction: column-reverse; gap: 6px; }
+  .rail { flex-direction: row; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding: .35rem .45rem; }
+  .rail-head { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 0; line-height: 1.25; font-size: 12px; }
+  .rail-head .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rail-btns { flex: none; }
+  .rail-btns button { flex: none; width: 40px; height: 36px; padding: 0; display: grid; place-items: center; }
+  .rail-btns.mod-btns { margin-top: 0; }
+  .rail-btns.mod-btns button { width: auto; padding: 0 .55rem; }
+  .mic-trouble { order: -1; flex: 1 1 100%; margin: 0; }
+  .settings { max-height: 50vh; overflow-y: auto; }
+  /* The chat: a panel, over the world rather than a column beside it. */
+  #hud { background: none; padding: 0 8px; }
+  .chat { pointer-events: none; }
+  .chat > * { pointer-events: auto; }
+  .chat-toggle { min-height: 36px; }
+  .chat-content { min-height: 0; flex: 0 1 auto; padding: 8px; border-radius: 8px;
+    background: rgba(10,12,18,.92); border: 1px solid #2a3244; }
+  .chat-content .stream { min-height: 0; flex: 0 1 auto; }
+  /* Cards, menus and windows: the width of the screen, at most. */
+  .card { width: calc(100vw - 16px); max-height: calc(100% - 24px - var(--safe-t) - var(--safe-b)); padding: .85rem; }
+  .card-btns button { min-height: 34px; }
+  .builder { width: calc(100vw - 16px); max-height: calc(100% - 16px - var(--safe-t) - var(--safe-b)); padding: 14px; border-radius: 10px; }
+  .builder .row { flex-wrap: wrap; gap: 6px 8px; }
+  .builder .label { flex: 0 0 76px; }
+  .builder .row select { flex: 1 1 0; width: auto; min-width: 0; }
+  .swatches { flex: 1 1 100%; grid-template-columns: repeat(auto-fill, 24px); gap: 6px; }
+  .builder .sw { width: 24px; height: 24px; }
+  .builder .preview-slot { width: 136px; height: 136px; }
+  .app-panel { max-width: calc(100vw - 8px); max-height: calc(100% - 8px); }
+  .ask { width: calc(100vw - 24px); }
+  .contacts-panel { width: min(320px, calc(100vw - 16px)); }
+  .dm-panel { width: min(280px, calc(100vw - 60px)); }
+  .dm-window { width: min(320px, calc(100vw - 60px)); height: min(360px, 55vh); }
+  .members-panel { width: min(260px, calc(100vw - 100px)); }
+  .me-btn { padding: 0 5px; }
+  .me-btn .who { display: none; }
+}
+
+/* Upright: the top bar, then the call's faces; the call bar along the bottom,
+   with the joystick and the chat on top of it. */
+@media (max-width: 700px) and (min-height: 501px) {
+  #top-left { left: calc(8px + var(--safe-l)); top: calc(8px + var(--safe-t)); gap: 6px;
+    max-width: calc(100vw - 64px - var(--safe-l) - var(--safe-r)); }
+  #top-right { right: calc(8px + var(--safe-r)); top: calc(8px + var(--safe-t)); }
+  .members { min-width: 0; flex: 0 1 auto; }
+  .members-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dms, .contacts { flex: none; }
+  #strip { left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); top: calc(52px + var(--safe-t)); gap: 4px; }
+  #rail, .touch #rail { left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); bottom: calc(8px + var(--safe-b)); width: auto; }
+  .call-panels, .touch .call-panels { left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); width: auto; z-index: 9;
+    bottom: calc(var(--rail-h) + 16px + var(--safe-b)); }
+  .call-panel { width: auto; }
+  /* Closed, the chat is a button beside the joystick; open, a panel above it
+     -- walking and talking at once -- or, typing, above the keyboard. */
+  #hud { left: var(--safe-l); right: var(--safe-r); width: auto; top: calc(52px + var(--safe-t));
+    bottom: max(calc(var(--rail-h) + 16px + var(--safe-b)), calc(var(--kb) + 8px)); }
+  .touch.chat-open #hud { bottom: max(calc(var(--rail-h) + var(--stick) + 28px + var(--safe-b)), calc(var(--kb) + 8px)); }
+  .stick { bottom: calc(var(--rail-h) + 16px + var(--safe-b)); }
+  .weapon-btn { right: calc(12px + var(--safe-r)); bottom: calc(var(--rail-h) + 64px + var(--safe-b)); }
+  .chat-open .weapon-btn { display: grid; }
+  .toast, .net-pill { top: calc(52px + var(--safe-t)); max-width: calc(100vw - 24px); text-align: center; }
+  .wave-toast { top: calc(96px + var(--safe-t)); }
+  .arrange-bar { bottom: calc(var(--rail-h) + 16px + var(--safe-b)); }
+}
+
+/* On its side: little height, so everything hugs the edges -- the joystick in
+   the corner, the call bar beside it, the chat down the right. */
+@media (max-height: 500px) {
+  :root { --stick: 100px; --knob: 42px; }
+  #top-left { top: calc(6px + var(--safe-t)); left: calc(8px + var(--safe-l)); }
+  #top-right { top: calc(6px + var(--safe-t)); right: calc(8px + var(--safe-r)); }
+  #strip { top: calc(48px + var(--safe-t)); left: calc(8px + var(--safe-l)); right: calc(160px + var(--safe-r)); gap: 4px; }
+  #rail { left: calc(8px + var(--safe-l)); right: calc(150px + var(--safe-r)); bottom: calc(6px + var(--safe-b)); width: auto; }
+  .touch #rail { left: calc(var(--stick) + 32px + var(--safe-l)); right: calc(150px + var(--safe-r)); }
+  .call-panels, .touch .call-panels { bottom: calc(var(--rail-h) + 12px + var(--safe-b)); }
+  #hud { top: calc(48px + var(--safe-t)); right: var(--safe-r); width: min(380px, 46vw);
+    bottom: calc(6px + var(--safe-b) + var(--kb)); }
+  /* Open, it stands on the call bar rather than over it. */
+  .chat-open #hud { bottom: max(calc(var(--rail-h) + 12px + var(--safe-b)), calc(var(--kb) + 6px)); }
+  .stick { left: calc(16px + var(--safe-l)); bottom: calc(12px + var(--safe-b)); }
+  .weapon-btn { bottom: calc(52px + var(--safe-b)); }
+  .toast, .net-pill { top: calc(48px + var(--safe-t)); }
+  .wave-toast { top: calc(88px + var(--safe-t)); }
+  .arrange-bar { bottom: calc(var(--rail-h) + 12px + var(--safe-b)); }
+}

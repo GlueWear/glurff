@@ -11,6 +11,7 @@ import { Space, SPACE_COLOR } from './space.js';
 import { bubbleText, WAVE_MS } from './bubbles.js';
 import { projectileTexture, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
+import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED } from '../lib/touch.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
@@ -79,15 +80,24 @@ const PAN_SPEED = 2.5;
  * once. 0.5 still maps 2x2 source pixels to one, so it stays crisp; anything
  * non-power-of-two would not. */
 export const ZOOMS = [0.5, 1, 2, 3, 4, 5];
+/* A phone sees a few tiles at the desktop's zoom: it starts a step further out. */
+export const startZoom = (width, height) => (Math.min(width, height) < 600 ? 2 : 3);
 /* Frames a new room must hold before anything is told you are in it. Doorways
  * are one step wide and a step lands on them. */
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm } = {}) {
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm, onTap } = {}) {
     /* The "1" key: take our weapon out, or put it away. */
     this.onArm = onArm ?? (() => {});
     this.armed = false;
+    /* A finger tapped the world here: (clientX, clientY). See lib/touch. */
+    this.onTap = onTap ?? (() => {});
+    /* The on-screen joystick's say, {x, y, run} or null; see ui/touch-controls. */
+    this.stick = null;
+    /* Fingers on the world, by pointer: {x, y, at}. */
+    this.touches = new Map();
+    this.tap = null; this.gesture = null; this.touchAt = -Infinity;
     /* The pointer is over a clock in the sky, or no longer is: (id | null, x, y). */
     this.onClockHover = onClockHover ?? (() => {});
     /* A clock in the sky was dragged somewhere new: (id, x, y, width, height). */
@@ -201,11 +211,7 @@ export class Game {
       this.centreCamera();
     });
     const release = () => {
-      if (this.clockDrag) {
-        this.clockDrag = null;
-        const d = this.space.drop();
-        if (d) this.onClockMoved(d.id, d.x, d.y, this.space.size.w, this.space.size.h);
-      }
+      if (this.clockDrag && this.clockDrag.touch === undefined) this.dropClock();
       this.panning = null; this.pressed = false; this.mount.style.cursor = this.restCursor();
     };
     /* ARMED, a click -- a press and release that did not drag -- attacks toward
@@ -218,6 +224,73 @@ export class Game {
     window.addEventListener('blur', release);
     this.mount.addEventListener('mouseleave', () => { this.showHotspot(null); this.onClockHover(null); });
     window.addEventListener('blur', () => {this.keys.clear();this.running=false;});
+    /* TOUCH (see lib/touch). One finger taps -- or, arranging, carries a clock;
+     * two drag the world about and pinch to zoom. The browser's own panning and
+     * zooming are off over the world (touch-action), and so are the mouse
+     * events it would make up from a touch: the handlers above are the mouse's. */
+    const finger = (e) => ({ x: e.clientX, y: e.clientY, at: performance.now() });
+    this.mount.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      e.preventDefault();
+      this.touchAt = performance.now();
+      /* Touching the world puts the keyboard away. */
+      const typing = document.activeElement;
+      if (typing?.closest?.('input, textarea, select, [contenteditable]')) typing.blur();
+      try { this.mount.setPointerCapture(e.pointerId); } catch {}
+      this.touches.set(e.pointerId, finger(e));
+      if (this.touches.size === 1) {
+        this.panned = false;
+        if (this.space?.arranging) {
+          const p = this.screenPoint(e), hit = this.space.clockAt(p.x, p.y);
+          if (hit) { this.clockDrag = { id: hit.id, dx: hit.dx, dy: hit.dy, touch: e.pointerId }; return; }
+        }
+        this.tap = { id: e.pointerId, ...finger(e) };
+        /* The spot under the finger lifts, as it does under a mouse. */
+        if (!this.armed) this.showHotspot(this.hotspotAt(e.clientX, e.clientY));
+        return;
+      }
+      /* Another finger: not a tap any more, a look around. */
+      this.tap = null; this.showHotspot(null);
+      this.startGesture();
+    });
+    this.mount.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'touch' || !this.touches.has(e.pointerId)) return;
+      this.touches.set(e.pointerId, finger(e));
+      if (this.clockDrag?.touch === e.pointerId) {
+        const p = this.screenPoint(e);
+        this.space.drag(this.clockDrag.id, p.x - this.clockDrag.dx, p.y - this.clockDrag.dy);
+        return;
+      }
+      if (this.tap?.id === e.pointerId && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > TAP_SLOP_PX) {
+        this.tap = null; this.showHotspot(null);
+      }
+      if (!this.gesture || this.touches.size < 2) return;
+      const s = spreadOf(this.touches.values());
+      const z = pinchZoom(this.gesture.zoom, this.gesture.spread, s.spread, ZOOMS);
+      if (z !== this.zoom) this.setZoom(z);
+      this.pan.x -= ((s.x - this.gesture.x) * TOUCH_PAN_SPEED) / this.zoom;
+      this.pan.y -= ((s.y - this.gesture.y) * TOUCH_PAN_SPEED) / this.zoom;
+      this.gesture.x = s.x; this.gesture.y = s.y;
+      this.panned = true;
+      this.centreCamera();
+    });
+    const lift = (e) => {
+      if (e.pointerType !== 'touch' || !this.touches.has(e.pointerId)) return;
+      this.touches.delete(e.pointerId);
+      this.touchAt = performance.now();
+      if (this.clockDrag?.touch === e.pointerId) { this.dropClock(); return; }
+      const tap = this.tap;
+      if (tap?.id === e.pointerId) {
+        this.tap = null; this.showHotspot(null);
+        if (e.type === 'pointerup' && isTap(tap, finger(e))) this.onTap(e.clientX, e.clientY);
+      }
+      /* Down to one finger: it does nothing more until it lifts. */
+      if (this.touches.size >= 2) this.startGesture(); else this.gesture = null;
+    };
+    this.mount.addEventListener('pointerup', lift);
+    this.mount.addEventListener('pointercancel', lift);
+    /* A finger held still is not asking for the browser's menu. */
+    this.mount.addEventListener('contextmenu', (e) => { if (this.touches.size || this.touchedRecently()) e.preventDefault(); });
     /* Wheel to zoom, which is what everyone reaches for first. */
     this.mount.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -263,6 +336,26 @@ export class Game {
       const i = ZOOMS.indexOf(this.zoom);
       this.setZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + (k === '-' ? -1 : 1)))]);
     }
+  }
+
+  /* Two or more fingers down: measure from here. Again whenever one comes or
+   * goes, so the world does not jump. */
+  startGesture() {
+    const s = spreadOf(this.touches.values());
+    this.anchorPanToCamera();
+    this.gesture = { x: s.x, y: s.y, spread: s.spread, zoom: this.zoom };
+  }
+  /* A touch a moment ago: the browser's own double-tap may still turn up as a
+   * double-click, and must not open somebody a second time. */
+  touchedRecently() { return performance.now() - this.touchAt < 800; }
+  /* The joystick: which way, and whether running; null to stop. */
+  setStick(walk) { this.stick = walk ? { x: walk.x, y: walk.y, run: !!walk.run } : null; }
+  /* A clock carried by mouse or finger, put down: kept where it landed. */
+  dropClock() {
+    if (!this.clockDrag) return;
+    this.clockDrag = null;
+    const d = this.space.drop();
+    if (d) this.onClockMoved(d.id, d.x, d.y, this.space.size.w, this.space.size.h);
   }
 
   setZoom(z) {
@@ -506,7 +599,7 @@ export class Game {
   }
 
   emote() {
-    if (!this.selfSprite || this.self.moving || this.keys.size) return false;
+    if (!this.selfSprite || this.self.moving || this.keys.size || this.stick) return false;
     const now = performance.now();
     const frames = animationFrames(this.selfSprite.look, 'idle');
     if (!this.selfSprite.animation.emote(now, frames)) return false;
@@ -944,7 +1037,7 @@ export class Game {
     if (!this.world || !this.selfSprite || this.scene !== MAIN_SCENE) return false;
     this.self.x = SPAWN.x; this.self.y = SPAWN.y; this.self.dir = 'down';
     this.self.moving = false; this.self.frame = 0;
-    this.keys.clear(); this.running = false;
+    this.keys.clear(); this.running = false; this.stick = null;
     this.pan = { x: 0, y: 0 };
     this.onMove({ ...this.self });
     return true;
@@ -1005,13 +1098,17 @@ export class Game {
     if (this.keys.has('d') || this.keys.has('arrowright')) dx += 1;
     if (this.keys.has('w') || this.keys.has('arrowup')) dy -= 1;
     if (this.keys.has('s') || this.keys.has('arrowdown')) dy += 1;
+    /* No keys: the joystick, if a thumb is on it -- any angle, and pushed to
+     * the rim, running. */
+    let run = this.running;
+    if (!dx && !dy && this.stick) { dx = this.stick.x; dy = this.stick.y; run = this.stick.run; }
 
     if(time<(this.stunnedUntil??0) || this.selfSprite.animation.locked(time))dx=dy=0;
     const wasMoving=this.self.moving;
     const moving = dx !== 0 || dy !== 0;
     if (moving) {
       const len = Math.hypot(dx, dy) || 1;
-      const step = (sceneWalkSpeed(this.scene) * (this.running ? RUN_MULT : 1) * dt) / len;
+      const step = (sceneWalkSpeed(this.scene) * (run ? RUN_MULT : 1) * dt) / len;
       /* Axis at a time, so sliding along a wall works instead of sticking. */
       const nx = this.self.x + dx * step;
       if (!this.solidAt(nx, this.self.y)) this.self.x = nx;

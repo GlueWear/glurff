@@ -6,10 +6,10 @@
   %-  malt
   ^-  (list [@t asset])
   :~
-    ['/apps/glurff/' /lib/glurff/site/index/html 610 'text/html; charset=utf-8']
-    ['/apps/glurff/assets/index-3a14faba.js' /lib/glurff/site/assets/index-3a14faba/js 63.423 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/index-c7d6842f.js' /lib/glurff/site/assets/index-c7d6842f/js 1.100.987 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/search-a825a11d.js' /lib/glurff/site/assets/search-a825a11d/js 1.634 'application/javascript; charset=utf-8']
+    ['/apps/glurff/' /lib/glurff/site/index/html 727 'text/html; charset=utf-8']
+    ['/apps/glurff/assets/index-2131903a.js' /lib/glurff/site/assets/index-2131903a/js 63.423 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-eeb87e08.js' /lib/glurff/site/assets/index-eeb87e08/js 1.108.698 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/search-65fefb3e.js' /lib/glurff/site/assets/search-65fefb3e/js 1.634 'application/javascript; charset=utf-8']
     ['/apps/glurff/characters/beard.png' /lib/glurff/site/characters/beard/png 15.745 'image/png']
     ['/apps/glurff/characters/body.png' /lib/glurff/site/characters/body/png 7.111 'image/png']
     ['/apps/glurff/characters/bottom.png' /lib/glurff/site/characters/bottom/png 4.948 'image/png']
@@ -670,13 +670,13 @@
     ['/apps/glurff/denoise-worklet.js' /lib/glurff/site/denoise-worklet/js 1.949.419 'application/javascript; charset=utf-8']
     ['/apps/glurff/favicon.png' /lib/glurff/site/favicon/png 2.784 'image/png']
     ['/apps/glurff/glurff-icon.png' /lib/glurff/site/glurff-icon/png 26.830 'image/png']
-    ['/apps/glurff/index.html' /lib/glurff/site/index/html 610 'text/html; charset=utf-8']
+    ['/apps/glurff/index.html' /lib/glurff/site/index/html 727 'text/html; charset=utf-8']
     ['/apps/glurff/licenses/jitsi-license.html' /lib/glurff/site/licenses/jitsi-license/html 12.599 'text/html; charset=utf-8']
     ['/apps/glurff/licenses/rnnoise-license.html' /lib/glurff/site/licenses/rnnoise-license/html 1.623 'text/html; charset=utf-8']
     ['/apps/glurff/map/over.png' /lib/glurff/site/map/over/png 53.223 'image/png']
     ['/apps/glurff/map/vatican-over.png' /lib/glurff/site/map/vatican-over/png 11.062 'image/png']
     ['/apps/glurff/map/vatican.jpg' /lib/glurff/site/map/vatican/jpg 308.256 'image/jpeg']
     ['/apps/glurff/map/world.jpg' /lib/glurff/site/map/world/jpg 478.785 'image/jpeg']
-    ['/apps/glurff/style.css' /lib/glurff/site/style/css 40.275 'text/css; charset=utf-8']
+    ['/apps/glurff/style.css' /lib/glurff/site/style/css 49.831 'text/css; charset=utf-8']
   ==
 --

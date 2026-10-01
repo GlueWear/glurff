@@ -21,7 +21,8 @@ export class Rail {
     /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
      * resized every screen in the strip rather than the one under the hand. */
     this.sizes = new Map();
-    this.size = 132;             //  what a feed starts at
+    /* What a feed starts at: smaller on a phone, where the world is small too. */
+    this.size = smallScreen() ? 96 : 132;
     /* The settings panel lives OUTSIDE the repainted markup.
      *
      * The rail redraws on every presence tick -- several times a second -- and
@@ -220,7 +221,7 @@ export class Rail {
           ${rooms.voice==='blocked'||rooms.callHealth?.failed||['quota','rate-limited','participant-limit','service-unavailable'].includes(rooms.error)?'<button class="retry-call">Retry call</button>':''}
           ${mediaButton('mic','Microphone',rooms.micOn)}
           ${mediaButton('cam','Camera',rooms.camOn)}
-          ${mediaButton('scr','Screen sharing',rooms.screenOn)}
+          ${canShareScreen() ? mediaButton('scr','Screen sharing',rooms.screenOn) : ''}
           <button class="set${this.settingsOpen ? ' on' : ''}">&#9881;</button>
         </div>
         <div class="rail-btns mod-btns">
@@ -235,7 +236,7 @@ export class Rail {
     if(q('.mic-retry'))q('.mic-retry').onclick=()=>{void retryMic();};
     q('.mic').onclick = () => toggleMic().catch((e) => console.error('mic', e));
     q('.cam').onclick = () => toggleCam().catch((e) => console.error('cam', e));
-    q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
+    if (q('.scr')) q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
     q('.set').onclick = () => this.toggleSettings();
     /* ADMIN and REC sit with the other call controls, but their PANELS are
      * built once and live outside this markup -- the rail replaces all of it
@@ -291,6 +292,10 @@ export class Rail {
   }
 }
 
+
+/* Phones cannot share their screen from a browser: no button that cannot work. */
+const canShareScreen = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+const smallScreen = () => typeof matchMedia === 'function' && matchMedia('(max-width: 700px), (max-height: 500px)').matches;
 
 /* Somebody we can see in the call's room, who repair could not bring into it. */
 /* Status text is PLAIN text: the one place it becomes HTML escapes it. */

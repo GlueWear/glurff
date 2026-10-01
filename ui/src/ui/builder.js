@@ -132,7 +132,7 @@ export class Builder {
       ${this.equipmentReady?`<div class="equipment">${EXTRAS.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
         <select id="equip-${slot}" data-equipment="${slot}">
         <option value="">None</option>${EQUIPMENT[slot].map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
-      ${this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">Press Space in the world to '+(['bow','slingshot'].includes(this.look.weapon.part)?'shoot':'strike')+'. Hits are just for fun—you get straight back up.</p>':''}
+      ${this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':''}
       <p class="builder-error" role="status"></p>
       <button class="done">Done</button>
     </div>`;
@@ -174,4 +174,13 @@ export class Builder {
       this.root.querySelectorAll('[data-search]').forEach(b=>b.hidden=!b.dataset.search.includes(query));
     };
   }
+}
+
+/* How to use the weapon in hand: "1" and a click, or on a phone the sword
+ * button and a tap (see ui/touch-controls). */
+function weaponHint(part) {
+  const verb = ['bow', 'slingshot'].includes(part) ? 'shoot' : 'strike';
+  return document.documentElement.classList.contains('touch')
+    ? `Tap the sword button to take it out, then tap where to ${verb}.`
+    : `Press 1 to take it out, then click where to ${verb} (Space ${verb}s the way you face).`;
 }

@@ -132,18 +132,24 @@ export class Hud {
         <div class="error" role="status"></div>
         <div class="stream"></div>
         <div class="replying"></div>
-        <form class="say"><input placeholder="say something" /></form>
+        <form class="say"><input placeholder="say something" enterkeyhint="send" /></form>
         </div>
       </div>`;
     this.chatOpen=false;
     setChatHistory(0);
-    this.setOpen=open=>{this.chatOpen=open;this.unread.open(open);setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
+    /* ON A PHONE there is no hovering over the chat to see more of it: open is
+     * all of it, in a panel that scrolls. html.chat-open lets the layout make
+     * room for it; see style.css. */
+    this.setOpen=open=>{this.chatOpen=open;if(touchy()){this.expanded=open;this.root.querySelector('.say input').placeholder='Say something';}
+      document.documentElement.classList.toggle('chat-open',open);this.unread.open(open);setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
     this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
     this.stream = this.root.querySelector('.stream');
     this.stream.addEventListener('mouseenter', () => {
+      if (touchy()) return;
       this.expanded = true; setChatHistory(this.historySize); this.paint(); this.stream.scrollTop = this.stream.scrollHeight;
     });
     this.stream.addEventListener('mouseleave', () => {
+      if (touchy()) return;
       this.expanded = false; this.historySize = 100; setChatHistory(3); this.paint();
       this.stream.scrollTop = this.stream.scrollHeight;
     });
@@ -299,5 +305,8 @@ export class Hud {
     }
   }
 }
+
+/* Played by touch: see ui/touch-controls. */
+const touchy = () => typeof document !== 'undefined' && document.documentElement.classList.contains('touch');
 
 const timeFormat = new Intl.DateTimeFormat([], {hour: '2-digit', minute: '2-digit'});

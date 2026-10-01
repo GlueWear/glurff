@@ -21,7 +21,8 @@ import { createInsideLease } from 'lib/inside-lease';
 import { createReliable } from 'lib/reliable';
 import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts } from 'lib/noltbook';
 import * as G from 'lib/glurff';
-import { Game } from 'world/game';
+import { Game, startZoom } from 'world/game';
+import { TouchControls, watchTouch, watchLayout, touching } from 'ui/touch-controls';
 import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
 import { Builder } from 'ui/builder';
 import { Hud } from 'ui/hud';
@@ -56,6 +57,8 @@ window.__huddleTick = () => R.updateHuddle(game.self, state.peers);
 let playerStore = null, mediaUI = null;
 
 initApi();
+/* Played by touch? Then the phone's controls and layout (ui/touch-controls). */
+watchTouch();
 
 /* Urbit desks cannot declare runtime desk dependencies. Docket is the source
  * of truth for installed apps, so offer Noltbook from its official publisher
@@ -378,6 +381,13 @@ function showClockTip(id, x, y) {
   clockTip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 16))}px`;
   clockTip.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, y + 16))}px`;
 }
+/* A finger cannot hover: a tap on a clock shows its reading for a moment. */
+const CLOCK_TIP_TAP_MS = 4000;
+let tipFlash = null;
+function flashClockTip(id, x, y) {
+  showClockTip(id, x, y);
+  clearTimeout(tipFlash); tipFlash = setTimeout(hideClockTip, CLOCK_TIP_TAP_MS);
+}
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && game.arranging()) arrangeClocks(false); });
 
 const game = new Game(document.getElementById('stage'), {
@@ -415,11 +425,18 @@ const game = new Game(document.getElementById('stage'), {
   onRoomDoor: (room) => offerRoomDoor(room),
   onClockHover: (id, x, y) => showClockTip(id, x, y),
   /* "1": our weapon out, or away -- if we have one. */
-  onArm: () => {
-    if (!game.armed && !weaponReady()) { showNotice('No weapon yet: choose one in your character'); return; }
-    game.setArmed(!game.armed);
-    diagnostic('weapon', { reason: game.armed ? 'armed' : 'put-away' });
-    if (presenceStarted) presence.publish();
+  onArm: () => toggleArmed(),
+  /* A TAP on the world, on a phone (see lib/touch): what a double-click does
+   * with a mouse -- or, with our weapon out, an attack there. */
+  onTap: (x, y) => {
+    if (game.arranging()) return;
+    if (game.armed) { game.fireAt(x, y); return; }
+    const ship = game.characterAt(x, y);
+    if (ship) { card.open(ship); return; }
+    const clock = game.skyClockAt(x, y);
+    if (clock) { flashClockTip(clock.id, x, y); return; }
+    hideClockTip();
+    game.activateHotspot(x, y);
   },
   /* A clock dragged somewhere new: kept from the nearest corner. */
   onClockMoved: (id, x, y, w, h) => clocks.update((s) => {
@@ -457,6 +474,22 @@ function sendWorldAction(event) {
 }
 /* A weapon we could take out: equipment is on, and our character holds one. */
 const weaponReady = () => !!(builder.equipmentReady && state.look?.weapon?.part);
+/* What we hold changed: a weapon that is gone cannot stay out, and the
+ * phone's sword button comes and goes with it. */
+function weaponsChanged() {
+  if (game.armed && !weaponReady()) game.setArmed(false);
+  touchControls?.paint();
+}
+/* Out, or away: "1" on a keyboard, the sword button on a phone. */
+let armedHint = false;
+function toggleArmed() {
+  if (!game.armed && !weaponReady()) { showNotice('No weapon yet: choose one in your character'); return; }
+  game.setArmed(!game.armed);
+  diagnostic('weapon', { reason: game.armed ? 'armed' : 'put-away' });
+  if (presenceStarted) presence.publish();
+  touchControls?.paint();
+  if (game.armed && touching() && !armedHint) { armedHint = true; showNotice('Weapon out: tap where you want to attack'); }
+}
 const bow = createBow({
   our,
   /* Only a weapon we have OUT can be used; see "1" above. */
@@ -486,6 +519,9 @@ const stripRoot = document.createElement('div');
 stripRoot.id = 'strip';
 document.body.appendChild(stripRoot);
 const rail = new Rail(railRoot, stripRoot);
+/* The phone layout stacks things on the call bar, and lifts the chat above
+ * the on-screen keyboard: both measured here (ui/touch-controls). */
+watchLayout(railRoot);
 /* Who has their microphone off: from their presence. */
 R.setPeerMicOff((ship) => state.peers.get(ship)?.micOff === true);
 /* ADMIN, REC and the recording notice. Outside the rail's markup on purpose:
@@ -561,6 +597,7 @@ const members = new Members(membersRoot, {
  * world is walked with the keyboard, and a stray click should do nothing. */
 game.mount.addEventListener('dblclick', (e) => {
   if (game.panned) return;   //  that was a look-around, not a click on somebody
+  if (game.touchedRecently()) return;   //  a double-tap: the tap already did it
   const ship = game.characterAt(e.clientX, e.clientY);
   if (ship) { card.open(ship); return; }
   /* A clock out in the sky: arrange them, straight from there. */
@@ -568,6 +605,8 @@ game.mount.addEventListener('dblclick', (e) => {
   game.activateHotspot(e.clientX, e.clientY);
 });
 
+/* The phone's controls; made just below, once the character editor is. */
+let touchControls = null;
 const builderRoot = document.createElement('div');
 document.body.appendChild(builderRoot);
 window.__builder = null;   // debug handle
@@ -580,10 +619,15 @@ const builder = new Builder(builderRoot, {
      * dressing a sprite that does not exist yet throws. The panel's own
      * preview is what the person is looking at either way. */
     if (game.selfSprite) game.dressCharacter(game.selfSprite, look);
+    weaponsChanged();
   },
   onDone: (look) => G.dress(look),
 });
 window.__builder = builder;
+/* ON A PHONE: a joystick to walk, and the sword button when there is a sword. */
+const touchRoot = document.createElement('div');
+document.body.appendChild(touchRoot);
+touchControls = new TouchControls(touchRoot, { game, onArm: () => toggleArmed(), weaponReady });
 
 let proximityAt = -Infinity;
 function reportPosition(self, force = false, urgent = false) {
@@ -1015,6 +1059,7 @@ function onWorldFact(name, p, fromPresence=false) {
         presence.publish();
         R.publishRoom();
       }
+      weaponsChanged();
       break;
     /* The room we hold for one of our notes. It outlives the tab, so this
      * arrives at startup as well as when it changes. */
@@ -1108,7 +1153,7 @@ function onWorldFact(name, p, fromPresence=false) {
   await art;
   game.self.look = state.look;
   game.build();
-  game.setZoom(3);
+  game.setZoom(startZoom(innerWidth, innerHeight));
   /* Names come from Noltbook profiles, which arrive after the world does --
    * so re-apply them whenever the store moves rather than only at boot, or
    * everyone is stuck showing the @p they had before their profile landed. */
@@ -1121,6 +1166,7 @@ function onWorldFact(name, p, fromPresence=false) {
   worldReady = true;
   /* Every visit starts with our weapon put away: a stray click never attacks. */
   game.setArmed(false);
+  touchControls.paint();
   /* Our clocks, if our settings came in before the sky was there. */
   game.setClocks(clocks.get().clocks);
   milestone('world-ready');
