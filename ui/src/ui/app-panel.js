@@ -7,7 +7,9 @@
  *
  *   installed   /apps/<desk> opens in a frame, sized by the desk's own
  *               /apps/<desk>/noltbook.json, with Noltbook's frame permissions
- *               (a "media" app may reach its own agent: allow-same-origin).
+ *               (a "media" app may reach its own agent: allow-same-origin; a
+ *               "pointer-lock" app may hold the mouse) -- only what the
+ *               manifest declares.
  *               The page is told where it was opened -- the spot's context,
  *               e.g. which table -- through Noltbook's plugin handshake
  *               (nb:ready -> nb:init) and in its address, and may ask to be
@@ -22,9 +24,9 @@
 import { api, poke as pokeShip } from 'lib/api';
 import { esc } from 'ui/html';
 
-import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, launchHref, frameSize }
+import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize }
   from 'lib/app-spots';
-export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, launchHref, frameSize };
+export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize };
 const TREATY_WAIT_MS = 10000, TREATY_STEP_MS = 1200;
 const INSTALL_CHECKS = [1000, 3000, 6000, 10000, 16000, 25000, 40000, 60000, 90000, 120000];
 
@@ -86,20 +88,20 @@ export class AppPanel {
   async play(app, run) {
     const manifest = await this.fetchJson(`/apps/${app.desk}/noltbook.json`);
     if (run !== this.run) return;
-    const media = !!(manifest?.launch?.media ?? manifest?.artifact?.media);
+    const { media, pointerLock } = frameGrants(manifest);
     const size = frameSize(manifest, { width: innerWidth, height: innerHeight });
     this.state = 'playing';
     this.session = `glurff-${Math.random().toString(36).slice(2, 10)}`;
     this.body.innerHTML = '';
     const frame = document.createElement('iframe');
     frame.className = 'app-frame';
-    frame.setAttribute('sandbox', frameSandbox(media));
+    frame.setAttribute('sandbox', frameSandbox(media, pointerLock));
     if (media) { frame.setAttribute('allow', FRAME_ALLOW); frame.setAttribute('allowfullscreen', ''); }
     frame.src = launchHref(app.desk, manifest, app.context, location.origin);
     frame.style.width = size.width + 'px'; frame.style.height = size.height + 'px';
     this.frame = frame;
     this.body.appendChild(frame);
-    this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${media ? 'media' : 'plain'}` });
+    this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
 
   /* Noltbook's plugin handshake, from the frame we opened only. */

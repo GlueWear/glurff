@@ -2,8 +2,9 @@
  *
  * Noltbook's plugin conventions, so any Noltbook plugin works from a spot:
  * docket's word for whether a desk is installed and running, the frame
- * permissions a "media" app gets, and where the app opens -- its own pages
- * only, with the spot's context in the address.
+ * permissions an app gets ("media", "pointer-lock") and from what it declares,
+ * and where the app opens -- its own pages only, with the spot's context in
+ * the address.
  */
 export const PLUGIN_PROTOCOL = 1;
 export const DEFAULT_SIZE = { width: 900, height: 640 };
@@ -28,10 +29,32 @@ export function colorHex(col) {
   c = c.replace(/\./g, '');
   return /^[0-9a-fA-F]{1,6}$/.test(c) ? '#' + c.padStart(6, '0') : '';
 }
-/* Noltbook's frame permissions: a "media" app may reach its own agent. */
-export function frameSandbox(media) {
+/* Does one part of a manifest declare a permission? Noltbook's rule exactly:
+ * `media: true` or `pointerLock: true` on it, or the name in its `permissions`. */
+export function manifestPerm(src, perm) {
+  if (!src || typeof src !== 'object') return false;
+  if (perm === 'media' && src.media === true) return true;
+  if (perm === 'pointer-lock' && src.pointerLock === true) return true;
+  const p = Array.isArray(src.permissions) ? src.permissions : [];
+  return p.some((x) => String(x).toLowerCase() === perm);
+}
+/* What an app opened at a spot is granted. A spot opens the app the way
+ * Noltbook opens an embedded app: from its launch entry, which also takes
+ * whatever the manifest declares at the top. Nothing from the spot itself, and
+ * each grant on its own -- a game that only wants the mouse gets no
+ * same-origin. */
+export function frameGrants(manifest) {
+  const launch = manifest?.launch && typeof manifest.launch === 'object' ? manifest.launch : null;
+  if (!launch) return { media: false, pointerLock: false };
+  return { media: manifestPerm(manifest, 'media') || manifestPerm(launch, 'media'),
+    pointerLock: manifestPerm(manifest, 'pointer-lock') || manifestPerm(launch, 'pointer-lock') };
+}
+/* Noltbook's frame permissions: a "media" app may reach its own agent; a
+ * "pointer-lock" app may hold the mouse (after a click in it; Esc lets go). */
+export function frameSandbox(media, pointerLock = false) {
   let s = 'allow-scripts allow-forms allow-popups allow-downloads';
   if (media) s += ' allow-presentation allow-same-origin';
+  if (pointerLock) s += ' allow-pointer-lock';
   return s;
 }
 /* Where the app opens: its manifest's own launch page if that is one of its
