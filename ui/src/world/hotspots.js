@@ -11,6 +11,10 @@ export const HOTSPOTS = [
    * host ship (lib/world-config), who publishes the app and keeps the table. */
   { id:'pong-table', scene:'main', rect:{ x:1368, y:810, w:62, h:70 },
     app:{ desk:'pong', title:'Pong', publisher:'HOST', context:{ gid:'glurff-game-room', host:'HOST' } } },
+  /* The Game Room's TV, on its stand by the far wall: %doomur, four-player Doom
+   * deathmatch, in the world's own room -- kept by the world's host too. */
+  { id:'doomur-tv', scene:'main', rect:{ x:1367, y:714, w:47, h:48 },
+    app:{ desk:'doomur', title:'Doomur', publisher:'HOST', context:{ gid:'glurff-game-room', host:'HOST' } } },
 ];
 
 /* A spot's app, with HOST filled in as the world's host ship. */
