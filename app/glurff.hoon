@@ -417,10 +417,23 @@
   ::
       [%spots ~]
     ::  THE WORLD'S SPOTS: which app each spot opens. Anybody may watch -- a
-    ::  visitor's page reads them from the world's host -- since nothing here
+    ::  visitor's agent reads them from the world's host -- since nothing here
     ::  is private: it is what the map shows everyone who walks up to it.
     :_  this
     ~[[%give %fact ~ %glurff-update !>(`update:g`[%spots spots])]]
+  ::
+      [%spots @ ~]
+    ::  OUR PAGE, reading a world host's spots. A page cannot hear another
+    ::  ship's agent itself -- Eyre takes facts from another ship only through
+    ::  an agent -- so we watch the host for it and pass on what it says,
+    ::  watching afresh each time so the host answers at once. Our own spots,
+    ::  if we are the host.
+    ?>  =(our.bowl src.bowl)
+    =/  host=@p  (slav %p i.t.path)
+    :_  this
+    ?:  =(host our.bowl)
+      ~[[%give %fact ~ %glurff-update !>(`update:g`[%spots spots])]]
+    (spots-follow:hc host)
   ::
       [%call-access ~]
     ::  Credential delivery. Owner-local only: this path carries a Galene join
@@ -449,6 +462,28 @@
       %kick
         :_  this
         ~[calls-watch-card:hc]
+    ==
+  ::  A WORLD HOST'S SPOTS, for our page: passed on as they come. Kicked, we
+  ::  watch again while our page still wants them.
+  ?:  ?=([%spots @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  page=path  /spots/(scot %p host)
+    ?+    -.sign  `this
+        %fact
+      ?.  =(%glurff-update p.cage.sign)  `this
+      =/  upd  (mule |.(!<(update:g q.cage.sign)))
+      ?:  ?=(%| -.upd)  `this
+      ?.  ?=(%spots -.p.upd)  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(p.upd)]]
+    ::
+        %kick
+      ?.  (~(any by sup.bowl) |=([=ship =path] =(path page)))  `this
+      [(spots-follow:hc host) this]
+    ::
+        %watch-ack
+      ?~  p.sign  `this
+      ((slog leaf+"glurff: {<host>} keeps no spots for us to show" ~) `this)
     ==
   ?.  ?=(%poke-ack -.sign)  `this
   ?~  p.sign  `this
@@ -648,6 +683,18 @@
   |=  upd=update:g
   ^-  card
   [%give %fact ~[/world] %glurff-update !>(upd)]
+::  Watch a world host's spots afresh, dropping any older watch of them: the
+::  host answers a new watch with its spots straight away.
+++  spots-follow
+  |=  host=@p
+  ^-  (list card)
+  %+  snoc
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] [acked=? =path]]
+    ^-  (unit card)
+    ?.  ?=([%spots @ *] wire)  ~
+    `[%pass wire %agent [ship term] %leave ~]
+  [%pass /spots/(scot %p host)/(scot %da now.bowl) %agent [host %glurff] %watch /spots]
 ::  A spot's app as a host set it: plain names, and nothing too long for every
 ::  visitor's page to carry.
 ++  spot-ok
@@ -914,8 +961,9 @@
       ?~  app.act  (~(del by spots) id.act)
       (~(put by spots) id.act u.app.act)
     ?:  (gth ~(wyt by next) spots-max:g)  `state
+    ::  Every visitor's agent on /spots; our own page, on its own path.
     :_  state(spots next)
-    ~[[%give %fact ~[/spots] %glurff-update !>(`update:g`[%spots next])]]
+    ~[[%give %fact ~[/spots /spots/(scot %p our.bowl)] %glurff-update !>(`update:g`[%spots next])]]
   ::
     ::  THE SESSION LEASE. See `live` in /sur. The same session renewing keeps
     ::  its generation; a new one taking over gets a new, larger one; a session
