@@ -161,6 +161,10 @@ export const knockMovement = (host, place) =>
   tracked('movement-control', poke('glurff', 'glurff-action', { op: 'knock', host, place, peers: [] }));
 
 export const watchWorld = (onFact) => subscribe('glurff', '/world', onFact);
+/* THE WORLD'S SPOTS: which app each spot opens, as the world's host set them,
+ * read from the host's own agent -- ours, if we are the host. */
+export const watchSpots = (host, onSpots) =>
+  subscribe('glurff', '/spots', (name, p) => { if (name === 'spots') onSpots(p); }, `/spots@${host}`, { ship: host });
 export const watchCallAccess = (onFact) => subscribe('glurff', '/call-access', (name,p) => {
   // Diagnostics share the existing owner-local channel but never reach either
   // call controller: a late quota detail must not change media or retry state.

@@ -128,10 +128,27 @@
       world=(unit world-room:g)
       prefs=@t
   ==
+::  state-8 adds THE WORLD'S SPOTS: which app each spot on the map opens, when
+::  we are a world's host. See `spot-app` in /sur.
++$  state-8
+  $:  %8
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      admits=(map place:g (set @p))
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-7
+=|  state-8
 =*  state  -
 ^-  agent:gall
 =<
@@ -142,7 +159,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '')
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '', spots ~)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -155,11 +172,15 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
+  =/  eight=(unit state-8)
+    =/  res  (mule |.(!<(state-8 old)))
+    ?:(?=(%| -.res) ~ `p.res)
   =/  seven=(unit state-7)
+    ?^  eight  ~
     =/  res  (mule |.(!<(state-7 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  current=(unit state-6)
-    ?^  seven  ~
+    ?:  |(?=(^ eight) ?=(^ seven))  ~
     =/  res  (mule |.(!<(state-6 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  now-state=(unit state-5)
@@ -209,11 +230,17 @@
     =/  was=state-5  u.parsed
     `[%6 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was ~]
   ::  Settings start empty: the client's defaults.
-  =/  last=(unit state-7)
+  =/  settled=(unit state-7)
     ?^  seven  seven
     ?~  next  ~
     =/  was=state-6  u.next
     `[%7 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was '']
+  ::  No spots set: each opens whatever the map gives it, if anything.
+  =/  last=(unit state-8)
+    ?^  eight  eight
+    ?~  settled  ~
+    =/  was=state-7  u.settled
+    `[%8 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was prefs.was ~]
   ?~  last  on-init
   :_  this(state u.last)
   [(bind:glurff-site) calls-watch:hc]
@@ -387,6 +414,13 @@
     ::  And which session is live, so a page opened beside it knows at once.
     ?~  live  ~
     ~[[%give %fact ~ %glurff-update !>(`update:g`[%session tab.u.live gen.u.live])]]
+  ::
+      [%spots ~]
+    ::  THE WORLD'S SPOTS: which app each spot opens. Anybody may watch -- a
+    ::  visitor's page reads them from the world's host -- since nothing here
+    ::  is private: it is what the map shows everyone who walks up to it.
+    :_  this
+    ~[[%give %fact ~ %glurff-update !>(`update:g`[%spots spots])]]
   ::
       [%call-access ~]
     ::  Credential delivery. Owner-local only: this path carries a Galene join
@@ -593,7 +627,7 @@
 ::  its OWN seat: no guest can release a lease, and no guest can evict another.
 ++  seat-change
   |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
-  ^-  (quip card state-7)
+  ^-  (quip card state-8)
   ?~  lease  `state
   =/  h=held:g  u.lease
   ?.  =(place place.h)  `state
@@ -614,6 +648,22 @@
   |=  upd=update:g
   ^-  card
   [%give %fact ~[/world] %glurff-update !>(upd)]
+::  A spot's app as a host set it: plain names, and nothing too long for every
+::  visitor's page to carry.
+++  spot-ok
+  |=  [id=@tas app=(unit spot-app:g)]
+  ^-  ?
+  ?.  ?&((gth (met 3 id) 0) (lte (met 3 id) 32) ((sane %tas) id))  %.n
+  ?~  app  %.y
+  ?&  (gth (met 3 desk.u.app) 0)
+      (lte (met 3 desk.u.app) 64)
+      ((sane %tas) desk.u.app)
+      (lte (met 3 title.u.app) spot-title:g)
+      (lte (lent context.u.app) spot-context:g)
+      %+  levy  context.u.app
+      |=  [k=@t v=@t]
+      ?&((gth (met 3 k) 0) (lte (met 3 k) 32) (lte (met 3 v) 200))
+  ==
 ::
 ::  ---- call plumbing ----
 ::
@@ -676,7 +726,7 @@
 ::  afresh: that would throw out everybody inside.
 ++  world-knock
   |=  who=@p
-  ^-  (quip card state-7)
+  ^-  (quip card state-8)
   =/  =place:g  world-place:g
   =/  held=(map place:g lock-mode:g)  (~(put by hosting) place %open)
   =/  fresh=?
@@ -712,7 +762,7 @@
 ::  it is working, and stops it.
 ++  world-heard
   |=  res=call-result:gc
-  ^-  state-7
+  ^-  state-8
   ?~  world  state
   ?-    -.res
       %granted
@@ -766,7 +816,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-7)
+  ^-  (quip card state-8)
   ?-    -.act
       %move
     :_  state
@@ -852,6 +902,21 @@
     :_  state(prefs text.act)
     ~[(fact [%our-prefs text.act])]
   ::
+    ::  THE WORLD'S SPOTS, set by us as a world's host -- from Dojo for now:
+    ::
+    ::    :glurff &glurff-action [%spot ~ %boardroom-table `[%fhloston-poker ~forbes-marmet 'Fhloston Poker' ~]]
+    ::
+    ::  and `~` in place of the app to give the spot back to the map. Every
+    ::  page watching /spots, ours and every visitor's, is told at once.
+      %spot
+    ?.  (spot-ok id.act app.act)  `state
+    =/  next=(map @tas spot-app:g)
+      ?~  app.act  (~(del by spots) id.act)
+      (~(put by spots) id.act u.app.act)
+    ?:  (gth ~(wyt by next) spots-max:g)  `state
+    :_  state(spots next)
+    ~[[%give %fact ~[/spots] %glurff-update !>(`update:g`[%spots next])]]
+  ::
     ::  THE SESSION LEASE. See `live` in /sur. The same session renewing keeps
     ::  its generation; a new one taking over gets a new, larger one; a session
     ::  that is not live and does not `take` is told who is, and stands down.
@@ -859,7 +924,7 @@
     ?:  =(0 (met 3 tab.act))  `state
     =/  mint
       |=  prev=@ud
-      ^-  (quip card state-7)
+      ^-  (quip card state-8)
       =/  ms=@ud  (div (sub now.bowl ~1970.1.1) (div ~s1 1.000))
       =/  gen=@ud  (max +(prev) ms)
       :_  state(live `[tab.act gen now.bowl])
@@ -949,7 +1014,7 @@
 ::  poked once cannot make it grow without bound.
 ++  meter
   |=  who=@p
-  ^-  [? state-7]
+  ^-  [? state-8]
   =/  cur=meter:g  (~(gut by meters) who [now.bowl 0])
   =?  cur  (gte now.bowl (add at.cur remote-window:g))  [now.bowl 0]
   =.  n.cur  +(n.cur)
@@ -981,7 +1046,7 @@
   ==
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-7)
+  ^-  (quip card state-8)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])

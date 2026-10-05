@@ -57,11 +57,30 @@ export function frameSandbox(media, pointerLock = false) {
   if (pointerLock) s += ' allow-pointer-lock';
   return s;
 }
+/* WHERE AN APP LIVES on the ship: docket says, in the desk's charge -- a glob
+ * served at /apps/<base>, or a site at its own path. Usually /apps/<desk>, but
+ * not always: %fhloston-poker is served at /apps/poker. Only ever a plain path
+ * under /apps; anything else falls back to /apps/<desk>. */
+export function appRoot(desk, charge) {
+  const href = charge?.href;
+  const base = href?.glob?.base;
+  if (typeof base === 'string' && /^[a-z0-9-]{1,64}$/.test(base)) return `/apps/${base}`;
+  const site = href?.site;
+  if (typeof site === 'string' && /^\/apps\/[a-z0-9-]{1,64}$/.test(site)) return site;
+  return `/apps/${desk}`;
+}
+/* An app WITHOUT a manifest, the player has installed: it opens as it would
+ * from Landscape -- able to reach its own agent, as any page of the ship can --
+ * since installing it was the trust. Nothing extra: no pointer lock, and none
+ * of the spot's context, so a host cannot steer an app that was never built to
+ * be embedded. (An app WITH a manifest gets what it declares, and no more.) */
+export const INSTALLED_GRANTS = Object.freeze({ media: true, pointerLock: false });
+
 /* Where the app opens: its manifest's own launch page if that is one of its
- * own, else /apps/<desk>/ -- with the spot's context in the address too, for
- * pages that read it there. Never anywhere but the desk's own pages. */
-export function launchHref(desk, manifest, context = {}, origin = 'https://ship.invalid') {
-  const base = `/apps/${desk}`;
+ * own, else its root -- with the spot's context in the address too, for
+ * pages that read it there. Never anywhere but the app's own pages. */
+export function launchHref(desk, manifest, context = {}, origin = 'https://ship.invalid', root = `/apps/${desk}`) {
+  const base = root;
   let href = `${base}/`;
   const want = manifest?.launch?.href;
   if (typeof want === 'string') {

@@ -80,10 +80,13 @@ export function subscribeRaw(app, path, onFact, label = path) {
   });
 }
 
-export function subscribe(app, path, onFact, label = path) {
+/* `ship`: another ship's agent, watched through our own ship -- which carries
+ * the subscription over Ames. Our own, if not given. */
+export function subscribe(app, path, onFact, label = path, { ship } = {}) {
   return api.subscribe({
     app,
     path,
+    ...(ship ? { ship: String(ship).replace(/^~/, '') } : {}),
     event: (fact) => {
       if (!fact || typeof fact !== 'object') return;
       for (const name of Object.keys(fact)) onFact(name, fact[name]);

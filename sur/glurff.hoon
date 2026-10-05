@@ -145,6 +145,18 @@
 ::  browser writes it.
 ++  prefs-max  8.192
 ::
+::  THE WORLD'S SPOTS. A spot is a patch of the painted map that opens an app
+::  -- a ping pong table, a TV, the boardroom table. The patch is painted in;
+::  which app it opens is the world's host's to choose, and to change. Set
+::  here, from Dojo for now, and read from the host by every visitor's page.
+::  `publisher` is where a visitor without the app gets it; `context` is
+::  handed to an app that asks for it (one with a noltbook.json) -- which
+::  table, which room. Capped, since every visitor's page carries it.
++$  spot-app  [desk=@tas publisher=@p title=@t context=(list [@t @t])]
+++  spots-max     32
+++  spot-title    64
+++  spot-context  8
+::
 ::  -------------------------------------------------------------- presence
 ::
 ::  `peers` sits at the SAME AXIS in every variant so a receiver can read it
@@ -204,6 +216,9 @@
       ::  Our own settings -- the clocks in the sky, our time zone -- as the
       ::  client's own JSON, stored so they follow us to any browser.
       [%prefs peers=(list @p) text=@t]
+      ::  As a world's host: which app a spot opens, or `~` for whatever the
+      ::  map gives it. See `spot-app` above.
+      [%spot peers=(list @p) id=@tas app=(unit spot-app)]
   ==
 ::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
 ::  confers only "the ship that mints tokens" -- no kick, no mute.
@@ -366,5 +381,8 @@
       [%lease-private who=@p =place gen=@ud]
       ::  our own settings, on startup and whenever they change
       [%our-prefs text=@t]
+      ::  THE WORLD'S SPOTS, as we host them: on /spots, to anybody watching
+      ::  -- our own page and every visitor's -- and whenever they change.
+      [%spots spots=(map @tas spot-app)]
   ==
 --

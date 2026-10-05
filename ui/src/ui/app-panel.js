@@ -5,11 +5,14 @@
  * work, and with the same conventions, so any Noltbook plugin works from a
  * spot too:
  *
- *   installed   /apps/<desk> opens in a frame, sized by the desk's own
- *               /apps/<desk>/noltbook.json, with Noltbook's frame permissions
- *               (a "media" app may reach its own agent: allow-same-origin; a
- *               "pointer-lock" app may hold the mouse) -- only what the
- *               manifest declares.
+ *   installed   the app opens in a frame, from where docket says it lives
+ *               (usually /apps/<desk>). WITH a noltbook.json there, sized by
+ *               it and with Noltbook's frame permissions -- a "media" app may
+ *               reach its own agent (allow-same-origin), a "pointer-lock" app
+ *               may hold the mouse -- only what it declares, and told the
+ *               spot's context. WITHOUT one, as Landscape would open it: able
+ *               to reach its own agent, since installing it was the trust, but
+ *               nothing extra and no context.
  *               The page is told where it was opened -- the spot's context,
  *               e.g. which table -- through Noltbook's plugin handshake
  *               (nb:ready -> nb:init) and in its address, and may ask to be
@@ -24,9 +27,10 @@
 import { api, poke as pokeShip } from 'lib/api';
 import { esc } from 'ui/html';
 
-import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize }
-  from 'lib/app-spots';
-export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize };
+import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
+  appRoot, INSTALLED_GRANTS } from 'lib/app-spots';
+export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
+  appRoot, INSTALLED_GRANTS };
 const TREATY_WAIT_MS = 10000, TREATY_STEP_MS = 1200;
 const INSTALL_CHECKS = [1000, 3000, 6000, 10000, 16000, 25000, 40000, 60000, 90000, 120000];
 
@@ -66,7 +70,7 @@ export class AppPanel {
     this.trace('app-spot', { reason: 'open', detail: app.desk });
     const charge = await this.charge(app.desk);
     if (run !== this.run) return;
-    if (running(charge)) return this.play(app, run);
+    if (running(charge)) return this.play(app, run, charge);
     this.card(app, charge);
   }
 
@@ -74,7 +78,7 @@ export class AppPanel {
     this.run++;
     this.root.hidden = true;
     this.body.innerHTML = '';
-    this.frame = null; this.session = null; this.spot = null; this.state = 'closed';
+    this.frame = null; this.session = null; this.spot = null; this.context = null; this.state = 'closed';
     this.root.style.width = this.root.style.height = '';
   }
 
@@ -85,10 +89,14 @@ export class AppPanel {
   }
 
   /* ---- installed: the app, in a frame ---- */
-  async play(app, run) {
-    const manifest = await this.fetchJson(`/apps/${app.desk}/noltbook.json`);
+  async play(app, run, charge = null) {
+    const root = appRoot(app.desk, charge);
+    const manifest = await this.fetchJson(`${root}/noltbook.json`);
     if (run !== this.run) return;
-    const { media, pointerLock } = frameGrants(manifest);
+    /* With a manifest, what it declares and the spot's context; without, what
+     * installing it gave, and no context. */
+    const { media, pointerLock } = manifest ? frameGrants(manifest) : INSTALLED_GRANTS;
+    this.context = manifest ? (app.context ?? {}) : {};
     const size = frameSize(manifest, { width: innerWidth, height: innerHeight });
     this.state = 'playing';
     this.session = `glurff-${Math.random().toString(36).slice(2, 10)}`;
@@ -97,11 +105,11 @@ export class AppPanel {
     frame.className = 'app-frame';
     frame.setAttribute('sandbox', frameSandbox(media, pointerLock));
     if (media) { frame.setAttribute('allow', FRAME_ALLOW); frame.setAttribute('allowfullscreen', ''); }
-    frame.src = launchHref(app.desk, manifest, app.context, location.origin);
+    frame.src = launchHref(app.desk, manifest, this.context, location.origin, root);
     frame.style.width = size.width + 'px'; frame.style.height = size.height + 'px';
     this.frame = frame;
     this.body.appendChild(frame);
-    this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
+    this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${!manifest ? 'installed' : media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
 
   /* Noltbook's plugin handshake, from the frame we opened only. */
@@ -110,7 +118,7 @@ export class AppPanel {
     const d = e.data;
     if (!d || typeof d !== 'object' || d.source !== 'noltbook-plugin' || d.protocol !== PLUGIN_PROTOCOL) return;
     if (d.type === 'nb:ready') {
-      this.send('nb:init', { mode: 'embedded-app', desk: this.spot.desk, context: this.spot.context ?? {},
+      this.send('nb:init', { mode: 'embedded-app', desk: this.spot.desk, context: this.context ?? {},
         host: { app: 'glurff', world: this.world } });
       return;
     }
@@ -186,7 +194,7 @@ export class AppPanel {
       await this.wait(at - last); last = at;
       if (run !== this.run) return;
       const charge = await this.charge(app.desk);
-      if (running(charge)) { this.trace('app-spot', { reason: 'installed', detail: app.desk }); return this.play(app, run); }
+      if (running(charge)) { this.trace('app-spot', { reason: 'installed', detail: app.desk }); return this.play(app, run, charge); }
       if (['hung', 'suspend'].includes(chadOf(charge))) return this.card(app, charge);
     }
     this.fail(app, run, 'Installing is taking a while. It will open next time once it has finished.');

@@ -37,7 +37,7 @@ import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
 import { showNoltbookDependency } from 'ui/dependency';
 import { showWorldMembership } from 'ui/world-membership';
-import { HOTSPOTS, spotApp } from 'world/hotspots';
+import { HOTSPOTS, spotApp, spotsFor } from 'world/hotspots';
 import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
@@ -760,8 +760,12 @@ const appRoot = document.createElement('div');
 document.body.appendChild(appRoot);
 const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID });
 window.__appPanel = appPanel;   // debug handle
-game.setHotspots(HOTSPOTS.map(h => ({ ...h,
+/* The spots as the world's host has set them (see world/hotspots): until the
+ * host's list arrives -- or if it never does -- each opens what the map gives
+ * it, and a spot with nothing set is no spot at all. */
+const showSpots = (set) => game.setHotspots(spotsFor(HOTSPOTS, set).map(h => ({ ...h,
   onActivate: () => h.app ? appPanel.open(spotApp(h.app, WORLD_HOST)) : mediaUI.activate(h.id) })));
+showSpots({});
 window.__players = { store:playerStore, ui:mediaUI };
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
@@ -1145,6 +1149,12 @@ function onWorldFact(name, p, fromPresence=false) {
     confidence: (ship) => movement?.confidence(ship) ?? 'live-stationary' });
   await Promise.all([G.watchWorld(onWorldFact), R.initRooms()]);
   watching = true;
+  /* Which app each spot opens, from the world's host -- and again whenever
+   * the host changes one. */
+  void Promise.resolve(G.watchSpots(WORLD_HOST, (set) => {
+    diagnostic('spots', { count: Object.keys(set ?? {}).length });
+    showSpots(set);
+  })).catch(() => {});
   sessionLease.start();
   milestone('world-subscribed');
   movement.moved({ ...game.self, host: R.rooms.host ?? null });

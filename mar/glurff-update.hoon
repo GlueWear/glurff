@@ -87,6 +87,21 @@
         %our-prefs
       (frond 'our-prefs' s+text.upd)
     ::
+    ::  The world's spots: {"spots": {"<spot>": {desk, publisher, title, context}}}.
+        %spots
+      %+  frond  'spots'
+      %-  pairs
+      %+  turn  ~(tap by spots.upd)
+      |=  [id=@tas a=spot-app:g]
+      ^-  [@t ^json]
+      :-  (crip (trip (scot %tas id)))
+      %-  pairs
+      :~  ['desk' s+(crip (trip (scot %tas desk.a)))]
+          ['publisher' s+(scot %p publisher.a)]
+          ['title' s+title.a]
+          ['context' (pairs (turn context.a |=([k=@t v=@t] [k s+v])))]
+      ==
+    ::
         %session
       %+  frond  'session'
       %-  pairs
