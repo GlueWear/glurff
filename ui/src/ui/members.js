@@ -16,6 +16,7 @@ import { rooms, onRooms, offerHost, answerHostOffer, canHandOff, mayHandTo, choo
 import { roomById, COMMONS } from 'world/places';
 import { ask } from 'ui/ask';
 import { esc } from 'ui/html';
+import { avatarHtml } from 'ui/avatar';
 
 
 export class Members {
@@ -251,7 +252,7 @@ export class Members {
     if (this.open) {
       this.panel.innerHTML = this.leaseRow(place) + people.map((ship) => `
         <div class="member-row" data-ship="${esc(ship)}">
-          <span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>
+          <span class="av">${avatarHtml(ship)}</span>
           <span class="who">${esc(displayName(ship))}${ship === our ? ' <span class="dim">(you)</span>' : ''}</span>
           ${ship === host ? `<span class="tag">${place === COMMONS ? 'huddle host' : 'host'}</span>` : ''}
           ${roleFor(ship) === 'admin' ? '<span class="tag">ADMIN</span>' : ''}

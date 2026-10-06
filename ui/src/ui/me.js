@@ -8,6 +8,7 @@
 import { displayName, avatarUrl, onChange } from 'lib/noltbook';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
+import { avatarHtml } from 'ui/avatar';
 
 
 export class Me {
@@ -32,6 +33,6 @@ export class Me {
     if (signature === this.signature) return;
     this.signature = signature;
     this.btn.innerHTML = `<span class="who">${esc(name)}</span>
-      <span class="av">${av ? `<img src="${esc(av)}" alt="">` : `<span>${esc(our.slice(1, 3))}</span>`}</span>`;
+      <span class="av">${avatarHtml(our)}</span>`;
   }
 }

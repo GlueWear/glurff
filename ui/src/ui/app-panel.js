@@ -28,9 +28,12 @@ import { api, poke as pokeShip } from 'lib/api';
 import { esc } from 'ui/html';
 
 import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
-  appRoot, INSTALLED_GRANTS } from 'lib/app-spots';
+  appRoot, INSTALLED_GRANTS, bigSize } from 'lib/app-spots';
 export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
-  appRoot, INSTALLED_GRANTS };
+  appRoot, INSTALLED_GRANTS, bigSize };
+/* The title bar's enlarge and restore buttons. */
+const ENLARGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+const RESTORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
 const TREATY_WAIT_MS = 10000, TREATY_STEP_MS = 1200;
 const INSTALL_CHECKS = [1000, 3000, 6000, 10000, 16000, 25000, 40000, 60000, 90000, 120000];
 
@@ -51,10 +54,18 @@ export class AppPanel {
     this.spot = null; this.state = 'closed'; this.session = null; this.frame = null; this.run = 0;
     root.className = 'app-panel'; root.hidden = true;
     root.setAttribute('role', 'dialog');
-    root.innerHTML = '<div class="app-head"><span class="app-title"></span><button type="button" class="app-x" title="Close">&times;</button></div><div class="app-body"></div>';
+    root.innerHTML = '<div class="app-head"><span class="app-title"></span><span class="app-tools">' +
+      '<button type="button" class="app-max" hidden></button><button type="button" class="app-x" title="Close">&times;</button></span></div><div class="app-body"></div>';
     this.titleEl = root.querySelector('.app-title');
     this.body = root.querySelector('.app-body');
     root.querySelector('.app-x').onclick = () => this.close();
+    /* ENLARGE: the app as large as the window allows, and back to the size it
+     * asked for. Only while an app is showing; every app starts at its own. */
+    this.maxBtn = root.querySelector('.app-max');
+    this.maxBtn.onclick = () => this.setBig(!this.big);
+    this.big = false; this.size = null;
+    this.setBig(false);
+    window.addEventListener('resize', () => { if (this.big) this.fit(); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) this.close(); });
     window.addEventListener('message', (e) => this.onMessage(e));
   }
@@ -77,12 +88,30 @@ export class AppPanel {
   close() {
     this.run++;
     this.root.hidden = true;
+    this.maxBtn.hidden = true; this.setBig(false);
     this.body.innerHTML = '';
     this.frame = null; this.session = null; this.spot = null; this.context = null; this.state = 'closed';
     this.root.style.width = this.root.style.height = '';
   }
 
-  say(text, cls = 'dim') { this.state = 'busy'; this.body.innerHTML = `<div class="app-note ${cls}">${esc(text)}</div>`; }
+  say(text, cls = 'dim') { this.state = 'busy'; this.maxBtn.hidden = true; this.body.innerHTML = `<div class="app-note ${cls}">${esc(text)}</div>`; }
+
+  /* Enlarged or not, the frame is drawn at that size. */
+  setBig(on) {
+    this.big = !!on;
+    this.maxBtn.innerHTML = this.big ? RESTORE : ENLARGE;
+    const label = this.big ? 'Restore' : 'Enlarge';
+    this.maxBtn.title = label; this.maxBtn.setAttribute('aria-label', label);
+    this.maxBtn.setAttribute('aria-pressed', String(this.big));
+    this.fit();
+  }
+  fit() {
+    if (!this.frame) return;
+    const head = this.root.querySelector('.app-head')?.offsetHeight || 32;
+    const size = this.big ? bigSize({ width: innerWidth, height: innerHeight }, head) : this.size;
+    if (!size) return;
+    this.frame.style.width = size.width + 'px'; this.frame.style.height = size.height + 'px';
+  }
 
   async charge(desk) {
     try { return (await this.scry('docket', '/charges'))?.initial?.[desk] ?? null; } catch { return null; }
@@ -106,8 +135,11 @@ export class AppPanel {
     frame.setAttribute('sandbox', frameSandbox(media, pointerLock));
     if (media) { frame.setAttribute('allow', FRAME_ALLOW); frame.setAttribute('allowfullscreen', ''); }
     frame.src = launchHref(app.desk, manifest, this.context, location.origin, root);
-    frame.style.width = size.width + 'px'; frame.style.height = size.height + 'px';
     this.frame = frame;
+    this.size = size;
+    this.big = false;
+    this.setBig(false);
+    this.maxBtn.hidden = false;
     this.body.appendChild(frame);
     this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${!manifest ? 'installed' : media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
@@ -126,9 +158,10 @@ export class AppPanel {
     if (d.type === 'nb:close') { this.close(); return; }
     if (d.type === 'nb:resize') {
       const p = d.payload ?? {};
-      const size = frameSize({ launch: { width: Number(p.width) || parseInt(this.frame.style.width, 10), height: Number(p.height) || parseInt(this.frame.style.height, 10) } },
+      /* The size it asks for is its own size; enlarged, it stays enlarged. */
+      this.size = frameSize({ launch: { width: Number(p.width) || this.size?.width, height: Number(p.height) || this.size?.height } },
         { width: innerWidth, height: innerHeight });
-      this.frame.style.width = size.width + 'px'; this.frame.style.height = size.height + 'px';
+      this.fit();
     }
   }
   send(type, payload) {
@@ -145,6 +178,7 @@ export class AppPanel {
     const title = info.title || app.title || app.desk;
     const col = colorHex(info.color), img = typeof info.image === 'string' ? info.image : '';
     this.state = 'card';
+    this.maxBtn.hidden = true;
     const why = chad === 'install' ? 'Installing…' : chad === 'suspend' ? `${title} is installed but suspended. Resume it in Landscape.`
       : chad === 'hung' ? `${title} is installed but stuck. Check it in Landscape.` : '';
     this.body.innerHTML = `<div class="app-card">

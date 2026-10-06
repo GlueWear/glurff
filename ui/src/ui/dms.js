@@ -28,12 +28,14 @@ import { our } from 'lib/api';
 /* An envelope: private messages, and not to be mistaken for the room's chat.
  * Search lives inside, as the field at the top of the menu. */
 const MESSAGES_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg>';
-const avatar = (ship) => `<span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>`;
+/* Their picture, sigil or initials: see ui/avatar. */
+const avatar = (ship) => `<span class="av">${avatarHtml(ship)}</span>`;
 const NOTE_TYPE = { gossip: 'gossip', group: 'group', notebook: 'note' };
 const openNote = (id) => window.open(noteUrl(id), '_blank', 'noopener');
 
 import { render as renderText } from 'ui/media';
 import { esc } from 'ui/html';
+import { avatarHtml } from 'ui/avatar';
 
 export class Dms {
   constructor(root, { onShowProfile } = {}) {

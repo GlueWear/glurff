@@ -96,6 +96,12 @@ export function launchHref(desk, manifest, context = {}, origin = 'https://ship.
   const qs = q.toString();
   return qs ? `${href}?${qs}` : href;
 }
+/* ENLARGED: as large as the window allows, inside the panel's own limits
+ * (96% of the width, 94% of the height, less its title bar and border). */
+export function bigSize(view = { width: 1440, height: 900 }, head = 32) {
+  return { width: Math.max(320, Math.floor(view.width * 0.96) - 2),
+    height: Math.max(240, Math.floor(view.height * 0.94) - head - 2) };
+}
 /* The size a manifest asks for, kept on screen. */
 export function frameSize(manifest, view = { width: 1440, height: 900 }) {
   const want = manifest?.launch ?? {};

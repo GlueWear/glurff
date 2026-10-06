@@ -12,6 +12,7 @@ import { copyDiagnostics } from 'lib/diagnostics';
 import { roomById, COMMONS } from 'world/places';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
+import { pictureFor } from 'ui/avatar';
 
 export class Rail {
   constructor(root, strip) {
@@ -123,9 +124,11 @@ export class Rail {
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
-        el.innerHTML='<video autoplay playsinline muted></video><img class="face" alt=""><b class="initials"></b>'+
+        el.innerHTML='<video autoplay playsinline muted></video><img class="face" alt="" data-own="1"><b class="initials"></b>'+
           '<span><em class="who"></em><small class="tags"></small></span><i class="grip"></i>';
         this.tiles.set(v.key,el);
+        /* A picture that will not load: the next one (ui/avatar). */
+        el.querySelector('.face').addEventListener('error',()=>this.paintStrip());
         el.ondblclick=()=>{this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
         /* Pointer events with capture: the drag follows the pointer even when
          * it leaves the little square, and it ends with the pointer wherever
@@ -162,11 +165,15 @@ export class Rail {
         if(video.srcObject!==v.stream){video.srcObject=v.stream;video.play().catch(()=>{});}
         video.hidden=false;face.hidden=true;initials.hidden=true;el.classList.remove('faced');
       } else {
-        /* Camera off: their picture where the camera would be. */
+        /* Camera off: their picture where the camera would be -- or their
+         * sigil, or their initials (ui/avatar). */
         if(video.srcObject){video.pause();video.srcObject=null;}
         video.hidden=true;el.classList.add('faced');
-        const url=avatarUrl(v.ship);
-        if(url){ if(face.getAttribute('src')!==url)face.setAttribute('src',url); face.hidden=false; initials.hidden=true; }
+        const pic=pictureFor(v.ship);
+        if(pic){
+          if(face.getAttribute('src')!==pic.src){face.dataset.avatar=v.ship;face.dataset.step=pic.step;face.setAttribute('src',pic.src);}
+          face.classList.toggle('sigil',pic.step==='sigil');face.hidden=false;initials.hidden=true;
+        }
         else {
           face.hidden=true;initials.hidden=false;
           const mark=(displayName(v.ship)||v.ship||'?').replace(/^~/,'').slice(0,2).toUpperCase();
@@ -222,7 +229,7 @@ export class Rail {
           ${mediaButton('mic','Microphone',rooms.micOn)}
           ${mediaButton('cam','Camera',rooms.camOn)}
           ${canShareScreen() ? mediaButton('scr','Screen sharing',rooms.screenOn) : ''}
-          <button class="set${this.settingsOpen ? ' on' : ''}">&#9881;</button>
+          <button class="set${this.settingsOpen ? ' on' : ''}" aria-label="Call settings" aria-expanded="${this.settingsOpen}" title="Call settings">${GEAR}</button>
         </div>
         <div class="rail-btns mod-btns">
           ${canModerate() ? '<button class="admin-call">ADMIN</button>' : ''}
@@ -312,6 +319,12 @@ const MIC_TROUBLE = {
   silent: "Your microphone isn't sending any sound. Check it's plugged in, not muted, and allowed for this site.",
 };
 const mediaFailed = (kind) => `${{ mic: 'Microphone', cam: 'Camera', screen: 'Screen share' }[kind] ?? 'Media'} couldn't be sent`;
+
+/* The settings gear, drawn like the buttons beside it rather than as a letter
+ * of text half their size. */
+const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>' +
+  '<circle cx="12" cy="12" r="3"/></svg>';
 
 function mediaButton(kind,label,on) {
  const paths={mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',cam:'<rect x="2" y="5" width="13" height="14" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',scr:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5M12 13V6m-4 4 4-4 4 4"/>'};

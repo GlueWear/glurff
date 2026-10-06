@@ -24,6 +24,7 @@ let ob = null, obLoading = null;
 const loadOb = () => obLoading ??= import('urbit-ob')
   .then((m) => { ob = m.clan ? m : m.default ?? m; return ob; }, () => null);
 import { esc } from 'ui/html';
+import { avatarHtml } from 'ui/avatar';
 import { MAX_CLOCKS, LABEL_MAX, SIZE_MIN, SIZE_MAX, validZone, localZone, addClock, zoneChoices, GOLD_HUE } from 'lib/clocks';
 
 
@@ -258,7 +259,6 @@ export class ProfileCard {
     /* The rank and sponsor line fills in a moment later the first time. */
     if (!ob) loadOb().then((loaded) => { if (loaded && this.ship === ship && !this.root.hidden && !this.editing) this.paint(); });
     const az = azimuth(ship);
-    const av = avatarUrl(ship);
     const notes = nb.remoteNotes[ship] ?? [];
     const lookup = nb.lookups[ship];
     const dm = dmWith(ship);
@@ -273,7 +273,7 @@ export class ProfileCard {
       <div class="card">
         <button class="card-x" title="Close">&times;</button>
         <div class="card-top">
-          <div class="card-av">${av ? `<img src="${esc(av)}" alt="">` : `<span>${esc(ship.slice(1, 3))}</span>`}</div>
+          <div class="card-av">${avatarHtml(ship)}</div>
           <div class="card-id">
             <div class="card-name">${esc(displayName(ship))}</div>
             <div class="card-ship">${esc(ship)}</div>

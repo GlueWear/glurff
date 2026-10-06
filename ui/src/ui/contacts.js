@@ -12,11 +12,13 @@ import {
 import { contactRows, palPresentation } from 'lib/contact-list';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
+import { avatarHtml } from 'ui/avatar';
 import { normalizeSearch } from 'lib/search-basics';
 
 
 const CONTACTS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.5-3.2 2.3-5 5.5-5s5 1.8 5.5 5"/><circle cx="17" cy="9" r="2.2"/><path d="M15.3 14.2c3.1-.7 5 .7 5.4 3.8"/></svg>';
-const avatar = (ship) => `<span class="av">${avatarUrl(ship) ? `<img src="${esc(avatarUrl(ship))}" alt="">` : ''}</span>`;
+/* Their picture, sigil or initials: see ui/avatar. */
+const avatar = (ship) => `<span class="av">${avatarHtml(ship)}</span>`;
 
 export class Contacts {
   constructor(root, { onShowProfile = () => {} } = {}) {

@@ -305,6 +305,10 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .app-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .35rem .6rem;
   border-bottom: 1px solid #2a3244; color: #d8e2f0; font-size: 12px; letter-spacing: .06em; }
 .app-x { background: none; border: none; color: #9aa7bd; font-size: 18px; line-height: 1; cursor: pointer; }
+.app-tools { display: flex; align-items: center; gap: .35rem; }
+.app-max { background: none; border: none; color: #9aa7bd; padding: 2px; line-height: 0; cursor: pointer; }
+.app-max svg { width: 16px; height: 16px; display: block; }
+.app-max:hover, .app-x:hover { color: #d8e2f0; }
 .app-body { display: flex; }
 .app-frame { display: block; border: 0; background: #101010; }
 .app-note { padding: 1.2rem 1.4rem; font-size: 13px; }
@@ -393,6 +397,8 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .stream:hover .post-text {display:block;}
 .chat .say input {background:#ffffee;color:#800000;border:1px solid #d9bfb7;}
 .media-icon svg {width:22px;height:22px;display:block;}
+/* The settings gear: the same size and line as the buttons beside it. */
+.rail-btns .set svg {width:22px;height:22px;display:block;margin:auto;}
 .media-icon.off {color:#ee6262;}.media-icon.on {color:#91e4bb;}
 
 /* ---- search results --------------------------------------------------- */
@@ -550,6 +556,14 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
   background: rgba(10,12,18,.92); color: #f0c674; border: 1px solid #5a4a22; border-radius: 999px;
   padding: 4px 14px; font-size: 12px; pointer-events: none; }
 .net-pill[hidden] { display: none; }
+/* Somebody's picture, sigil or initials (ui/avatar). A sigil is square and
+ * drawn on black: shown whole, never cropped. Initials sit in the middle. */
+.av, .card-av { display: grid; place-items: center; }
+.av-letters { font-size: 9px; line-height: 1; color: #c9d4e4; }
+.me-btn .av-letters { font-size: 11px; }
+.card-av .av-letters { font-size: 22px; }
+.av img.sigil, .card-av img.sigil { object-fit: contain; background: #000; }
+.tile .face.sigil { object-fit: contain; background: #000; padding: 8%; }
 /* Call tiles for somebody whose camera is off: their picture, or initials,
  * where the camera would be. See Rail.participants. */
 .tile .face, .tile .initials { display: block; width: 100%; aspect-ratio: 4 / 3; }
