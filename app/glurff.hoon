@@ -145,10 +145,28 @@
       prefs=@t
       spots=(map @tas spot-app:g)
   ==
+::  state-9 adds WEBSITES ON SPOTS: an https address a world's host put on a
+::  spot instead of an app. See `spot-web` in /sur.
++$  state-9
+  $:  %9
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      admits=(map place:g (set @p))
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-8
+=|  state-9
 =*  state  -
 ^-  agent:gall
 =<
@@ -159,7 +177,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '', spots ~)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '', spots ~, webs ~)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -172,15 +190,19 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
+  =/  nine=(unit state-9)
+    =/  res  (mule |.(!<(state-9 old)))
+    ?:(?=(%| -.res) ~ `p.res)
   =/  eight=(unit state-8)
+    ?^  nine  ~
     =/  res  (mule |.(!<(state-8 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  seven=(unit state-7)
-    ?^  eight  ~
+    ?:  |(?=(^ nine) ?=(^ eight))  ~
     =/  res  (mule |.(!<(state-7 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  current=(unit state-6)
-    ?:  |(?=(^ eight) ?=(^ seven))  ~
+    ?:  |(?=(^ nine) ?=(^ eight) ?=(^ seven))  ~
     =/  res  (mule |.(!<(state-6 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  now-state=(unit state-5)
@@ -236,11 +258,17 @@
     =/  was=state-6  u.next
     `[%7 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was '']
   ::  No spots set: each opens whatever the map gives it, if anything.
-  =/  last=(unit state-8)
+  =/  spotted=(unit state-8)
     ?^  eight  eight
     ?~  settled  ~
     =/  was=state-7  u.settled
     `[%8 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was prefs.was ~]
+  ::  No websites on spots yet.
+  =/  last=(unit state-9)
+    ?^  nine  nine
+    ?~  spotted  ~
+    =/  was=state-8  u.spotted
+    `[%9 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was prefs.was spots.was ~]
   ?~  last  on-init
   :_  this(state u.last)
   [(bind:glurff-site) calls-watch:hc]
@@ -419,8 +447,7 @@
     ::  THE WORLD'S SPOTS: which app each spot opens. Anybody may watch -- a
     ::  visitor's agent reads them from the world's host -- since nothing here
     ::  is private: it is what the map shows everyone who walks up to it.
-    :_  this
-    ~[[%give %fact ~ %glurff-update !>(`update:g`[%spots spots])]]
+    [(spots-facts:hc ~ spots webs) this]
   ::
       [%spots @ ~]
     ::  OUR PAGE, reading a world host's spots. A page cannot hear another
@@ -432,7 +459,7 @@
     =/  host=@p  (slav %p i.t.path)
     :_  this
     ?:  =(host our.bowl)
-      ~[[%give %fact ~ %glurff-update !>(`update:g`[%spots spots])]]
+      (spots-facts:hc ~ spots webs)
     (spots-follow:hc host)
   ::
       [%call-access ~]
@@ -473,7 +500,7 @@
       ?.  =(%glurff-update p.cage.sign)  `this
       =/  upd  (mule |.(!<(update:g q.cage.sign)))
       ?:  ?=(%| -.upd)  `this
-      ?.  ?=(%spots -.p.upd)  `this
+      ?.  ?=(?(%spots %spot-webs) -.p.upd)  `this
       :_  this
       ~[[%give %fact ~[page] %glurff-update !>(p.upd)]]
     ::
@@ -662,7 +689,7 @@
 ::  its OWN seat: no guest can release a lease, and no guest can evict another.
 ++  seat-change
   |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
-  ^-  (quip card state-8)
+  ^-  (quip card state-9)
   ?~  lease  `state
   =/  h=held:g  u.lease
   ?.  =(place place.h)  `state
@@ -683,6 +710,24 @@
   |=  upd=update:g
   ^-  card
   [%give %fact ~[/world] %glurff-update !>(upd)]
+::  The world's spots as we host them -- apps, then websites -- to `paths`
+::  (`~`: to whoever has just started watching).
+++  spots-facts
+  |=  [paths=(list path) s=(map @tas spot-app:g) w=(map @tas spot-web:g)]
+  ^-  (list card)
+  :~  [%give %fact paths %glurff-update !>(`update:g`[%spots s])]
+      [%give %fact paths %glurff-update !>(`update:g`[%spot-webs w])]
+  ==
+::  A website for a spot: an https address, and words of a sensible length.
+++  web-ok
+  |=  web=(unit spot-web:g)
+  ^-  ?
+  ?~  web  %.y
+  ?&  =('https://' (end [3 8] url.u.web))
+      (gth (met 3 url.u.web) 8)
+      (lte (met 3 url.u.web) spot-url:g)
+      (lte (met 3 title.u.web) spot-title:g)
+  ==
 ::  Watch a world host's spots afresh, dropping any older watch of them: the
 ::  host answers a new watch with its spots straight away.
 ++  spots-follow
@@ -773,7 +818,7 @@
 ::  afresh: that would throw out everybody inside.
 ++  world-knock
   |=  who=@p
-  ^-  (quip card state-8)
+  ^-  (quip card state-9)
   =/  =place:g  world-place:g
   =/  held=(map place:g lock-mode:g)  (~(put by hosting) place %open)
   =/  fresh=?
@@ -809,7 +854,7 @@
 ::  it is working, and stops it.
 ++  world-heard
   |=  res=call-result:gc
-  ^-  state-8
+  ^-  state-9
   ?~  world  state
   ?-    -.res
       %granted
@@ -863,7 +908,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-8)
+  ^-  (quip card state-9)
   ?-    -.act
       %move
     :_  state
@@ -960,10 +1005,29 @@
     =/  next=(map @tas spot-app:g)
       ?~  app.act  (~(del by spots) id.act)
       (~(put by spots) id.act u.app.act)
-    ?:  (gth ~(wyt by next) spots-max:g)  `state
-    ::  Every visitor's agent on /spots; our own page, on its own path.
-    :_  state(spots next)
-    ~[[%give %fact ~[/spots /spots/(scot %p our.bowl)] %glurff-update !>(`update:g`[%spots next])]]
+    ?:  (gth (add ~(wyt by next) ~(wyt by webs)) spots-max:g)  `state
+    ::  An app on a spot takes the place of any website there. Every visitor's
+    ::  agent on /spots is told, and our own page, on its own path.
+    =/  sans=(map @tas spot-web:g)  (~(del by webs) id.act)
+    :_  state(spots next, webs sans)
+    (spots-facts ~[/spots /spots/(scot %p our.bowl)] next sans)
+  ::
+    ::  A WEBSITE on a spot, from Dojo for now:
+    ::
+    ::    :glurff &glurff-action [%spot-web ~ %boardroom-table `['https://example.com' 'Example']]
+    ::
+    ::  https only. It takes the place of any app there; `~` gives the spot
+    ::  back to the map.
+      %spot-web
+    ?.  (spot-ok id.act ~)  `state
+    ?.  (web-ok web.act)  `state
+    =/  next=(map @tas spot-web:g)
+      ?~  web.act  (~(del by webs) id.act)
+      (~(put by webs) id.act u.web.act)
+    =/  apps=(map @tas spot-app:g)  ?~(web.act spots (~(del by spots) id.act))
+    ?:  (gth (add ~(wyt by next) ~(wyt by apps)) spots-max:g)  `state
+    :_  state(webs next, spots apps)
+    (spots-facts ~[/spots /spots/(scot %p our.bowl)] apps next)
   ::
     ::  THE SESSION LEASE. See `live` in /sur. The same session renewing keeps
     ::  its generation; a new one taking over gets a new, larger one; a session
@@ -972,7 +1036,7 @@
     ?:  =(0 (met 3 tab.act))  `state
     =/  mint
       |=  prev=@ud
-      ^-  (quip card state-8)
+      ^-  (quip card state-9)
       =/  ms=@ud  (div (sub now.bowl ~1970.1.1) (div ~s1 1.000))
       =/  gen=@ud  (max +(prev) ms)
       :_  state(live `[tab.act gen now.bowl])
@@ -1062,7 +1126,7 @@
 ::  poked once cannot make it grow without bound.
 ++  meter
   |=  who=@p
-  ^-  [? state-8]
+  ^-  [? state-9]
   =/  cur=meter:g  (~(gut by meters) who [now.bowl 0])
   =?  cur  (gte now.bowl (add at.cur remote-window:g))  [now.bowl 0]
   =.  n.cur  +(n.cur)
@@ -1094,7 +1158,7 @@
   ==
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-8)
+  ^-  (quip card state-9)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])

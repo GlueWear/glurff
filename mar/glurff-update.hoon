@@ -102,6 +102,16 @@
           ['context' (pairs (turn context.a |=([k=@t v=@t] [k s+v])))]
       ==
     ::
+    ::  The websites on spots: {"spot-webs": {"<spot>": {url, title}}}.
+        %spot-webs
+      %+  frond  'spot-webs'
+      %-  pairs
+      %+  turn  ~(tap by webs.upd)
+      |=  [id=@tas w=spot-web:g]
+      ^-  [@t ^json]
+      :-  (crip (trip (scot %tas id)))
+      (pairs ~[['url' s+url.w] ['title' s+title.w]])
+    ::
         %session
       %+  frond  'session'
       %-  pairs

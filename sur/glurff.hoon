@@ -156,6 +156,11 @@
 ++  spots-max     32
 ++  spot-title    64
 ++  spot-context  8
+::  A WEBSITE on a spot, instead of an Urbit app: an https address and what to
+::  call it. Every visitor's page opens it walled off from their ship. A spot
+::  holds an app or a website, never both.
++$  spot-web  [url=@t title=@t]
+++  spot-url      512
 ::
 ::  -------------------------------------------------------------- presence
 ::
@@ -219,6 +224,8 @@
       ::  As a world's host: which app a spot opens, or `~` for whatever the
       ::  map gives it. See `spot-app` above.
       [%spot peers=(list @p) id=@tas app=(unit spot-app)]
+      ::  ...or a website, or `~` to give the spot back to the map.
+      [%spot-web peers=(list @p) id=@tas web=(unit spot-web)]
   ==
 ::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
 ::  confers only "the ship that mints tokens" -- no kick, no mute.
@@ -384,5 +391,8 @@
       ::  THE WORLD'S SPOTS, as we host them: on /spots, to anybody watching
       ::  -- our own page and every visitor's -- and whenever they change.
       [%spots spots=(map @tas spot-app)]
+      ::  ...and the websites on them. A fact of its own, so a page or agent
+      ::  from before websites still reads %spots as it always did.
+      [%spot-webs webs=(map @tas spot-web)]
   ==
 --

@@ -35,6 +35,8 @@ import { Me } from 'ui/me';
 import { Members } from 'ui/members';
 import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
+import { Stage } from 'ui/stage';
+import { Sites } from 'ui/sites';
 import { showNoltbookDependency } from 'ui/dependency';
 import { showWorldMembership } from 'ui/world-membership';
 import { HOTSPOTS, spotApp, spotsFor } from 'world/hotspots';
@@ -321,8 +323,11 @@ function hideWaveLater() {
 }
 function showWave(who) {
   const name = displayName(who);
-  waveNotice.innerHTML = `<span>👋 <b>${esc(name)}</b> waved at you</span><button type="button">Show me</button>`;
-  waveNotice.querySelector('button').onclick = () => { game.lookAt(who); waveNotice.hidden = true; };
+  /* On the stage the world is out of sight: the notice alone, which shows
+   * even with Glurff's interface hidden (see ui/stage). */
+  waveNotice.innerHTML = `<span>👋 <b>${esc(name)}</b> waved at you</span>${stage.active ? '' : '<button type="button">Show me</button>'}`;
+  const showMe = waveNotice.querySelector('button');
+  if (showMe) showMe.onclick = () => { game.lookAt(who); waveNotice.hidden = true; };
   waveNotice.hidden = false;
   if (document.hidden) {
     clearTimeout(waveTimer); waveTimer = null;
@@ -465,6 +470,20 @@ const game = new Game(document.getElementById('stage'), {
   },
 });
 
+/* THE STAGE (ui/stage): an app, a website or a movie screen can take the
+ * whole screen, with Glurff's interface over it. While one does, our character
+ * says what we are doing (lib/sites activityText), and we are never "asleep":
+ * our keys and pointer are in the game, where this page cannot see them. */
+let activity = null;
+const stage = new Stage({ game, touch: () => touching(), onActivity: (text) => {
+  activity = text;
+  game.setActivity(our, text);
+  lastInput = Date.now();
+  if (asleep) checkAsleep();
+  diagnostic('stage', { reason: text ? 'on' : 'off', detail: text ?? '' });
+  if (presenceStarted) presence.publish();
+} });
+
 // Ephemeral world effects use Glurff's authenticated envelope, not a claimed
 // sender inside the JSON body. No changes to Noltbook or movement traffic.
 function sendWorldAction(event) {
@@ -592,6 +611,13 @@ const members = new Members(membersRoot, {
     : [our, ...R.callPeers()]),
   onShowProfile: (ship) => card.open(ship),
 });
+/* THE MAGNIFYING GLASS, after the room button: this world's games, or any
+ * website, on our stage (ui/sites). */
+const sitesRoot = document.createElement('div');
+topLeft.appendChild(sitesRoot);
+const sites = new Sites(sitesRoot, { games: () => worldGames(), settings: clocks, ask,
+  openWeb: (site) => appPanel.openWeb(site) });
+window.__sites = sites;   // debug handle
 
 /* Double-click somebody to see who they are. Single click is left alone: the
  * world is walked with the keyboard, and a stray click should do nothing. */
@@ -677,7 +703,7 @@ let lastInput = Date.now(), asleep = false;
 const inCall = () => ['connected', 'retrying', 'requesting'].includes(R.rooms.voice) ||
   R.inNoteCall() || !!R.currentHuddle();
 function checkAsleep() {
-  const next = Date.now() - lastInput >= IDLE_MS && !inCall();
+  const next = Date.now() - lastInput >= IDLE_MS && !inCall() && !stage.active;
   if (next === asleep) return;
   asleep = next;
   game.setAsleep(our, asleep);
@@ -705,7 +731,7 @@ function applyPresence() {
     if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.chatPlace!==p.chatPlace ||
       old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
       old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene ||
-      old.idle!==p.idle || old.micOff!==p.micOff || old.sheathed!==p.sheathed)
+      old.idle!==p.idle || old.micOff!==p.micOff || old.sheathed!==p.sheathed || old.activity!==p.activity)
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
@@ -713,6 +739,8 @@ function applyPresence() {
 }
 /* What we are right now, as presence and rooms both send it. */
 const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
+  /* What we are doing on the stage, for the bubble over our head. */
+  ...(activity?{activity}:{}),
   /* In a call with our microphone off: our stream stays in the call, silent,
    * so the others are told rather than left to guess. See lib/rooms. */
   ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),
@@ -753,19 +781,26 @@ playerStore = createPlayerState({
   send: async event => { await sendWorldAction(event); presence.publish(); },
   changed: (surface,player,local) => { mediaUI?.stateChanged(surface,player); if(!local)presence.publish(); },
 });
-mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our });
+mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our, stage });
 /* A spot either plays shared media (the jukebox, the screens) or opens an app
  * the player runs on their own ship (see ui/app-panel). */
 const appRoot = document.createElement('div');
 document.body.appendChild(appRoot);
-const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID });
+const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID, stage });
 window.__appPanel = appPanel;   // debug handle
 /* The spots as the world's host has set them (see world/hotspots): until the
  * host's list arrives -- or if it never does -- each opens what the map gives
  * it, and a spot with nothing set is no spot at all. */
-const showSpots = (set) => game.setHotspots(spotsFor(HOTSPOTS, set).map(h => ({ ...h,
-  onActivate: () => h.app ? appPanel.open(spotApp(h.app, WORLD_HOST)) : mediaUI.activate(h.id) })));
-showSpots({});
+/* An app from a spot opens on the stage; a website from a spot asks once,
+ * then does too (ui/sites); the screens and the jukebox play in the world. */
+let spotSet = {}, spotWebs = {};
+const showSpots = () => game.setHotspots(spotsFor(HOTSPOTS, spotSet, spotWebs, location.origin).map(h => ({ ...h,
+  onActivate: () => h.web ? sites.visit(h.web.url, h.web.title)
+    : h.app ? appPanel.open(spotApp(h.app, WORLD_HOST), { stage: true }) : mediaUI.activate(h.id) })));
+showSpots();
+/* This world's games, for the magnifying glass. */
+const worldGames = () => game.hotspots.filter((h) => h.app || h.web).map((h) => ({ id: h.id, kind: h.web ? 'web' : 'app',
+  title: h.web?.title ?? h.app.title ?? h.app.desk, open: () => h.onActivate(h) }));
 window.__players = { store:playerStore, ui:mediaUI };
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
@@ -1014,6 +1049,7 @@ function onWorldFact(name, p, fromPresence=false) {
                       idle: Number.isFinite(p.idle) ? p.idle : null,
                       micOff: p.micOff === true,
                       sheathed: p.sheathed === true,
+                      activity: typeof p.activity === 'string' && p.activity ? p.activity.slice(0, 64) : null,
                       host: newer ? (p.host || null) : prev.host,
                       huddle: p.huddle ?? null,
                       motionT: newer ? stamp : prev.motionT,
@@ -1027,6 +1063,7 @@ function onWorldFact(name, p, fromPresence=false) {
       game.setAsleep(p.who, entry.idle !== null);
       if ((prev?.micOff ?? false) !== entry.micOff) R.roomsChanged();
       game.setSheathed(p.who, entry.sheathed);
+      game.setActivity(p.who, entry.activity);
       /* Their character arrives on request, not on every beat -- it is far
        * bigger than a position. Ask once, when the revision moves. */
       if (!prev || prev.rev !== p.rev) G.fetchLook(p.who);
@@ -1151,9 +1188,10 @@ function onWorldFact(name, p, fromPresence=false) {
   watching = true;
   /* Which app each spot opens, from the world's host -- and again whenever
    * the host changes one. */
-  void Promise.resolve(G.watchSpots(WORLD_HOST, (set) => {
-    diagnostic('spots', { count: Object.keys(set ?? {}).length });
-    showSpots(set);
+  void Promise.resolve(G.watchSpots(WORLD_HOST, (name, set) => {
+    if (name === 'spots') spotSet = set ?? {}; else spotWebs = set ?? {};
+    diagnostic('spots', { reason: name, count: Object.keys(set ?? {}).length });
+    showSpots();
   })).catch(() => {});
   sessionLease.start();
   milestone('world-subscribed');

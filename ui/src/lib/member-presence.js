@@ -34,7 +34,9 @@ function validSnapshot(h) {
       /* Microphone off in a call; absent when on. */
       (h.micOff !== undefined && typeof h.micOff !== 'boolean') ||
       /* Weapon put away; absent when out, or when there is none. */
-      (h.sheathed !== undefined && typeof h.sheathed !== 'boolean')) return false;
+      (h.sheathed !== undefined && typeof h.sheathed !== 'boolean') ||
+      /* What they are doing on their stage ("playing Doomur"); absent in the world. */
+      (h.activity !== undefined && (typeof h.activity !== 'string' || h.activity.length > 64))) return false;
   // Chat follows the sender's settled room, not a second guess from their
   // rounded position at a wall/doorway. Older clients omit this field.
   if (h.chatPlace !== undefined && (!num(h.chatPlace) ||

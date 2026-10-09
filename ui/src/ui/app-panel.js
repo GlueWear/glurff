@@ -29,6 +29,7 @@ import { esc } from 'ui/html';
 
 import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
   appRoot, INSTALLED_GRANTS, bigSize } from 'lib/app-spots';
+import { WEB_SANDBOX, WEB_ALLOW } from 'lib/sites';
 export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
   appRoot, INSTALLED_GRANTS, bigSize };
 /* The title bar's enlarge and restore buttons. */
@@ -48,9 +49,13 @@ export class AppPanel {
     },
     wait = (ms) => new Promise((r) => setTimeout(r, ms)),
     trace = () => {},
+    /* THE STAGE (ui/stage): an app opened from a spot, or a website, fills the
+     * screen behind Glurff's interface instead of sitting in this window. */
+    stage = null,
     world = '',
   } = {}) {
-    Object.assign(this, { root, scry, poke, fetchJson, wait, trace, world });
+    Object.assign(this, { root, scry, poke, fetchJson, wait, trace, world, stage });
+    this.staged = false;
     this.spot = null; this.state = 'closed'; this.session = null; this.frame = null; this.run = 0;
     root.className = 'app-panel'; root.hidden = true;
     root.setAttribute('role', 'dialog');
@@ -66,13 +71,19 @@ export class AppPanel {
     this.big = false; this.size = null;
     this.setBig(false);
     window.addEventListener('resize', () => { if (this.big) this.fit(); });
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) this.close(); });
+    /* Escape closes the window -- never the stage: Esc is how a game gives
+     * the mouse back, and must not end the game too. */
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden && !this.staged) this.close(); });
     window.addEventListener('message', (e) => this.onMessage(e));
   }
 
-  /* Open what a spot opens: {desk, publisher, title, context}. */
-  async open(app) {
+  /* Open what a spot opens: {desk, publisher, title, context}. On the stage
+   * once it is playing, if asked; its card, if it has to be got first, in
+   * this window. */
+  async open(app, { stage = false } = {}) {
     if (!deskOk(app?.desk)) return;
+    if (this.staged) this.unstage();
+    this.wantStage = !!stage && !!this.stage;
     const run = ++this.run;
     this.spot = app;
     this.root.hidden = false;
@@ -87,6 +98,7 @@ export class AppPanel {
 
   close() {
     this.run++;
+    if (this.staged) this.unstage();
     this.root.hidden = true;
     this.maxBtn.hidden = true; this.setBig(false);
     this.body.innerHTML = '';
@@ -141,12 +153,53 @@ export class AppPanel {
     this.setBig(false);
     this.maxBtn.hidden = false;
     this.body.appendChild(frame);
+    if (this.wantStage) this.toStage({ kind: 'app', title: app.title || app.desk });
     this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${!manifest ? 'installed' : media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
 
-  /* Noltbook's plugin handshake, from the frame we opened only. */
+  /* ---- a website, on the stage ---- */
+  /* {url, host, title?}: already checked and agreed to (see ui/sites). Walled
+   * off from the ship by its own address; see lib/sites. */
+  openWeb({ url, host, title }) {
+    if (this.staged) this.unstage();
+    this.run++;
+    this.spot = { web: url, host, title: title || host };
+    this.root.hidden = false;
+    this.titleEl.textContent = title || host;
+    this.state = 'playing'; this.context = {}; this.session = null;
+    this.body.innerHTML = '';
+    const frame = document.createElement('iframe');
+    frame.className = 'app-frame';
+    frame.setAttribute('sandbox', WEB_SANDBOX);
+    frame.setAttribute('allow', WEB_ALLOW);
+    frame.setAttribute('allowfullscreen', '');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.src = url;
+    this.frame = frame;
+    this.size = bigSize({ width: innerWidth, height: innerHeight }, 32);
+    this.setBig(false);
+    this.body.appendChild(frame);
+    this.trace('app-spot', { reason: 'web', detail: host });
+    if (this.stage) this.toStage({ kind: 'web', title: title || host, host, url });
+  }
+
+  /* Onto the stage, and off it. */
+  toStage({ kind, title, host = null, url = null }) {
+    this.staged = true;
+    this.root.classList.add('staged');
+    this.maxBtn.hidden = true;
+    this.stage.enter({ id: 'app-panel', kind, title, host, url, frame: this.frame, close: () => this.close() });
+  }
+  unstage() {
+    this.staged = false;
+    this.root.classList.remove('staged');
+    this.stage?.leave('app-panel');
+  }
+
+  /* Noltbook's plugin handshake, from the frame we opened only -- never from
+   * a website. */
   onMessage(e) {
-    if (!this.frame || e.source !== this.frame.contentWindow) return;
+    if (!this.frame || e.source !== this.frame.contentWindow || this.spot?.web) return;
     const d = e.data;
     if (!d || typeof d !== 'object' || d.source !== 'noltbook-plugin' || d.protocol !== PLUGIN_PROTOCOL) return;
     if (d.type === 'nb:ready') {

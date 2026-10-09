@@ -301,6 +301,8 @@ export class Game {
   }
 
   onKey(e, down) {
+    /* Something else has the stage: the keys are not the world's. */
+    if (this.paused) { this.keys.clear(); return; }
     const modal = down && [...document.querySelectorAll('.builder, dialog[open], [role="dialog"]')]
       .some(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
     if (down && (modal ||
@@ -336,6 +338,21 @@ export class Game {
       const i = ZOOMS.indexOf(this.zoom);
       this.setZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + (k === '-' ? -1 : 1)))]);
     }
+  }
+
+  /* THE STAGE taken by something else (ui/stage): stop drawing the world and
+   * stop walking -- presence and calls go on -- and start again after. */
+  pause() {
+    if (this.paused) return;
+    this.paused = true;
+    this.keys.clear(); this.running = false; this.stick = null;
+    if (this.self.moving) { this.self.moving = false; this.self.frame = 0; this.onMove({ ...this.self }); }
+    this.app?.ticker.stop();
+  }
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.app?.ticker.start();
   }
 
   /* Two or more fingers down: measure from here. Again whenever one comes or
@@ -889,6 +906,16 @@ export class Game {
     this.paintBubble(ch, performance.now());
   }
 
+  /* What somebody is doing on their stage, over their head for everybody: see
+   * world/bubbles. null when they are back in the world. */
+  setActivity(ship, text) {
+    const ch = this.characterOf(ship);
+    const next = typeof text === 'string' && text ? text : null;
+    if (!ch || (ch.activity ?? null) === next) return;
+    ch.activity = next;
+    this.paintBubble(ch, performance.now());
+  }
+
   /* Somebody waved at us: a hand over their head, for us alone, for a moment. */
   showWave(ship) {
     const ch = this.characterOf(ship);
@@ -1089,7 +1116,7 @@ export class Game {
       const walking=point.moving??(distance>.001);
       this.animateCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001,time);
       this.followCharacter(p.ch,p.render.x,p.render.y,p.scene,time,dt);
-      if(p.ch.asleep||p.ch.waveUntil)this.paintBubble(p.ch,time);
+      if(p.ch.asleep||p.ch.waveUntil||p.ch.activity)this.paintBubble(p.ch,time);
     }
     if(this.selfSprite.asleep||this.selfSprite.waveUntil)this.paintBubble(this.selfSprite,time);
 

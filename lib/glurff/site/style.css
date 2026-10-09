@@ -732,3 +732,62 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .wave-toast { top: calc(88px + var(--safe-t)); }
   .arrange-bar { bottom: calc(var(--rail-h) + 12px + var(--safe-b)); }
 }
+
+/* ---- the stage ------------------------------------------------------------ */
+/* THE STAGE (ui/stage): an app, a website or a movie screen takes the whole
+   screen, behind Glurff's interface -- which floats over it as it floats over
+   the world, and can be hidden (html.overlay-off) and brought back from the
+   tab at the top. Wave notices show either way. */
+.app-panel.staged { left: 0; top: 0; right: 0; bottom: 0; transform: none; width: auto; height: auto;
+  max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: #000; z-index: 3; }
+.app-panel.staged .app-head { display: none; }
+.app-panel.staged .app-body { flex: 1; min-height: 0; }
+.app-panel.staged .app-frame { width: 100% !important; height: 100% !important; }
+#stage-media { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+#stage-media:empty { display: none; }
+.world-media.staged-media { position: fixed; inset: 0; width: auto; height: auto; pointer-events: auto;
+  border: 0; box-shadow: none; background: #000; }
+.staged #world-media-layer, .staged .touch-controls, .staged .arrange-bar, .staged .clock-tip { display: none !important; }
+.staged #hud { background: none; }
+.overlay-off #hud, .overlay-off #rail, .overlay-off #strip, .overlay-off #top-left, .overlay-off #top-mid,
+.overlay-off #top-right, .overlay-off .call-panels, .overlay-off .card-overlay,
+.overlay-off .app-panel:not(.staged) { display: none !important; }
+/* The tab: what is on the stage, Glurff's interface off and on, and close. */
+.stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: calc(100vw - 24px); pointer-events: none; }
+.stage-bar { pointer-events: auto; display: flex; align-items: center; gap: .35rem; max-width: 100%;
+  padding: 3px 4px 3px 12px; background: rgba(10,12,18,.92); border: 1px solid #2a3244; border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.5); font-size: 12px; }
+.stage-title { min-width: 0; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff6dc; }
+.stage-bar button { border-radius: 999px; padding: 2px 10px; font-size: 12px; white-space: nowrap; }
+.stage-bar .stage-close { padding: 0 9px; font-size: 16px; line-height: 1.25; }
+.stage-hint { pointer-events: none; background: rgba(10,12,18,.92); border: 1px solid #2a3244; border-radius: 6px;
+  padding: 5px 10px; font-size: 11px; line-height: 1.4; color: #c9d4e4; text-align: center; max-width: min(520px, 100%); }
+@media (max-width: 1000px) { .stage-tab { top: calc(52px + var(--safe-t)); } }
+@media (max-height: 500px) { .stage-tab { top: calc(48px + var(--safe-t)); } }
+
+/* ---- the magnifying glass ------------------------------------------------- */
+/* This world's games, or any website, on our stage (ui/sites). */
+.sites { position: relative; z-index: 6; flex: none; }
+.sites-btn { line-height: 0; padding: 0; width: 35px; height: 35px; display: grid; place-items: center; }
+.sites-btn svg { width: 20px; height: 20px; display: block; }
+.sites-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 320px; max-height: 65vh;
+  display: flex; flex-direction: column; background: rgba(10,12,18,.96); border: 1px solid #2a3244; border-radius: 4px; }
+.sites-form { flex: none; }
+.sites-input { width: 100%; background: rgba(15,19,29,.9); border: none; border-bottom: 1px solid #2a3244;
+  color: inherit; font: inherit; padding: .45rem .5rem; border-radius: 4px 4px 0 0; }
+.sites-input:focus { outline: none; border-bottom-color: #7fd6c3; }
+.sites-status { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: .4rem .5rem;
+  color: #e0a44a; font-size: 12px; line-height: 1.35; border-bottom: 1px solid rgba(42,50,68,.5); }
+.sites-status button { font-size: 11px; padding: 1px 8px; }
+.sites-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.sites-group { padding: .45rem .5rem .25rem; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #7b879b; }
+.site-row { display: flex; width: 100%; align-items: baseline; gap: .5rem; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid rgba(42,50,68,.5); border-radius: 0; padding: .45rem .5rem; }
+.site-row:hover { background: rgba(127,214,195,.08); }
+.site-name { flex: none; color: #d8e2f0; }
+.site-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px), (max-height: 500px) {
+  .sites-panel { position: fixed; left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); width: auto;
+    top: calc(52px + var(--safe-t)); }
+}

@@ -165,7 +165,7 @@ export const watchWorld = (onFact) => subscribe('glurff', '/world', onFact);
  * Through our own agent, which watches the host's for us: a page cannot take
  * facts from another ship's agent itself. */
 export const watchSpots = (host, onSpots) =>
-  subscribe('glurff', `/spots/${host}`, (name, p) => { if (name === 'spots') onSpots(p); });
+  subscribe('glurff', `/spots/${host}`, (name, p) => { if (name === 'spots' || name === 'spot-webs') onSpots(name, p); });
 export const watchCallAccess = (onFact) => subscribe('glurff', '/call-access', (name,p) => {
   // Diagnostics share the existing owner-local channel but never reach either
   // call controller: a late quota detail must not change media or retry state.

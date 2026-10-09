@@ -1,5 +1,6 @@
 /* Named rectangles on a painted scene. Coordinates are source-image pixels,
  * not screen pixels, so hit testing survives every camera zoom and pan. */
+import { siteFrom } from '../lib/sites.js';
 
 export const HOTSPOTS = [
   { id:'jukebox', scene:'main', rect:{ x:108, y:166, w:35, h:58 } },
@@ -35,15 +36,27 @@ export function hostSpotApp(raw) {
   return { desk, publisher, title: typeof title === 'string' && title.trim() ? title.trim().slice(0, 64) : desk, context: ctx };
 }
 
-/* The spots as this world has them: the host's choice for a settable spot,
- * else what the map gives it; a settable spot with neither is left out --
- * nothing to zoom, nothing to click. `set` is the host's map of spot id to
- * app, as sent. */
-export function spotsFor(hotspots, set = {}) {
+/* A WEBSITE on a spot, as the host's agent sends it ({url, title}), checked:
+ * https only, never our own ship's address. {url, host, title}, or null. */
+export function hostSpotWeb(raw, origin = null) {
+  if (!raw || typeof raw !== 'object') return null;
+  const site = siteFrom(raw.url, origin);
+  if (site.error) return null;
+  const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim().slice(0, 64) : site.host;
+  return { url: site.url, host: site.host, title };
+}
+
+/* The spots as this world has them: the host's choice for a settable spot --
+ * an Urbit app (`set`) or a website (`webs`), both maps of spot id as sent --
+ * else what the map gives it; a settable spot with none of these is left out:
+ * nothing to zoom, nothing to click. */
+export function spotsFor(hotspots, set = {}, webs = {}, origin = null) {
   const out = [];
   for (const h of hotspots) {
     if (!h.settable) { out.push(h); continue; }
     const chosen = Object.hasOwn(set ?? {}, h.id) ? hostSpotApp(set[h.id]) : null;
+    const web = !chosen && Object.hasOwn(webs ?? {}, h.id) ? hostSpotWeb(webs[h.id], origin) : null;
+    if (web) { const { app, ...rest } = h; out.push({ ...rest, web }); continue; }
     const app = chosen ?? h.app ?? null;
     if (app) out.push({ ...h, app });
   }

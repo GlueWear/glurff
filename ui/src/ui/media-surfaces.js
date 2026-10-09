@@ -45,7 +45,7 @@ class SurfaceView {
     this.root.innerHTML = `<div class="media-frame"></div><div class="media-notice" hidden></div><div class="media-tools">
       <button type="button" class="media-mute" title="Mute this player locally"></button>
       <button type="button" class="media-skip" title="Skip this YouTube video" hidden>Skip</button>
-      ${this.isScreen ? '<button type="button" class="media-pop" title="Open in a resizable window">□</button><button type="button" class="media-change">Change</button>' : ''}
+      ${this.isScreen ? '<button type="button" class="media-full" title="Full screen">⛶</button><button type="button" class="media-pop" title="Open in a resizable window">□</button><button type="button" class="media-change">Change</button>' : ''}
       <button type="button" class="media-stop" title="Stop this stream for everyone">Stop all</button>
       <button type="button" class="media-close" title="Leave this stream locally">×</button>
     </div><i class="grip" title="Resize"></i>`;
@@ -54,6 +54,7 @@ class SurfaceView {
     this.root.querySelector('.media-skip').onclick = e => { e.stopPropagation(); this.skip(true); };
     this.root.querySelector('.media-stop').onclick = e => { e.stopPropagation(); owner.store.clear(surface); };
     this.root.querySelector('.media-pop')?.addEventListener('click', e => { e.stopPropagation(); owner.togglePopout(surface); });
+    this.root.querySelector('.media-full')?.addEventListener('click', e => { e.stopPropagation(); owner.toggleStage(surface); });
     this.root.querySelector('.media-change')?.addEventListener('click', e => { e.stopPropagation(); void owner.choose(surface); });
     this.root.querySelector('.media-close').addEventListener('click', e => { e.stopPropagation(); owner.hide(surface); });
     this.root.addEventListener('pointerdown', e => e.stopPropagation());
@@ -94,16 +95,27 @@ class SurfaceView {
   }
 
   setMode(mode) {
-    if (!['docked','popup','hidden'].includes(mode) || (!this.isScreen && mode === 'docked')) return;
+    if (!['docked','popup','hidden','stage'].includes(mode) || (!this.isScreen && ['docked','stage'].includes(mode))) return;
     if (this.mode === mode) return;
+    /* Off the stage: let it go (see ui/stage). */
+    if (this.mode === 'stage') { this.mode = mode; this.owner.stage?.leave(`media-${this.surface}`); }
     this.destroyAdapter(); this.mode = mode; this.root.dataset.mode = mode;
-    const tile = mode === 'popup'; this.kind = tile ? 'tile' : 'world';
-    this.root.className = tile ? 'tile media-tile' : 'world-media';
+    const tile = mode === 'popup', staged = mode === 'stage'; this.kind = tile ? 'tile' : 'world';
+    this.root.className = tile ? 'tile media-tile' : staged ? 'world-media staged-media' : 'world-media';
     this.root.querySelector('.grip').hidden = !tile;
     const pop=this.root.querySelector('.media-pop');
     if(pop){pop.textContent=tile?'▣':'□';pop.title=tile?'Return to the painted screen':'Open in a resizable window';}
-    (tile ? this.owner.strip : this.owner.worldRoot).appendChild(this.root);
+    const full=this.root.querySelector('.media-full');
+    if(full){full.textContent=staged?'⤡':'⛶';full.title=staged?'Back to the screen':'Full screen';}
+    (tile ? this.owner.strip : staged ? this.owner.stageRoot : this.owner.worldRoot).appendChild(this.root);
     this.owner.orderTiles();
+    if (staged) {
+      /* THE STAGE: the whole screen, behind Glurff's interface. */
+      this.root.style.left='';this.root.style.top='';this.root.style.width='';this.root.style.height='';
+      this.root.style.transform='';this.root.style.transformOrigin='';
+      this.owner.stage?.enter({ id:`media-${this.surface}`, kind:'media',
+        title:this.surface==='amphitheatre'?'Amphitheatre screen':'Movie Theater screen', close:()=>this.setMode('docked') });
+    }
     if (tile) {
       /* A docked screen is positioned over its painted counterpart. Those
        * coordinates and its low-zoom transform must not follow it into the
@@ -120,6 +132,8 @@ class SurfaceView {
 
   async apply(state) {
     this.state = state;
+    /* Stopped for everyone: off the stage, back to the painted screen. */
+    if ((!state || state.provider === 'none') && this.mode === 'stage') this.setMode('docked');
     if (!state || state.provider === 'none') { this.destroyAdapter(); this.root.hidden = true; return; }
     if (this.mode === 'hidden') { this.destroyAdapter();this.root.hidden=true;return; }
     this.root.hidden = false;
@@ -225,10 +239,12 @@ class SurfaceView {
 }
 
 export class MediaSurfaces {
-  constructor({ game, strip, store, our }) {
-    this.game=game;this.strip=strip;this.store=store;this.our=our;
+  constructor({ game, strip, store, our, stage = null }) {
+    this.game=game;this.strip=strip;this.store=store;this.our=our;this.stage=stage;
     this.views = new Map(); this.mutes = new Map(); this.jukeboxClosed = false;
     this.worldRoot = document.createElement('div'); this.worldRoot.id = 'world-media-layer'; document.body.appendChild(this.worldRoot);
+    /* A screen sent full screen sits here, on the stage (ui/stage). */
+    this.stageRoot = document.createElement('div'); this.stageRoot.id = 'stage-media'; document.body.appendChild(this.stageRoot);
     this.lastScene = game.scene;
     this.frame = requestAnimationFrame(() => this.layout());
   }
@@ -272,6 +288,12 @@ export class MediaSurfaces {
   togglePopout(surface) {
     const view=this.view(surface);
     view.setMode(view.mode==='popup'?'docked':'popup');
+  }
+
+  /* Full screen, on the stage, and back to the painted screen. */
+  toggleStage(surface) {
+    const view=this.view(surface);
+    view.setMode(view.mode==='stage'?'docked':'stage');
   }
 
   activate(surface) {
