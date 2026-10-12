@@ -244,6 +244,12 @@ export function createMemberPresence({our, session, members, blocked = () => fal
     /* On the relay's roster is present: no heartbeat needed to stay listed. */
     for (const [who, row] of rows) if (onRelay(who)) row.at = now();
     for (const [who, r] of routes) if (onRelay(who)) r.at = now();
+    /* ...and what they push us still answers our last question. Somebody on
+     * the relay is never asked again (see cadence), so a change they send
+     * later -- a new character, a weapon put away, an activity -- must not be
+     * refused as an answer to a question too old. Refused, it was: three
+     * minutes together and nobody saw anything change until they reloaded. */
+    for (const [who, c] of contacts) if (onRelay(who)) for (const q of c.requests.values()) q.at = now();
     for (const [who, row] of rows) if (!live(row)) {
       trace('presence-expired', {who, gap: now() - row.at});
       rows.delete(who); expired = true;

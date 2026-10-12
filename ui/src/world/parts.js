@@ -298,6 +298,14 @@ export function characterTop(look) {
   const mount = equipmentOf('mount', look?.mount?.part);
   return (premade ? premade.feet-premade.bounds[1] : FEET-HEAD) - (mount?.riderY ?? 0);
 }
+/* WHAT A SHOT CAN HIT, in art pixels: the body as drawn -- how tall from the
+ * feet (a mount lifts its rider), and half how wide. A built character is
+ * about eight pixels across; a ready-made one is as wide as its drawing. */
+export function bodyBox(look) {
+  const premade = equipmentOf('premade', look?.premade?.part);
+  const half = premade ? Math.max(3, (premade.bounds[2] - premade.bounds[0]) / 2) : 4;
+  return { half, tall: characterTop(look) };
+}
 /* HOW HIGH A NAME SITS above the feet, in art pixels. A ready-made character
  * is measured exactly, so its name goes NAME_ABOVE of its height above the
  * top of the drawing; a built character's art has room above the head, so

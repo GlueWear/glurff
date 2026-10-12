@@ -10,7 +10,7 @@ import { createWaves, createTitleFlash, WAVE_NOTICE_MS } from 'lib/waves';
 import { createClockSettings, anchor as clockAnchor, clockTime } from 'lib/clocks';
 import { IDLE_MS } from 'world/bubbles';
 import { esc } from 'ui/html';
-import { sceneCharacterScale, sceneTile, solidAt as mapSolid } from 'world/places';
+import { sceneCharacterScale, sceneTile, sceneInfo, solidAt as mapSolid } from 'world/places';
 /* Artwork loads alongside the official note. Connecting waits for membership. */
 import { initApi, our, closeChannel } from 'lib/api';
 import { watchNoltbookDependency } from 'lib/dependency';
@@ -42,7 +42,7 @@ import { showWorldMembership } from 'ui/world-membership';
 import { HOTSPOTS, spotApp, spotsFor } from 'world/hotspots';
 import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
-import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs } from 'world/parts';
+import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs, bodyBox } from 'world/parts';
 import { unlocks } from 'lib/unlock';
 
 const state = {
@@ -531,6 +531,15 @@ const bow = createBow({
   blocked: who => palStatus(who) === 'blocked',
   solid: mapSolid,
   hitBox: scene => {const half=2*sceneCharacterScale(scene)/sceneTile(scene);return {x:half,y:half};},
+  /* What a SHOT can hit: our body as drawn (world/parts bodyBox), feet to
+   * head -- a shot through our head or legs is a hit, not only one past our
+   * feet. A shot is drawn raised above its point by the scene's collision
+   * offset, so in a shot's terms our body sits that much lower. */
+  shotBox: scene => {
+    const unit = sceneCharacterScale(scene) / sceneTile(scene), lift = sceneInfo(scene).collisionOffsetY;
+    const { half, tall } = bodyBox(state.look);
+    return { x: half * unit, y: tall * unit / 2, up: tall * unit / 2 - lift };
+  },
   send: sendWorldAction,
   onShot: (ship,shot) => game.react(ship,'attack',shot.scene,shot.weapon),
   onHit: (ship,shot) => game.react(ship,'die',shot.scene),

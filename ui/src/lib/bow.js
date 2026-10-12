@@ -47,7 +47,7 @@ export function segmentHits(a,b,p,halfWidth=.25,halfHeight=.25) {
   return true;
 }
 export function createBow({our, self, visible, blocked=()=>false, send, solid,
-  hitBox=()=>({x:.25,y:.25}), now=Date.now, id=()=>crypto.randomUUID(),
+  hitBox=()=>({x:.25,y:.25}), shotBox=null, now=Date.now, id=()=>crypto.randomUUID(),
   onShot=()=>{}, onHit=()=>{}}) {
   const shots=new Map(), seen=new Map(), lastReceived=new Map();
   let fired=-Infinity;
@@ -139,8 +139,11 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
         const point={x:s.from.x+vx*next,y:s.from.y+vy*next};
         if(solid(point.x,point.y,s.scene)){s.stopped=true;break;}
         if(p && !self()?.locked && s.who!==our && p.scene===s.scene) {
-          const half=hitBox(s.scene);
-          if(segmentHits(s.point,point,p,half.x,half.y)) {
+          /* What a shot can hit is the victim's body as drawn (`shotBox`:
+           * half sizes, and how far above the feet its middle is in a shot's
+           * terms), else the square at the feet a swing uses. */
+          const box=shotBox ? shotBox(s.scene) : {...hitBox(s.scene),up:0};
+          if(segmentHits(s.point,point,{x:p.x,y:p.y-box.up},box.x,box.y)) {
             const event={kind:'arrow-hit',id:s.id,by:s.who};
             receive(our,event); Promise.resolve(send(event)).catch(()=>{}); break;
           }
