@@ -12,9 +12,12 @@ import { esc } from 'ui/html';
 
 
 export class Hud {
-  constructor(root, { events } = {}) {
+  constructor(root, { events, secret } = {}) {
     this.root = root;
     this.events = events;
+    /* (text, room) => true when what was typed is not a message at all (the
+     * Library's secret; see lib/unlock), and so is not sent. */
+    this.secret = secret ?? (() => false);
     this.unread = createChatUnread(our);
     events?.onChange(message => {
       if (this.noteFor(this.room)) return;
@@ -207,6 +210,7 @@ export class Hud {
       const v = input.value.trim();
       if (!v) return;
       input.value = '';
+      if (this.secret(v, this.room)) return;
       const note = this.noteFor(this.room);
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
       this.replyTo = null;

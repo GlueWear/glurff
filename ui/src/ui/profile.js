@@ -17,7 +17,7 @@ import {
 import { our } from 'lib/api';
 import { bioHtml, externalAvatar } from 'lib/profile-text';
 import { sendNock, sendBlocked } from 'lib/wallet';
-import { paintCharacter } from 'world/paint';
+import { paintStage } from 'world/paint';
 /* urbit-ob, and the big-number library behind it, is loaded the first time a
  * profile card is opened rather than with the app: nothing else needs it. */
 let ob = null, obLoading = null;
@@ -108,6 +108,9 @@ function zoneSelect(zone) {
   }).join('')}</select>`;
 }
 
+/* How long after opening a click is taken for the tap that opened us. */
+const GHOST_CLICK_MS = 400;
+
 export class ProfileCard {
   constructor(root, { onOpenDm, look, onEditCharacter, presenceOf, onWave, clocks = null, onArrangeClocks } = {}) {
     this.root = root;
@@ -129,11 +132,19 @@ export class ProfileCard {
     this.sending = false;
     this.editing = false;
     this.saving = false;
+    this.openedAt = -Infinity;
     this.editError = '';
     this.avatarFile = null;
     this.avatarCleared = false;
     this.sprite = document.createElement('canvas');
     this.sprite.className = 'card-sprite';
+    /* The click a phone sends after the tap that opened us is not meant for
+     * us: it would land on whatever now lies under the finger -- our big
+     * character, which opens the editor, or the backdrop, which closes the
+     * card. Clicks in the first moment are let go. */
+    this.root.addEventListener('click', (e) => {
+      if (e.isTrusted && performance.now() - this.openedAt < GHOST_CLICK_MS) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
     this.root.addEventListener('click', (e) => { if (e.target === this.root) this.close(); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.ship) this.close(); });
     /* Profiles and pal status arrive after the card is already on screen. */
@@ -143,6 +154,7 @@ export class ProfileCard {
   }
 
   open(ship) {
+    if (this.root.hidden) this.openedAt = performance.now();
     if (this.ship !== ship) {
       this.sending = false; this.status = ''; this.editing = false; this.saving = false;
       this.editError = ''; this.avatarFile = null; this.avatarCleared = false;
@@ -333,17 +345,70 @@ export class ProfileCard {
 
     const q = (c) => this.root.querySelector(c);
     q('.card-x').onclick = () => this.close();
+    /* SAVING THE PROFILE: from SAVE, or on the way to the character editor
+     * (below), so editing our character never loses what we typed here.
+     * True once saved; a failure stays on the card, saying why. */
+    const saveProfile = async (form) => {
+      if (this.saving) return false;
+      const displayName = form.querySelector('.profile-name').value.trim();
+      const bioText = form.querySelector('.profile-bio').value.trim();
+      const typedUrl = form.querySelector('.profile-avatar-url').value.trim();
+      let avatar;
+      if (!this.avatarFile && !this.avatarCleared && typedUrl !== externalUrl) {
+        const safe = externalAvatar(typedUrl);
+        if (typedUrl && !safe) {
+          this.editError = 'Profile picture links must begin with http:// or https://.';
+          form.querySelector('.profile-edit-status').textContent = this.editError;
+          return false;
+        }
+        avatar = safe ? { type: 'external', url: safe } : null;
+      } else if (this.avatarCleared) avatar = null;
+      this.saving = true; this.editError = '';
+      const save = form.querySelector('.b-profile-save');
+      save.disabled = true; save.textContent = 'SAVING…';
+      try {
+        const fields = { displayName, bio: bioText };
+        if (this.avatarFile) await uploadOwnAvatar(await resizeAvatar(this.avatarFile), fields);
+        else await updateOwnProfile(avatar === undefined ? fields : { ...fields, avatar });
+        if (this.ship !== ship) return false;
+        this.editing = false; this.saving = false; this.avatarFile = null; this.avatarCleared = false;
+        this.paint();
+        return true;
+      } catch (error) {
+        if (this.ship !== ship) return false;
+        this.saving = false;
+        this.editError = error?.result?.message || error?.message || 'Noltbook could not update the profile.';
+        this.paint();
+        return false;
+      }
+    };
+    /* Anything typed or chosen that is not saved yet. */
+    const profileChanged = (form) => !!form && !!(this.avatarFile || this.avatarCleared ||
+      form.querySelector('.profile-name').value.trim() !== (profile.displayName ?? '') ||
+      form.querySelector('.profile-bio').value.trim() !== bio ||
+      form.querySelector('.profile-avatar-url').value.trim() !== externalUrl);
+    /* To the character editor. Our profile edits are saved first, as SAVE
+     * would; if that fails we stay here with the reason. */
+    const toEditor = async () => {
+      const form = this.editing ? q('.card-profile-form') : null;
+      if (profileChanged(form) && !(await saveProfile(form))) return;
+      this.close(); this.onEditCharacter();
+    };
     /* The character STANDS STILL here. A card is something you read; a figure
      * marching on the spot beside the text is movement with nothing to say. */
     const slot = q('.card-sprite-slot');
     if (slot) {
       slot.appendChild(this.sprite);
-      const draw = () => paintCharacter(this.sprite, worn, 'down', 0, 5, draw);
+      /* As big as the editor draws it, across the card: centred, unless a
+       * companion stands beside. Smaller only if it would not fit. */
+      const width = Math.max(200, Math.floor(slot.clientWidth) - 2);
+      const draw = () => paintStage(this.sprite, worn, 'down', 0,
+        { scale: 12, width, height: 168, anchor: worn.companion?.part ? 0.4 : 0.5 }, draw);
       draw();
-      if (ship === our) this.sprite.onclick = () => { this.close(); this.onEditCharacter(); };
+      if (ship === our) this.sprite.onclick = toEditor;
       this.sprite.classList.toggle('editable', ship === our);
       const edit = q('.b-edit');
-      if (edit) edit.onclick = () => { this.close(); this.onEditCharacter(); };
+      if (edit) edit.onclick = toEditor;
     }
     const retry = q('.card-lookup.done');
     if (retry) {
@@ -375,39 +440,7 @@ export class ProfileCard {
           this.editing = false; this.saving = false; this.editError = '';
           this.avatarFile = null; this.avatarCleared = false; this.paint();
         };
-        form.onsubmit = async (event) => {
-          event.preventDefault();
-          if (this.saving) return;
-          const displayName = form.querySelector('.profile-name').value.trim();
-          const bioText = form.querySelector('.profile-bio').value.trim();
-          const typedUrl = form.querySelector('.profile-avatar-url').value.trim();
-          let avatar;
-          if (!this.avatarFile && !this.avatarCleared && typedUrl !== externalUrl) {
-            const safe = externalAvatar(typedUrl);
-            if (typedUrl && !safe) {
-              this.editError = 'Profile picture links must begin with http:// or https://.';
-              form.querySelector('.profile-edit-status').textContent = this.editError;
-              return;
-            }
-            avatar = safe ? { type: 'external', url: safe } : null;
-          } else if (this.avatarCleared) avatar = null;
-          this.saving = true; this.editError = '';
-          const save = form.querySelector('.b-profile-save');
-          save.disabled = true; save.textContent = 'SAVING…';
-          try {
-            const fields = { displayName, bio: bioText };
-            if (this.avatarFile) await uploadOwnAvatar(await resizeAvatar(this.avatarFile), fields);
-            else await updateOwnProfile(avatar === undefined ? fields : { ...fields, avatar });
-            if (this.ship !== ship) return;
-            this.editing = false; this.saving = false; this.avatarFile = null; this.avatarCleared = false;
-            this.paint();
-          } catch (error) {
-            if (this.ship !== ship) return;
-            this.saving = false;
-            this.editError = error?.result?.message || error?.message || 'Noltbook could not update the profile.';
-            this.paint();
-          }
-        };
+        form.onsubmit = (event) => { event.preventDefault(); void saveProfile(form); };
       }
       return;
     }

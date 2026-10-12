@@ -13,7 +13,26 @@ from pnglib import read_png, write_png, over, crop
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ART = Path('/Volumes/DEV/Sprites/characters')
 OUT = ROOT / 'public/characters'
-ANIM = re.compile(r'walk|idle|dmg|damage|die|fly(?:ing)?|floating|moving|surf|roll', re.I)
+ANIM = re.compile(r'walk|idle|dmg|damage|die|fly(?:ing)?|floating|moving|surf|roll|attack', re.I)
+# A character that shoots: something in its folder is a shot or a projectile.
+RANGED = re.compile(r'shot|projectile|arrow|bolt', re.I)
+# ATTACKS THE ART CALLS SOMETHING ELSE -- "Shot", "Possess", "Cast" -- by
+# character: where the sheet sits beside its walk, what flies (an arrow, a
+# stone or a spell) and the frame it leaves the hand on (None: three fifths
+# of the way through). The diagonal sheets face the way the walk does.
+OWN_ATTACKS = [
+    (r'devoted-stalker$', lambda walk: walk.parent / 'Shot_Diagonal.png', 'arrow', 8),
+    (r'feral-arbalist$', lambda walk: walk.parent / 'Shot_Diagonal.png', 'arrow', 10),
+    (r'warbreed-arbalist$', lambda walk: walk.parent / 'Shot_Diagonal.png', 'arrow', None),
+    (r'rts-orcs-units-hunter-', lambda walk: walk.parent.parent / 'Shot' / walk.name.replace('Walk', 'Shot'), 'arrow', 8),
+    (r'true-heroes-iii-ranger$', lambda walk: walk.parent / 'Ranger_SingleShot_Diagonal.png', 'arrow', None),
+    (r'orc-scout$', lambda walk: walk.parent / 'Shot_Diagonal.png', 'stone', 9),
+    (r'tech-augmented-gunslinger$', lambda walk: walk.parent / 'Shot_Diagonal.png', 'stone', 4),
+    (r'dark-channeler$', lambda walk: walk.parent / 'Possess.png', 'spell', 9),
+    (r'reanimated-(zombie|skeleton)-mage$', lambda walk: walk.parent / 'Cast.png', 'spell', 4),
+]
+# What a shooter whose sheet IS called "Attack" sends, when not an arrow.
+SHOTS = {r'brain-slayer$': 'spell', r'rat-people-royalty$': 'stone'}
 EXCLUDE = re.compile(r'/_?shadows/|/_shadow/|_shadow|_glow|_gif|no.outline|no.effect|only.effect|projectile|impact|preview|example|/Vampirize/', re.I)
 PACKS = {'premade': ['AMyriadOfNPCs', 'TrueHeroes', 'True_Heroes', 'True_Villains',
     'Dark_Brotherhood', 'Dark_Orc_Army', 'Forest_Dwellers', 'RTS_Humans', 'RTS_Orcs',
@@ -44,7 +63,7 @@ def candidates(pack, category):
             continue
         parts = list(path.relative_to(pack).parts[:-1])
         parts = [p for p in parts[1:] if p not in ('General_Animations', '_Regular')]
-        if parts and re.search(r'(walk|idle|dmg|die)$', parts[-1], re.I):
+        if parts and re.search(r'(walk|idle|dmg|die|attack)$', parts[-1], re.I):
             parts.pop()
         stem = ANIM.sub('', path.stem).strip('_ ')
         # Colour/model variants share folders but must remain separate choices.
@@ -69,7 +88,7 @@ def pack_item(category, key, name, paths, extra=None):
     frame = rh // 4 if rh >= 128 else 32
     assert frame in (32, 40, 48, 64, 96), (reference, frame)
     strips, animations, y = [], {}, 0
-    for animation in ('walk', 'idle', 'dmg', 'die'):
+    for animation in ('walk', 'idle', 'dmg', 'die', 'attack'):
         path = paths.get(animation)
         if path is None:
             continue
@@ -79,8 +98,12 @@ def pack_item(category, key, name, paths, extra=None):
         count, rows = w // frame, h // frame
         if not count or rows not in (1, 2, 3, 4):
             continue
+        # An attack drawn on a bigger canvas than the body cannot be cut into
+        # the body's frames: leave it out rather than draw it in pieces.
+        if animation == 'attack' and (w % frame or h % frame):
+            continue
         animations[animation] = {'y': y, 'frames': count, 'rows': rows,
-                                 'ms': 100 if animation in ('dmg', 'die') else 200}
+                                 'ms': 100 if animation in ('dmg', 'die', 'attack') else 200}
         strips.append((w, h, px, y)); y += h
     width = max(s[0] for s in strips)
     pixels = bytearray(width * y * 4)
@@ -129,9 +152,27 @@ def main():
                 if category == 'mount':
                     extra['riderY'] = -4 if ('horse' in key or 'unicorn' in key) else -2
                     if 'bicycle' in key: extra['riderY'] = -3
+                if category != 'premade': paths.pop('attack', None)
+                own = None
+                if category == 'premade' and 'attack' not in paths and paths.get('walk'):
+                    own = next(((f(paths['walk']), shot, release) for pattern, f, shot, release in OWN_ATTACKS
+                                if re.search(pattern, key)), None)
+                    if own and own[0].exists(): paths['attack'] = own[0]
+                    else: own = None
                 result = pack_item(category, key, label, paths, extra)
                 if not result: continue
                 item, thumb = result
+                # A ready-made character with its own attack fights with it:
+                # ranged if its folder holds shots or projectiles, else melee.
+                if category == 'premade' and 'attack' in item['animations'] and own:
+                    item['attack'], item['shot'] = 'ranged', own[1]
+                    if own[2] is not None: item['release'] = own[2]
+                elif category == 'premade' and 'attack' in item['animations']:
+                    folder = paths['attack'].parent
+                    item['attack'] = 'ranged' if any(RANGED.search(f.name) for f in folder.parent.rglob('*.png')
+                        if f.parent in (folder, folder.parent)) else 'melee'
+                    if item['attack'] == 'ranged':
+                        item['shot'] = next((s for p, s in SHOTS.items() if re.search(p, key)), 'arrow')
                 item['thumb'] = len(thumbs); thumbs.append(thumb)
                 catalog[category].append(item)
     weapons = args.art / 'Minifantasy_Weapons_v3.0/Minifantasy_Weapons_Assets'

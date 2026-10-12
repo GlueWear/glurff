@@ -4,28 +4,28 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 727,
     "mime": "text/html; charset=utf-8",
-    "sha256": "59ec5468804a22b8304cc6770d878464fc183c87700f1e7440c21d8bf484510e"
+    "sha256": "de1e5bcd780fd22f7fafc4e9e89c113ca08f915a469d471b566b42b1e01d2cf1"
   },
   {
-    "url": "/apps/glurff/assets/index-5449edfa.js",
-    "spur": "/lib/glurff/site/assets/index-5449edfa/js",
-    "size": 1126581,
-    "mime": "application/javascript; charset=utf-8",
-    "sha256": "92c7f8837a10401144239acc0086589856dc7e1c337fdbda74c185ebd0080c68"
-  },
-  {
-    "url": "/apps/glurff/assets/index-8edd19b5.js",
-    "spur": "/lib/glurff/site/assets/index-8edd19b5/js",
+    "url": "/apps/glurff/assets/index-41fb3b4d.js",
+    "spur": "/lib/glurff/site/assets/index-41fb3b4d/js",
     "size": 63423,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "969b50be2f7df8147a5ce4f9fbbab3eeefddcf9df763f4ccb0af38f83862ced5"
+    "sha256": "9c9f3bbfc5fef85298c219b9c8c1961f3fa83d76be018757401c678076f3cfa5"
   },
   {
-    "url": "/apps/glurff/assets/search-098d8dec.js",
-    "spur": "/lib/glurff/site/assets/search-098d8dec/js",
+    "url": "/apps/glurff/assets/index-cf4e5263.js",
+    "spur": "/lib/glurff/site/assets/index-cf4e5263/js",
+    "size": 1147105,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "1b3e55755110f1869db5f41b633227bc4cecd3d44c2443faa5e98f8e742c477a"
+  },
+  {
+    "url": "/apps/glurff/assets/search-1ef2e9c9.js",
+    "spur": "/lib/glurff/site/assets/search-1ef2e9c9/js",
     "size": 1634,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "5cc7e3da9eeb05ba546336ed456cd5969c5c0d38266d01d4d7b2cb73849a26ac"
+    "sha256": "e92725e43d7db71c2775323f0474348182c1c645bb66ab316aca473e5ae7fbbc"
   },
   {
     "url": "/apps/glurff/characters/beard.png",
@@ -3124,149 +3124,149 @@
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-acolyte.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-acolyte/png",
-    "size": 4357,
+    "size": 6047,
     "mime": "image/png",
-    "sha256": "970840764f6d624cc7fd1f1588c8c78757ea77342fbac43119844336f8ae6a53"
+    "sha256": "943ae7393bf996169fdec6b0644e62f2c11a416e0dc109cd994d954d1e0ddcfb"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-hound.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-hound/png",
-    "size": 3968,
+    "size": 5371,
     "mime": "image/png",
-    "sha256": "7e069aa1fecb655a19cbb77b8eb1c761e460a3da813c2de6613c600400d34759"
+    "sha256": "8e44f28b7862dda3d13a354d805593c9213c106b7c47af4d817e53181ebd3ae6"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-cannon-fodder-zealot.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-cannon-fodder-zealot/png",
-    "size": 5163,
+    "size": 8288,
     "mime": "image/png",
-    "sha256": "885bd33f33a9da35f2c5367be84561a6b0cc165570aac360e43abc037a114459"
+    "sha256": "aee1497a46738a79485be54c6b2c3fe180469f0d2c459d60c291a5fb0ef2724c"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-dark-channeler.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-dark-channeler/png",
-    "size": 7313,
+    "size": 15816,
     "mime": "image/png",
-    "sha256": "be43c766a263e45496d888bb38789fa23c6e8c26a5ea28179858bc2efea6da49"
+    "sha256": "702587c49f3c050c8d2cb1c3adc6115a351374a74def726d12671687afef024b"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-flagellant.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-flagellant/png",
-    "size": 11581,
+    "size": 18775,
     "mime": "image/png",
-    "sha256": "ed142e169cbb15a4055fbdca380b1a4d7a1bfd2173d8dc56fdc65207a058f9c7"
+    "sha256": "de1b6be04cb87200954c106f1ca04c6bf9843f9ca549f688ce31d1c4a0468a2e"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-choosen-ones-ritual-guard.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-choosen-ones-ritual-guard/png",
-    "size": 7842,
+    "size": 11043,
     "mime": "image/png",
-    "sha256": "1c3590a74865db909f5078e8a7bfdcdaebc2807d810014de8026e4a96bf2fb33"
+    "sha256": "9b8a1d316223fc4b918d6dc343af7ede795a720f220f968a1ebd4c5a7815cea2"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-blade.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-blade/png",
-    "size": 6395,
+    "size": 8826,
     "mime": "image/png",
-    "sha256": "ad597e3d40910ae42031d5a0f3855000ebc660d89a86f35b93298dbae0b4bfcb"
+    "sha256": "9289d9ebccc8065a0107a9c2238a7df9417dcf7c7f2e40c89eb0caf3cfbcd1b7"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-sentinel.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-sentinel/png",
-    "size": 8836,
+    "size": 11104,
     "mime": "image/png",
-    "sha256": "908343bd5480e7d7c9a0131a0607e55448a70a1028edb5583bf5fd614af16ea4"
+    "sha256": "8840f8b3d504f70dad85c1147c05c10a0b7e6f1fac560a6c52b1d3ef40f25037"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-devoted-brothers-devoted-stalker.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-devoted-brothers-devoted-stalker/png",
-    "size": 6040,
+    "size": 8478,
     "mime": "image/png",
-    "sha256": "d8e8a6b51105257dff4a91151a8814361ee1fb9aff37d280109c75879ba8fc9d"
+    "sha256": "09cdea272eb482e62f98b28b4965a289a6a64be74c823f4f3af1814616aa6748"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-abomination.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-abomination/png",
-    "size": 13236,
+    "size": 19186,
     "mime": "image/png",
-    "sha256": "5286a36c98fac1a1d37532358037ed9634a492ac6de533e158bca1ea77d2df97"
+    "sha256": "d9be4110a1831793d7e1ff1d0bce62aba5a99d10fea4b65aaf22a67bde9acc14"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-cultist.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-cultist/png",
-    "size": 6860,
+    "size": 11589,
     "mime": "image/png",
-    "sha256": "d175bbf1f389aa7221c085857a9347004db823843526c80230a23f6b807e4159"
+    "sha256": "96b8b93521e2db1d69d0fd32d1ce08a01961c33b267705fc14154c7d5a6c897e"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-brotherhood-possessed-dark-hound.png",
     "spur": "/lib/glurff/site/characters/premade/dark-brotherhood-possessed-dark-hound/png",
-    "size": 9918,
+    "size": 14084,
     "mime": "image/png",
-    "sha256": "3f0ea90059d5e61f037166c47530d066b6e0df215841a5093791fd61e13d92fa"
+    "sha256": "17adae34f93dc1569773ca984a2fa1dff16f184448f7a405dd7487d5ec991c67"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-arbalist.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-arbalist/png",
-    "size": 6381,
+    "size": 8817,
     "mime": "image/png",
-    "sha256": "6066cd3208f2f7ff4bee771a4341754b661dde77548c00c28ff1fd597871ef9e"
+    "sha256": "614e1924f50d8ca1ce6a48710437e8b5585fe3ca6fdec0dc7408f04f52da9c11"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-berserker.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-berserker/png",
-    "size": 6594,
+    "size": 9464,
     "mime": "image/png",
-    "sha256": "14016afffa5e0d43d41a4f70f8dfe52ed8347b51cd11615e24409a65443eb447"
+    "sha256": "edb90a94a8b36b581a1df53e21b7c2f0b44c23354685fbdc0a5c89b820bec493"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-blade.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-blade/png",
-    "size": 6999,
+    "size": 9683,
     "mime": "image/png",
-    "sha256": "358a3395ebd218bb5f0d272dc831c1b893cca4d6eaff879c81605152dbcc69ad"
+    "sha256": "87b44aa2fcf229f16326697081b2d7860ce56a5550bcde0d0e8dbaaabe443774"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-feral-orcs-feral-phalanx.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-feral-orcs-feral-phalanx/png",
-    "size": 8132,
+    "size": 11090,
     "mime": "image/png",
-    "sha256": "0976143c0a296e0cc7d78b4f47b3c1ee9da1b62855eb16a07059580a60e0e3f6"
+    "sha256": "04900e42063d27ffa27698727fd5af033773b878b470b5666ab2dbaa54d27198"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-blade.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-blade/png",
-    "size": 5041,
+    "size": 7108,
     "mime": "image/png",
-    "sha256": "e33f3c2f66f8b9ae22dd53c00ffc44a1e8770a5dbd7c014df5bdb998c56ac690"
+    "sha256": "b7635a18200e4b27f4afae49d21d1c88fea3e97b95a970a12ae9271ed2a037c6"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-raider.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-raider/png",
-    "size": 9794,
+    "size": 13746,
     "mime": "image/png",
-    "sha256": "7e09c79da3de8707af977985450b520de93eae52dfa1307d5e6f81e879a7809a"
+    "sha256": "1f11a9cc167b38598240213ec875831272075b3f724848cb0f31854698313000"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-lesser-orcs-orc-scout.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-lesser-orcs-orc-scout/png",
-    "size": 4552,
+    "size": 6332,
     "mime": "image/png",
-    "sha256": "14855e234167e998acec2d92e400cc736c1186d117c88d5517b7ba4ce792179d"
+    "sha256": "8c0d268f9299ba10d8595d39ca519f9f1dd09a38e45ac139508639446db4f736"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-others-cave-troll.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-others-cave-troll/png",
-    "size": 17850,
+    "size": 25931,
     "mime": "image/png",
-    "sha256": "d573f4a8a84e0b19bc19d95c7b5be8b4024c27639ff0d2e1573b16010da57954"
+    "sha256": "b41cfa0128972651eb23d5c16066f937037d3a3dc7071c9e117949819c927f97"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-others-pale-champion.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-others-pale-champion/png",
-    "size": 8043,
+    "size": 11296,
     "mime": "image/png",
-    "sha256": "bbdf9d67f75f104724bcc0d7905fec7501bcc54fa3894352193193bb784a7fe3"
+    "sha256": "73d136f7efdbd7981f3362b64f88c32cb07edb0e925e26242b56ef16798ad2f2"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-others-warg.png",
@@ -3278,58 +3278,58 @@
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-arbalist.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-arbalist/png",
-    "size": 6515,
+    "size": 8931,
     "mime": "image/png",
-    "sha256": "bcfee8fbbf9dae771d7b34c991ad1eaca002b06ba6ed6bd865ea3a219eb8b950"
+    "sha256": "c45bb14c4fca3e4e85a24b42726324040797412688d21cf106abd2553dee0d18"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-berserker.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-berserker/png",
-    "size": 8059,
+    "size": 11522,
     "mime": "image/png",
-    "sha256": "9a8180c6784a9a4fa6976c5f097c20f188ccc4c14b956faa500e1770041ac586"
+    "sha256": "e02c055ea7b8ed4f159a299870a594ebc01a4b56f2def8a1b979b7ef71706b40"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-blade.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-blade/png",
-    "size": 7024,
+    "size": 9741,
     "mime": "image/png",
-    "sha256": "34934a9514cf1684efd8f65b202a1eeb0ad647243cc6de37a4fd3cbfb19174dc"
+    "sha256": "9d921aff81d199a42ec6a3966d7fb1b0e6100ef4db95d53d4dc5d7280041e15c"
   },
   {
     "url": "/apps/glurff/characters/premade/dark-orc-army-warbreed-orcs-warbreed-phalanx.png",
     "spur": "/lib/glurff/site/characters/premade/dark-orc-army-warbreed-orcs-warbreed-phalanx/png",
-    "size": 8344,
+    "size": 11427,
     "mime": "image/png",
-    "sha256": "89ad96e0466f0ea11cf74cb2751ec06479d22b92176e18ee8484f50edc9abee4"
+    "sha256": "9023009e90990f4fb9460329c56832df81decad43ca6acdd56c146a3d5fa2bb0"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-grimflorals-alpha-creeper.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-grimflorals-alpha-creeper/png",
-    "size": 10536,
+    "size": 14179,
     "mime": "image/png",
-    "sha256": "9e1769b4e1e88934682e3001fb2e820cdc8bd01608a207d9accd284f0864efc7"
+    "sha256": "436c1a627e1e9dcdb48b87d49329b9c2d866b4b03021dfb938ef95b730f7c4c3"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-grimflorals-creeperlings.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-grimflorals-creeperlings/png",
-    "size": 8402,
+    "size": 10698,
     "mime": "image/png",
-    "sha256": "e6130e559155424a3bd3fe9d48a34c1951ab2bb390a6e8bb9012b04472ae554a"
+    "sha256": "39b219d45bc441e96038024e0ea50bc40f7b249fc6c6c1e361ee25deb9a39960"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-fungifyed-corpse.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-necromyces-fungifyed-corpse/png",
-    "size": 8305,
+    "size": 10942,
     "mime": "image/png",
-    "sha256": "74550aaad926a5c1a249cdce34a0480532b1ce9670f1d61b9b38e07964bebc75"
+    "sha256": "18a96c47e0713aab8e5d0a9efb0ac40f59ef1ef4b2abe7a1210bf6781c9f5bc0"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-necrofungus.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-necromyces-necrofungus/png",
-    "size": 1286,
+    "size": 3999,
     "mime": "image/png",
-    "sha256": "3913112ef19f6ebfcf961b6de5a3562c25e66b74b066fd2d91af95b89ef05b8e"
+    "sha256": "a97f4ff4d5a5b969088c5a213c29327aa9fa6f3bf42570c9f4aaf0f4ad80e2fc"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-necromyces-necrothallus.png",
@@ -3341,72 +3341,72 @@
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-base-model.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-base-model/png",
-    "size": 10712,
+    "size": 15159,
     "mime": "image/png",
-    "sha256": "411ab1413c24c534e6903a052fa37581aab4aa4378da4040ce01ce76cdc31b3c"
+    "sha256": "9a47e2cb35d6b02c19022ff6c0621775d2b6e93aed690155807ad64b196515b1"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-treetop-variation.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-birch-guardians-treetop-variation/png",
-    "size": 11451,
+    "size": 16150,
     "mime": "image/png",
-    "sha256": "16355fd8e6788f2870e76c3a267bc5efd607cf90ae8a8a03e5ecf46d39fb3f90"
+    "sha256": "8bf9091b10bc43592b0e9700db46cccce63d3743d017a814dd557b13ee8e4e04"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-base-model.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-base-model/png",
-    "size": 10775,
+    "size": 15220,
     "mime": "image/png",
-    "sha256": "860367eb83f02ec5097f0fa370c83aa267b857acb9104cf0f8f341c6628523f4"
+    "sha256": "fd009dfeed75ff9c0babbc381c41abfe1b731e90b9645cf93ebaaf4335ebc8d7"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-treetop-variation.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-hickory-guardians-treetop-variation/png",
-    "size": 11113,
+    "size": 15641,
     "mime": "image/png",
-    "sha256": "1cb9442892bb0069a8f8e2b5e49d42f600b887d2ff13711cce6a54cebf900309"
+    "sha256": "41e53dec10eba86d6e10ded3a18a164e4fb7e5eb0338eb52bc27c746baadcb08"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-base-model.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-base-model/png",
-    "size": 10825,
+    "size": 15269,
     "mime": "image/png",
-    "sha256": "160aac1446268199e2a5286339024803a5b633d4bc4f684b18d58a87a80b5fbc"
+    "sha256": "ad9793a13fead314c5e58c8acf86e13349acf228ac41192e7aef785aff982430"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-treetop-variation.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-oak-guardians-treetop-variation/png",
-    "size": 11642,
+    "size": 16228,
     "mime": "image/png",
-    "sha256": "39d76d0e970f63b672ef5d006027223b6caf9d31650fbc75c23a02f0934cd6f6"
+    "sha256": "2cd7d406d6e2c3a48cf6a60bbabc0cc31ad6ca744d29a5e1f3bd850b8ce05cf2"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-base-model.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-base-model/png",
-    "size": 10838,
+    "size": 15292,
     "mime": "image/png",
-    "sha256": "1b944145f4e4a52cae72d15e4ea015982ad61ce309acf96939eb3f138edea0cc"
+    "sha256": "03e025214f126b5d21aa80ee35c2dfbcb3e07f2202d28e92555be4b9e12fe6e4"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-treetop-variation.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-pine-guardians-treetop-variation/png",
-    "size": 11068,
+    "size": 15585,
     "mime": "image/png",
-    "sha256": "26b5fded7a0ea8a93b74e8cae5ede8ba4229e96c58f419e71a8882ab32589220"
+    "sha256": "710e2cd79195c2f9c0d6a8253cd9e50b7c3e6a70d30fd31f6f89cc5321fc6347"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-base-model.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-base-model/png",
-    "size": 10775,
+    "size": 15214,
     "mime": "image/png",
-    "sha256": "d059980e3ce93d4f57d84e44397a9de38fd18b44680a490c30d5054a13b2c47d"
+    "sha256": "91bed5da93769eb119bb3e1c36ccb71ffb961a0f3c968138d094250ed6e1ef88"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-treetop-variation.png",
     "spur": "/lib/glurff/site/characters/premade/forest-dwellers-woodborn-forest-guardians-willow-guardians-treetop-variation/png",
-    "size": 10955,
+    "size": 15399,
     "mime": "image/png",
-    "sha256": "2a36cf98685db44643bb31bd002ad16d272620a58d9ee8f910ca7262037c7163"
+    "sha256": "04e5b8543254df158ad5d150ec84c0827c5f5fb09ed4b2db331e27e7c02b4407"
   },
   {
     "url": "/apps/glurff/characters/premade/forest-dwellers-woodborn-tree-spirits-birch-spirit.png",
@@ -3446,23 +3446,23 @@
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-angel-of-death.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-angel-of-death/png",
-    "size": 14013,
+    "size": 19353,
     "mime": "image/png",
-    "sha256": "43105830300c6d5e2ed5e5e7bf687be1cb5ddf42fc3cb9d24706e02edd1e0873"
+    "sha256": "4e1d46e2a59fb681a1296d2edacf75e7fe9e1ae7caaedf0ea9f19e00e8977e96"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-brain-slayer.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-brain-slayer/png",
-    "size": 12156,
+    "size": 18051,
     "mime": "image/png",
-    "sha256": "50dfae67ebb3c94e36931b95180f6ed65c5ba0efbbc5fe0c2708426d88af3d71"
+    "sha256": "1a99c5f448222d78e9683c9495bf4774c59deff008239d66309c86fc5488b411"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-centaur-king.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-centaur-king/png",
-    "size": 9701,
+    "size": 13488,
     "mime": "image/png",
-    "sha256": "a38e2f85fa8002505c5d81c7ecad51521181accc19504e32b4fdb72ba7eea754"
+    "sha256": "a0a9c779fb91d919f4ee8ea50eacaea4285d694c5969d05a6a6047be7c3ead1c"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-chest-mimic-agressive-chest-mimic.png",
@@ -3481,58 +3481,58 @@
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-deep-one.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-deep-one/png",
-    "size": 6167,
+    "size": 8091,
     "mime": "image/png",
-    "sha256": "fb849a175b4a069c3c616cd11d4c0205fd42ed99b77fcb21d9ce3f5349bd71d8"
+    "sha256": "2df687aa604921d8b294c397ed98ec3bbc98a648f82377a3264992a102fc40b3"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-demon-spider.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-demon-spider/png",
-    "size": 15573,
+    "size": 20308,
     "mime": "image/png",
-    "sha256": "7ba1a8231cd7d0f77236ba62b73f29f0ed84f8336713a8b5fc35fd0113931e6d"
+    "sha256": "a86201026d9ee0b17903ea925c5d8fa1a29c169618d87fbaf750f78f40d783a2"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-gargoyle.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-gargoyle/png",
-    "size": 8056,
+    "size": 11395,
     "mime": "image/png",
-    "sha256": "5457f5300abfc3b7c7b122a017bde586e5598b3cd4a2448d960522302926df97"
+    "sha256": "fc8a7b48a779b50b4fd95339cf2c9320d809a0184732bc8544b3747e9838b7e4"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-giant-rat.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-giant-rat/png",
-    "size": 3198,
+    "size": 4301,
     "mime": "image/png",
-    "sha256": "f8153f653f119376f29818add0bcfcdbf48d9661aefdbaf04bc5b46c90882463"
+    "sha256": "11df4cce3a19b9e646dff0be0292736af571a331bd07d3ac123d81e8037de45e"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-giant.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-giant/png",
-    "size": 13476,
+    "size": 18408,
     "mime": "image/png",
-    "sha256": "7d3f440b7aba1642b03f01bd2d35dd3e2f5139524173c5e11f1756179b8d4cb6"
+    "sha256": "7432ae09c1db625b550d8219aff13c7d7aa2d75c5bc41b20801ca11d2e6217de"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-gnoll-gnoll.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-gnoll-gnoll/png",
-    "size": 6643,
+    "size": 8808,
     "mime": "image/png",
-    "sha256": "4b75b5439b562b310912e37c06ac73e4d005fc616e1d3839ef24e6a3230217d0"
+    "sha256": "c795789f639f5f462213ab6fb6fccec7515cfb21e2ce09cd800e90c73eded530"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-predatory-mushroom.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-predatory-mushroom/png",
-    "size": 6006,
+    "size": 13274,
     "mime": "image/png",
-    "sha256": "4bdd6aea285a49adaca40206e30220295b3a67333bcda78d1647c568676af939"
+    "sha256": "fc40798d7d5fbd36b2ea267f83aebeb98c09c36ff25a2ba5b922ae57358f8ff1"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-rat-people-royalty.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-rat-people-royalty/png",
-    "size": 8857,
+    "size": 11805,
     "mime": "image/png",
-    "sha256": "f5a8ec30ddbf2d823a9924fe6ed1d38c58604dbe1114017d24657466bc72538c"
+    "sha256": "7e67870adbf82e8ef5434bbcd8bc82bf9e263059aef2e9237c6253e566113394"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-rat-people.png",
@@ -3544,23 +3544,23 @@
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-werewolf-human-shape.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-werewolf-human-shape/png",
-    "size": 3590,
+    "size": 4772,
     "mime": "image/png",
-    "sha256": "a042c28208ab844e8810094cc6f5e6ad5a9d8a26f5defded732a2e4d0762d4c5"
+    "sha256": "6da79d46cdec230b831edfd2569da916b4182fae7bb67825b1eeb86be4e39fc0"
   },
   {
     "url": "/apps/glurff/characters/premade/monster-creatures-werewolf-wolf-shape.png",
     "spur": "/lib/glurff/site/characters/premade/monster-creatures-werewolf-wolf-shape/png",
-    "size": 6097,
+    "size": 8306,
     "mime": "image/png",
-    "sha256": "742e784cb17545a2ccb9f651ff23c6bc291a195f70332d6fea352bf7036bd840"
+    "sha256": "06075e86698be243ea8da62cf332cdcbda41f930944b25371bd62d5b0ed28ca6"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-ambuster-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-ambuster-regular/png",
-    "size": 6512,
+    "size": 12473,
     "mime": "image/png",
-    "sha256": "00f5c1cde2c669d88a515710e97d64c42d53dfa8a17b2f3cf4907f1c25e82ab8"
+    "sha256": "f8dd538303c3f7858e49b557db66271dd856c5e86331fdc4f3af0af988db2164"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-bicephalous-1-head-regular-1h.png",
@@ -3579,44 +3579,44 @@
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-lobster-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-lobster-regular/png",
-    "size": 7378,
+    "size": 11685,
     "mime": "image/png",
-    "sha256": "19ad508241f7c37fe96ee3a9ee9122ba1a5a2b4f47c932da53635bca9bdae354"
+    "sha256": "e5da56fac8f595cc8424a0042742df95eff9b1bb21f62cd0bc2c5847550a56b0"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-observer-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-observer-regular/png",
-    "size": 5808,
+    "size": 8957,
     "mime": "image/png",
-    "sha256": "bf1b2633d6e94b4a88e0ed7ef294062aff3917506091412ce2bea24e56a01d65"
+    "sha256": "2ae96e383181093b3c838a94ac281d6d719a2501ab67d10043204f7e1f54412d"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-serpent-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-serpent-regular/png",
-    "size": 5050,
+    "size": 8766,
     "mime": "image/png",
-    "sha256": "0fb34f20043fec50451f76d6f32d6c8b4292c2ee947db9d2a9e80d779e79042c"
+    "sha256": "e61f575d91d001df36c83f34086ecbd6e916b268547769baf9577d0f373c0f56"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-shifted-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-shifted-regular/png",
-    "size": 2678,
+    "size": 4614,
     "mime": "image/png",
-    "sha256": "e247e295ea56d7eaa3f09751be0ce995322cde4cb0d1b106f7f7c39bd1a13af2"
+    "sha256": "564e924e1ef50b4997947ba5b0496fb1494ef8d3ae4319ae798f841517c991ae"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-stalker-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-stalker-regular/png",
-    "size": 1619,
+    "size": 5736,
     "mime": "image/png",
-    "sha256": "f4105ce167928641d10ebe1354f789dfc7813b2dd38696f683465c06e37baacd"
+    "sha256": "604081c47751f1a3c6eb5a12941a75a47304c1a79a3ff65e14bdc739f7957051"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-stickman-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-stickman-regular/png",
-    "size": 8682,
+    "size": 19440,
     "mime": "image/png",
-    "sha256": "1b506d93e81d989e5d418b93bbbccc894476ed57f57415ec5367c97ab593cb1c"
+    "sha256": "082cb6585c4077c7d3daf8cee810f3925647279ef74cf9dbb714602487a73706"
   },
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-winged-regular.png",
@@ -3628,205 +3628,205 @@
   {
     "url": "/apps/glurff/characters/premade/nightmare-creatures-worm-regular.png",
     "spur": "/lib/glurff/site/characters/premade/nightmare-creatures-worm-regular/png",
-    "size": 2066,
+    "size": 5361,
     "mime": "image/png",
-    "sha256": "c7d93630d9276f7c249ef8d5112e9c495cd8f6b0adc7f0a87a8474e627366f8a"
+    "sha256": "27ac48764936e5099e0fa8fe5d706f2becc5ba58f7ec1f371e0dcc7220b22854"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-blue/png",
-    "size": 5617,
+    "size": 8328,
     "mime": "image/png",
-    "sha256": "f349411b8b5dc107c1c4a3e6104c6c587b7eb9d0bd77e9a4c6dc218029edae19"
+    "sha256": "ce10d4c3a553f80b9a206ca55162684fd24763a65a6e264be82440f84b4c9244"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-brown/png",
-    "size": 5617,
+    "size": 8332,
     "mime": "image/png",
-    "sha256": "b787b754c44d27d1bc9ef94f1ddf59f7a3212e946f77f621d4891bc8e282f3ab"
+    "sha256": "380b9d11c853bb28e83988b6bd44650855a47b46e8e6abece60cd86c6cedb6e8"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-green/png",
-    "size": 5619,
+    "size": 8332,
     "mime": "image/png",
-    "sha256": "2af1aade74f11fd7985a2e267f4ebfada981cf57a8e3588700cf91f9fc0497fb"
+    "sha256": "d5693597270f96f1835ee9ff3caa5cc193dad9bc6e5f38d10e841e980a1dfe39"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-purple/png",
-    "size": 5618,
+    "size": 8330,
     "mime": "image/png",
-    "sha256": "e30c7e0e82bf9d85aab248d429f69d38edf6847fd6ea9e9baf1fca3b9afc9fe8"
+    "sha256": "4c24c22be3c0651ea2b1599b85222175b5c9b402adea62c79dc1293bc2b0c95f"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-red/png",
-    "size": 5602,
+    "size": 8304,
     "mime": "image/png",
-    "sha256": "8842305bbf0fdc16d51a2c43fb77afa5cd4a11c315b3634573109c704d39fdb9"
+    "sha256": "6e942db8813c89f2a8831e149cd230cf53c2199477eb7cec2929d8cb3d7890c7"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-turquoise/png",
-    "size": 5625,
+    "size": 8339,
     "mime": "image/png",
-    "sha256": "65a4bcfb2361d095f00742f025b464369c6243a310ba459f4cfa9165017319c8"
+    "sha256": "380486b291cef6a9df935d80c46491de2819e53b3aeecd89c258b376c82d6981"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-archer-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-archer-yellow/png",
-    "size": 5610,
+    "size": 8310,
     "mime": "image/png",
-    "sha256": "dc948073a88cb5bb34b8b922b74e5a38c55a8eeec6335710c0fb75c9f18adf9d"
+    "sha256": "50c4a2a43cd38b10495af353061f220192e51b7774cfba7a7cfd9e6171663904"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-blue/png",
-    "size": 9592,
+    "size": 12833,
     "mime": "image/png",
-    "sha256": "0b5968f49bf5ec8271bb2870719a4bb8a7ce4a82af0091887ff3910478b7eae9"
+    "sha256": "a26338be64e95dc0eb8f7f0066bcb1db4a0abe9204ed1a962990cb74fbfa9bbb"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-brown/png",
-    "size": 9595,
+    "size": 12836,
     "mime": "image/png",
-    "sha256": "0fb10f75a7012b57417fbb69f919da1a822a5b0690f5a5cd0815339d36117680"
+    "sha256": "f0b4448b851813d33dcb3cb399ecda90c387699213777de843dac29c29211bc4"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-green/png",
-    "size": 9590,
+    "size": 12829,
     "mime": "image/png",
-    "sha256": "7c2d6ad812f3e111c555fc5025792c8b15d2e1c0b4beafebfd4c1bdb5f2aa920"
+    "sha256": "fb1e806a3e4f9a776f3368a2a125b749de9995bb7f5446456ebebdee409b8a71"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-purple/png",
-    "size": 9600,
+    "size": 12844,
     "mime": "image/png",
-    "sha256": "a122129e419142cb9de40ed095ed0b0eec03e893286fbf6d4f9f61f98edc0254"
+    "sha256": "cc0d5764686dde7553c68040e5ead7e360276885fa9ac9fc24fd1b174f939a0b"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-red/png",
-    "size": 9549,
+    "size": 12771,
     "mime": "image/png",
-    "sha256": "264ae14820c684b1dfa3de232856e08411a6a4a948fd49dbe78d12f10c5a5c8a"
+    "sha256": "44de6af306556531b8609a962ba3d660adceeddaa43ceb52a68d06c23ff1dbe0"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-turquoise/png",
-    "size": 9606,
+    "size": 12850,
     "mime": "image/png",
-    "sha256": "2f8711434cb382178f775dca2b8849f6bfa4f6444e69535c3066c7b4427ffade"
+    "sha256": "d1b94c568e6d6a7700be85591d33902a8fc2b7017441cbd5748818583ea123b2"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-knight-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-knight-yellow/png",
-    "size": 9577,
+    "size": 12807,
     "mime": "image/png",
-    "sha256": "28a705795b656e2f84582af29d1d127ec7a66986058a3a9fdc3a93b71ede46d3"
+    "sha256": "8f3da38d1a82511a6dab5878ee0d45e608010a036bdcb806ba47244f77115831"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-blue/png",
-    "size": 6685,
+    "size": 8793,
     "mime": "image/png",
-    "sha256": "99b0cdc4b6eedf36deeab265fe68e522e672ab6bb70b5f5d080e6e04a0ce88e9"
+    "sha256": "f153dba92f6293850d76f0e5be3789d14f1b2f7504ea3414d1b7abd0e1fdd54d"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-brown/png",
-    "size": 6684,
+    "size": 8791,
     "mime": "image/png",
-    "sha256": "d94149945f8e0e0fe1fc6d521934ddfd97a29279d83364be927fc2cfb630bd25"
+    "sha256": "011a23ca3c4d0875711f8966c2ba4eb81523c69031b327a3b05b527d6d3bc4dd"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-green/png",
-    "size": 6689,
+    "size": 8799,
     "mime": "image/png",
-    "sha256": "bd9cce6dc7006843c76dedd5eddd33f54d21e3513062759364cd70d59d4f734e"
+    "sha256": "df97cfafc558976fce2084bbe243004d03dc6ee52319440bebeba4a1534622f2"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-purple/png",
-    "size": 6687,
+    "size": 8796,
     "mime": "image/png",
-    "sha256": "659035e62392e6d873314f34918999157be9aac802b9b658e6be618ac23c2e2d"
+    "sha256": "f1af4a461f766f1b15ebfcfba7f39d3e780149047eeecef1e5a023259ee0683e"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-red/png",
-    "size": 6659,
+    "size": 8754,
     "mime": "image/png",
-    "sha256": "ea5da4f4f7fa74ceb769cecdab5b4fe7e5a2e4185802d746fb91912b52f14b29"
+    "sha256": "5516ab0476ac2c60b2a6680c8cc10274c016411263215ff98d867ad05022a874"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-turquoise/png",
-    "size": 6697,
+    "size": 8809,
     "mime": "image/png",
-    "sha256": "eb2033d36ceafb052661fc74a53e886bf7591287e8655d440fcac0ab75c19a9d"
+    "sha256": "ff085194492d6eaaf0104a14dacae4582e474b41efb63d5513f0649f000fd263"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-spearman-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-spearman-yellow/png",
-    "size": 6664,
+    "size": 8763,
     "mime": "image/png",
-    "sha256": "064a0086bb1a8170db47cd69baa8861921b552c84db0b6f9ed07424ce6ba8da7"
+    "sha256": "3ca1b815a26b23497d7580c84f7788ee36b3c55a51bc8ae61d66b6bf4375e665"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-blue/png",
-    "size": 5867,
+    "size": 7852,
     "mime": "image/png",
-    "sha256": "2adc2689822feb40e6da0199bde7410a686603be0f8cf729144c62571ec49f2b"
+    "sha256": "b74f87bf8a4a3cea6abd12cd6044210ddbefa19ed0a9b33aa81632dd0a9c5daf"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-brown/png",
-    "size": 5866,
+    "size": 7849,
     "mime": "image/png",
-    "sha256": "0ca50e6c0e8db5e620592761be4073bf31d9bdc326e955b63356a3135e5c3804"
+    "sha256": "f4f19e51b3e7e5aec4d9ad2a7fe42a173d0a744e2b3947d73cfdff5d6e92447f"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-green/png",
-    "size": 5870,
+    "size": 7855,
     "mime": "image/png",
-    "sha256": "83e16b61cdee30f8f1faafdce202586b47838a687efe542ab077304e141aa315"
+    "sha256": "17e425ce9dd6f04d733a247b8b7fc7771eb8fd8f9bd7a751fae1ec716e02371a"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-purple/png",
-    "size": 5868,
+    "size": 7850,
     "mime": "image/png",
-    "sha256": "2dd3b0bb5a27bbaabfaa996e9901b3876d6860fba30c2254fcbc65ccde08b417"
+    "sha256": "b72b9664ca6aef494b994f374cef300fa4bce0bbdb2244be78240fc0181daba6"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-red/png",
-    "size": 5846,
+    "size": 7823,
     "mime": "image/png",
-    "sha256": "9727532645a9e4a30dbdee86ba3138ce223e7d81064bab494cd933c32274fd39"
+    "sha256": "ae94034916e28ed632ecc17d71d30f4fcab74a84519577477f92c9f95a435659"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-turquoise/png",
-    "size": 5870,
+    "size": 7856,
     "mime": "image/png",
-    "sha256": "160ea0e477d0105c04596aeacc8edbc1b655116c4f9172110d8e316b50addcc1"
+    "sha256": "b349a0781b5a46c1cd6b3dd5ea71823a1a00d8067c451e3db96d61a9324ee62b"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-swordsman-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-humans-units-swordsman-yellow/png",
-    "size": 5842,
+    "size": 7820,
     "mime": "image/png",
-    "sha256": "84acb3592344a450a98b4094d9bb2fdb7531f3cd2ec269c93f73de8b95a781d5"
+    "sha256": "63b51974b511b2431ef6e9de44cd688f94ca1e1c6f94f8bc5f666de1cdedbca3"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-humans-units-worker-blue.png",
@@ -3880,198 +3880,198 @@
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-blue/png",
-    "size": 7349,
+    "size": 10171,
     "mime": "image/png",
-    "sha256": "4bc88882e9e0e7c1d15cd3a69c77aab92ae436837433cdc1ae6b5e76bfe241ef"
+    "sha256": "042b942935e0c9963e7ebe3cb3dadd88fe3afbc00e3bae4b45973816f25b12d8"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-brown/png",
-    "size": 7361,
+    "size": 10188,
     "mime": "image/png",
-    "sha256": "e906e63ef9d31cf409b6221b782a4167312b37150a0147889170334b15aa9d36"
+    "sha256": "d8fee58419772a11f3dbc756c340081abb2dc59d1c95d735ca27b67465ca25ce"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-green/png",
-    "size": 7351,
+    "size": 10173,
     "mime": "image/png",
-    "sha256": "2cb2708210730f09a490cebb1650891f8559da49db0954e49f3a633d2f29b2e8"
+    "sha256": "c50e6ccfb5890fc065fbf26970932880723e9348336242a45920c572cccefa25"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-purple/png",
-    "size": 7359,
+    "size": 10184,
     "mime": "image/png",
-    "sha256": "3de0e7764226679a39610f14e300d8cfd255747d2c71f4698b4595f0d5f22300"
+    "sha256": "1a54c090393e8f0dbe509dd5e2f7594cdb0076a25a0f245b647fe221ba7b4d4e"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-red/png",
-    "size": 7328,
+    "size": 10139,
     "mime": "image/png",
-    "sha256": "cc8148f91dcfa8a28362bd8e324550103dd9357204f891cc5c6d60f69d0833d8"
+    "sha256": "12fedafeeec2b267970cc9db78b31c75d91d3e843f81b5f4192b3c6f8c67b3f3"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-turquoise/png",
-    "size": 7363,
+    "size": 10191,
     "mime": "image/png",
-    "sha256": "60d43208708d29474a483a1447659dfb75aa1b93214ef191bcad803a6748e2d4"
+    "sha256": "8950833a1a9cd78b8f9a814c5399e890210921ac70541a2035e08c66e9453c3c"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-berserk-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-berserk-yellow/png",
-    "size": 7332,
+    "size": 10149,
     "mime": "image/png",
-    "sha256": "18a4a995e34e51f71373d952374225339b4601876b5bb8ed31b10af4b5a5dfb6"
+    "sha256": "bfe4bad544f21d5e8f27c9dec91a6409c877975eb6ff386bf195960c40834c4f"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-blue/png",
-    "size": 5702,
+    "size": 8470,
     "mime": "image/png",
-    "sha256": "08d77c21a603d2b537d06083e5df9131818f70184e3fc47e4f2e89c33a9d11a9"
+    "sha256": "8e520f101e53fc75e32e06c0be2076b837b7aa8a5ea0113004210625823130a8"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-brown/png",
-    "size": 5712,
+    "size": 8480,
     "mime": "image/png",
-    "sha256": "9be13b00ee2ef4e082afb63b12d517fa34c674965cb57122f2d5ebb2cb39e374"
+    "sha256": "bac6e4b796134f7d7a3b5098b869cea7a76c8bc0fea837aceae30778e0d41bdf"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-green/png",
-    "size": 5709,
+    "size": 8475,
     "mime": "image/png",
-    "sha256": "929a7825088aa778516e26bbf9eefa774d0ac5257b6fb3fc5f04827ea261abb4"
+    "sha256": "ccdf1b0bb9e103bec0f0967ef2c19a2edcef6c81d9468503966ae7133d39b750"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-purple/png",
-    "size": 5706,
+    "size": 8475,
     "mime": "image/png",
-    "sha256": "e7d073934ded792164dd56472ea453ae07efaec046aca9d40ec4c2c9cd984c77"
+    "sha256": "f7f967901a7da4c035b2add7d22e231002cd056c2e03cac950112f4c029c29d1"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-red/png",
-    "size": 5660,
+    "size": 8411,
     "mime": "image/png",
-    "sha256": "1c39aeb6738cc8e1ce0edf27c259f785b3b6c3c6b852ae727fcaf81dca824f8e"
+    "sha256": "48b16c46743681dc10ae83ca6ff729a5c7dc746dcf701b7c28d8c406f56ad099"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-turquoise/png",
-    "size": 5711,
+    "size": 8482,
     "mime": "image/png",
-    "sha256": "3f46c382a5eaad2f07b6320bee1fc44dc6639e6a739e20f95a7b78f9eaf5c78a"
+    "sha256": "ea3c3671b4534537dd079e400cd9790f5f1b7aa2d1a3c67731f7f18ef63dc728"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-hunter-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-hunter-yellow/png",
-    "size": 5695,
+    "size": 8454,
     "mime": "image/png",
-    "sha256": "dfaa1129803014b3d23ac54706de7d3db253d8493ab96238f77a97d5d0501a6b"
+    "sha256": "f0c7c630321957b1ae049cff662f7c46c0d3bde53037519a9b40e885b7c7b6a0"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-blue/png",
-    "size": 8929,
+    "size": 12097,
     "mime": "image/png",
-    "sha256": "11dbf6307c847c4fc808ad9c3357d7dce324e3596a3e08820bd51b1b7edf1d42"
+    "sha256": "dfdbcb4f4dfd975e53494e070d4aa2209f3a43da158d650b7629e35388fd4243"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-brown/png",
-    "size": 8925,
+    "size": 12088,
     "mime": "image/png",
-    "sha256": "ebd8ab9d995469cd658f38b052eb2aa77d8e783299c4f4b26b89d461a6d4f066"
+    "sha256": "4164cfa5efec4986e46257cfde7eee882875e6da4598e9266b6e2d5826c00e06"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-green/png",
-    "size": 8920,
+    "size": 12084,
     "mime": "image/png",
-    "sha256": "079411848ba4a00b016c4fe3a8e73c5e98f87a553ad423d617ea49873a28aba9"
+    "sha256": "f7efdab15543a5afc7c09b1de3988d80bc91f98c8492eb9cb52ed0d9096a028d"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-purple/png",
-    "size": 8927,
+    "size": 12092,
     "mime": "image/png",
-    "sha256": "652926a77bdd9fca21a511d2bd0723de7cc9a6e363b4dbe57e9ec8823b36bc28"
+    "sha256": "602c5cd77b9559a94609526b033abe15ec9d2b9bdca47fb908d5d067131d5c22"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-red/png",
-    "size": 8884,
+    "size": 12042,
     "mime": "image/png",
-    "sha256": "64878b7b8c4838ab774d8c03de3a5870fe050650b3c994c548a6f3a1dd53668d"
+    "sha256": "37b6507c6e1cdc07050b047c2117c01699e9b1bf6ed6f1bc45ca4d089617589f"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-turquoise/png",
-    "size": 8931,
+    "size": 12097,
     "mime": "image/png",
-    "sha256": "ab381dde408d82a69c5bb02da24f6a407167c9c5b598202ff03b669940b12c90"
+    "sha256": "c7c0f5ba67ba70ff5c1f4288c703313d5bcc2108adfcae6467640ef2f73711ee"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-raider-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-raider-yellow/png",
-    "size": 8919,
+    "size": 12083,
     "mime": "image/png",
-    "sha256": "5bb67f8c46294520de207adfee6c69d0cf2e923b745645a613cd4e11e83f6b1c"
+    "sha256": "009953acfc4feda10c9786932730e767854b0110d4d3f97fc5e07e6a1af873a2"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-blue.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-blue/png",
-    "size": 6328,
+    "size": 8525,
     "mime": "image/png",
-    "sha256": "c1bdeb9d3eaf1924749670dbbd578447dad6f21ee201a64f98acce23d74cc1d2"
+    "sha256": "b46c9a10bd71b1686e551aaf61918819b6765766baa6a817f7d7e8e541579ce3"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-brown.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-brown/png",
-    "size": 6337,
+    "size": 8533,
     "mime": "image/png",
-    "sha256": "44ab3ad17ef6c0b236b15292522349afa3366541bcad4f70c1fbaf9df72980ad"
+    "sha256": "f481a49c2ff370e9eb317cdb8fac1dd4455e8cbb44cea7f4390636f46ecac725"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-green.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-green/png",
-    "size": 6322,
+    "size": 8515,
     "mime": "image/png",
-    "sha256": "b43e544a59d3dbf0af7fcad849bedbfbf91915e46f265774feb656250bfa38a6"
+    "sha256": "2ca780e5578c0b53c03898f0f623f47e35c2ea8f12ad1de364b9c25852b7f424"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-purple.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-purple/png",
-    "size": 6334,
+    "size": 8531,
     "mime": "image/png",
-    "sha256": "335260885f82c713b7314fa119da787e31f5245a3c9b8aecd120c8a6619cfa36"
+    "sha256": "91dfa7f6e673ea1267f9060269742ac5829a6f1fef50025f61b0cb1739e864ce"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-red.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-red/png",
-    "size": 6302,
+    "size": 8491,
     "mime": "image/png",
-    "sha256": "37f9bdbe7a68a111fe0751f3f3223ddb58f7e1067263f2ba06d746cffd311b52"
+    "sha256": "d655dbcbb9297045caf04526e902d706fb3b57aaebe145c419fac4631edb67a9"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-turquoise.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-turquoise/png",
-    "size": 6340,
+    "size": 8537,
     "mime": "image/png",
-    "sha256": "3689cb84157f128744b501b723ffeb65e4c0624b80523b2be18e33d1715a48db"
+    "sha256": "2483035c3ad402deb0f519225638f86be21b633fb1c06a02984ac7372e53d831"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-warrior-yellow.png",
     "spur": "/lib/glurff/site/characters/premade/rts-orcs-units-warrior-yellow/png",
-    "size": 6317,
+    "size": 8509,
     "mime": "image/png",
-    "sha256": "0b9b880eb94b2ce9fdcac3e724082a9ce47d303d8821c76d4d835518071f4c86"
+    "sha256": "d561083b4a0d67f6111d8ad907275f7f46a78689dbe69d5c459ec703cef1ab4f"
   },
   {
     "url": "/apps/glurff/characters/premade/rts-orcs-units-worker-blue.png",
@@ -4125,107 +4125,107 @@
   {
     "url": "/apps/glurff/characters/premade/true-heroes-ii-bard.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-bard/png",
-    "size": 5893,
+    "size": 7666,
     "mime": "image/png",
-    "sha256": "c8eee91bb1840b13f8f740846440976990d32b0b55d7d50575a9d1f09eb85599"
+    "sha256": "644e7780c46e9f946e0151d316148634dff09fec1c0687cc726acb6c94db51fd"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-ii-cleric-special-animations-prayers-spirit-guardians.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-cleric-special-animations-prayers-spirit-guardians/png",
-    "size": 6688,
+    "size": 8067,
     "mime": "image/png",
-    "sha256": "2f3746b2a94cd61584eda10926d42e6dc562333c917f0bdc1ea0dbcd4109af64"
+    "sha256": "a3f057825316e49888989f3d4fe0463d08045d50b9e06e0e0c64e7c86f329009"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-ii-cleric.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-cleric/png",
-    "size": 8458,
+    "size": 10722,
     "mime": "image/png",
-    "sha256": "b359c3b9b2367d307c1ed0409cda713ad08113af1bbd7bae7635adf58f737fd2"
+    "sha256": "8be0a478902a8a948c3780ba9af2481120319836468c74edce8eee4590fadcac"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-ii-paladin.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-ii-paladin/png",
-    "size": 5460,
+    "size": 7280,
     "mime": "image/png",
-    "sha256": "511b6c8460bb65338d15abe56ecdf7a40bda13fbe68df85f52eb04af63a99ac2"
+    "sha256": "8489024b860f003b822881c16b198f825cf7e5d49d0a7570815d9dcbdf0ad321"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iii-fighter.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-fighter/png",
-    "size": 5357,
+    "size": 7226,
     "mime": "image/png",
-    "sha256": "af870388b42ef0a7edbb3f436fe12ce60d036e4d03ba2c232cbf5b3cad45219f"
+    "sha256": "2faf3b38bcd6b3e2e790f94ab08292e32eaf6c9c34c64adb65617fa0ceec34d3"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iii-ranger.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-ranger/png",
-    "size": 5034,
+    "size": 6910,
     "mime": "image/png",
-    "sha256": "0a5eef5457c8654c6b605e182a6f0c05f059d7d8fd428aff6b95966b9aa002fb"
+    "sha256": "3f0dcbb5eecdebc6612018e8b334cc04a30a54ed01eb2c04a83f666b009d57e4"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iii-wizard-special-animations-fire-familiar.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-wizard-special-animations-fire-familiar/png",
-    "size": 3983,
+    "size": 7688,
     "mime": "image/png",
-    "sha256": "f54d751cb53af2ad07f97fe9f304df72373fb0fa54124cc8b4854483fdb32a09"
+    "sha256": "2f4ce040a987053e13c6af92260b41c9bd69bb2a602d5054157d3182805a56eb"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iii-wizard.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iii-wizard/png",
-    "size": 4909,
+    "size": 7219,
     "mime": "image/png",
-    "sha256": "437f337eac079058148687894d3f7ff264b7771b917b7290ad9e3b50b7d4e209"
+    "sha256": "1d9a6f47aa5927d9c7d40075a97bc6f2ae858150e0b07ee34c2cc0f9470cffba"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iv-blood-mage-special-animations-summon-blood-elemental-blood-elemental.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-blood-mage-special-animations-summon-blood-elemental-blood-elemental/png",
-    "size": 4917,
+    "size": 15924,
     "mime": "image/png",
-    "sha256": "f8faa8502a7c31edb69726d69d3619a9d8e23965a4a680dae8eced49ea7eba49"
+    "sha256": "20adb4614eab6f8daa0bdbe6b9cfdfb6f783aeb91fea9b4a2037acdfd9bcf525"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iv-blood-mage.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-blood-mage/png",
-    "size": 5010,
+    "size": 7632,
     "mime": "image/png",
-    "sha256": "6554815bc40164948b82fc7455a2d200cbc13af7c0e6dc9bb3522e6566f7aa8d"
+    "sha256": "1895090a5f16ad426b549ee3c1c7bb0baca93cf24367f40ef7510d1e82d566cd"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iv-ninja-assassin.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-ninja-assassin/png",
-    "size": 4229,
+    "size": 5779,
     "mime": "image/png",
-    "sha256": "0e466569181108c65742024c4bf118a19e93c509dc931f0adf57423a4169c7a2"
+    "sha256": "b17bf8f69657bc1a30b0aca8edc8dfc2392f58c35991cbf29ce4b2f828dc45b2"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-iv-tech-augmented-gunslinger.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-iv-tech-augmented-gunslinger/png",
-    "size": 5485,
+    "size": 7465,
     "mime": "image/png",
-    "sha256": "b4b685a6c0f69a7883dfa216f63682809fcc89573c8e581b91bfec2fb1e72c6b"
+    "sha256": "8c31c7d791498e51effe8db86690686d7596147115218ee1371d67439fc79b8e"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-v-engineer.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-v-engineer/png",
-    "size": 7554,
+    "size": 10352,
     "mime": "image/png",
-    "sha256": "325ed116f1f31a7b1b589f34e9d798c2750a5cea2afd0129ae33ee6d8f96a37f"
+    "sha256": "fc0c8aed172bf048408ffcc752b4be631edfac638b5468641c4fd152e37d9a6f"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-1-shield-1-shield.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-v-guardian-1-shield-1-shield/png",
-    "size": 7279,
+    "size": 10454,
     "mime": "image/png",
-    "sha256": "e066c0ec85a03e474f2273ee3a0e73932f4819bd906854ad927f395d16d25bdb"
+    "sha256": "b28334a4d583c679488cba6af5a10fd9462a658f985bdfdb37ce6baea92ffb37"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-2-shields.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-v-guardian-2-shields/png",
-    "size": 8769,
+    "size": 12144,
     "mime": "image/png",
-    "sha256": "a0fc72afd6c104d348a5fc0da965ffe7e3175e9243a2d0847237981dee5c5546"
+    "sha256": "7cea791e4957129c0a955e15e46bd16748554e66c13ce1a59c1d8920f281bacd"
   },
   {
     "url": "/apps/glurff/characters/premade/true-heroes-v-guardian-no-shield-no-shield.png",
@@ -4237,30 +4237,30 @@
   {
     "url": "/apps/glurff/characters/premade/true-heroes-v-runesmith.png",
     "spur": "/lib/glurff/site/characters/premade/true-heroes-v-runesmith/png",
-    "size": 8419,
+    "size": 11106,
     "mime": "image/png",
-    "sha256": "a61d4e0fb90f1d1fab8ba5a084f6341ae10301cbbe0aaad2476dc68e78924b69"
+    "sha256": "b10e7a95a0aab482f5b074c5e7aab527ca310ddbd5640483b41968e14250fe58"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-dark-priest.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-i-dark-priest/png",
-    "size": 9744,
+    "size": 12045,
     "mime": "image/png",
-    "sha256": "675b1f5521970ed356e290467a87c0a8ded4a4c2d0aa583de7233fbfcbc6634b"
+    "sha256": "1a418edd65c78f97ff56de80b4a44a4b5891c498b03397a1b02da6d18d4b5a33"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-demonologist-special-animations-summon-demon-angry-demon.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-i-demonologist-special-animations-summon-demon-angry-demon/png",
-    "size": 11779,
+    "size": 15659,
     "mime": "image/png",
-    "sha256": "48d4eac01d632a2d9a5911f83fb5b630a733c84b5380fadf5fc13e136352f245"
+    "sha256": "11b726331224defbc2a3c9fd2f18a5d5a385a7efef4b2f13352d94dbff298780"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-demonologist.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-i-demonologist/png",
-    "size": 13946,
+    "size": 17840,
     "mime": "image/png",
-    "sha256": "b05d0526c05ecdb1df5306024815f8096da0ab39354957a852d6ba1856df4b0b"
+    "sha256": "08774452e0e0d2a3ef6289fdc6dc7e360799838a407b85a379d5c9bafbf40c13"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer-special-animations-plane-shift-soul-shape.png",
@@ -4272,16 +4272,16 @@
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer-special-animations-rise-corpse-skeletal-champion.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-i-supreme-necromancer-special-animations-rise-corpse-skeletal-champion/png",
-    "size": 6612,
+    "size": 9264,
     "mime": "image/png",
-    "sha256": "6d1967b29dfe35ff66ea825a3f40f7a57a72786e5a43bdb90aaf3b497806eb13"
+    "sha256": "20ac219caaf59b11e55d734d3b253eeae8f3adf02e9d5278431da688777cf882"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-i-supreme-necromancer.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-i-supreme-necromancer/png",
-    "size": 11830,
+    "size": 20273,
     "mime": "image/png",
-    "sha256": "ae2d5654cb5baf5c5fb1c61f73de55ee2fade56b950054f02aa291dc5442abb0"
+    "sha256": "992cac640946106f6b45e049d59641f40d2262150f040a852b1799eb3b30376d"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-ii-gambler.png",
@@ -4293,163 +4293,163 @@
   {
     "url": "/apps/glurff/characters/premade/true-villains-ii-plague-doctor.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-ii-plague-doctor/png",
-    "size": 14799,
+    "size": 20654,
     "mime": "image/png",
-    "sha256": "3d6b946803e5d85411c15bf5b0902cddd7ef873a022062dab96e7df7a2d01c77"
+    "sha256": "0fd95f4155fa0f1db9b4165bcf5f777d3ebd96158c84924aa3338c61a88770f7"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-ii-puppeteer-special-animations-summon-puppet-puppet.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-ii-puppeteer-special-animations-summon-puppet-puppet/png",
-    "size": 15175,
+    "size": 20934,
     "mime": "image/png",
-    "sha256": "9e36606084aad9cdc4e12bb41697b428ab645ca9b67c94c73243c93d3c83aaa7"
+    "sha256": "23d54910df63a700ee47c121ad1fd6acccb98bd47743c69f8f1b2c7b9ec70fce"
   },
   {
     "url": "/apps/glurff/characters/premade/true-villains-ii-puppeteer.png",
     "spur": "/lib/glurff/site/characters/premade/true-villains-ii-puppeteer/png",
-    "size": 11292,
+    "size": 17148,
     "mime": "image/png",
-    "sha256": "4310e898af0589d3e2e3b69d9bab8f71acc1fadf1db702db74151bdda2c14b10"
+    "sha256": "e44fa5e262bf072eae7c63b382d050bda3670c16094bb67ea1897e5125a0b19a"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-barbarian.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-barbarian/png",
-    "size": 7650,
+    "size": 10387,
     "mime": "image/png",
-    "sha256": "f650b0baf2d4f1504cd8919821ff1fc56c26e77a80319bf6a1acc3708001427b"
+    "sha256": "f3140408fb4dffc0acccd46e0dddb6fa890b165949c62c62a5a2b767b790e6f2"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-beast.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-beast/png",
-    "size": 7228,
+    "size": 9258,
     "mime": "image/png",
-    "sha256": "50efd6b5501762df442ce794dfeb6cc2e6f79e02312826c45a46b3daa74eddc9"
+    "sha256": "8ae0c9d35fdb01569a37e8fe5869e052dc29d3e1862642cee7ec5aae2c90c589"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-hound.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-hound/png",
-    "size": 5240,
+    "size": 7180,
     "mime": "image/png",
-    "sha256": "b169f8d7d6f47d694a10667f68ddecfabb0f472b7fc6f17e7ee656082891340d"
+    "sha256": "c865744c3dc321d75c3441d1ede5816349ffcfd621894bfa0d2aa02fd2d737eb"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-owl.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-druid-special-animations-shape-shifting-forest-owl/png",
-    "size": 1525,
+    "size": 2722,
     "mime": "image/png",
-    "sha256": "462c307cca69687b1192ba6ac9324cff99597ed564ec2eccb1f6a6a90be0eeb0"
+    "sha256": "f82bfa246d22352a96fdf837f85fdc6dc14df745a5817d1af380cc2ba8ca3f6a"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-druid.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-druid/png",
-    "size": 7846,
+    "size": 9652,
     "mime": "image/png",
-    "sha256": "5ae931aa94400eda234d848a4fba3921ba723cfcd7bab967dc1b2557e4b46f3d"
+    "sha256": "421a819781f356dd68c309dbea9de987a76c354ff0097dd62e23fe65f3d3bc57"
   },
   {
     "url": "/apps/glurff/characters/premade/trueheroes-rogue.png",
     "spur": "/lib/glurff/site/characters/premade/trueheroes-rogue/png",
-    "size": 6402,
+    "size": 8039,
     "mime": "image/png",
-    "sha256": "d677563bb6550dc0984c802000d657901c971db748422eb8d8377b59709c1fd0"
+    "sha256": "bcfb8e46d7365faed61b319e0b6037a0542ed6c2a8434325bd8874cd3e135f3a"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-ghost.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-ghost/png",
-    "size": 3756,
+    "size": 6150,
     "mime": "image/png",
-    "sha256": "5438cc22e867819aea08a07afe06f220deb974172a78cd5eecb94d968218b82f"
+    "sha256": "dc3c64f68651a55215278f23a7b3d5e3c46c0bc0adf43a6cedfe2c9795216c33"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-headless-skeleton.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-headless-skeleton/png",
-    "size": 1883,
+    "size": 2667,
     "mime": "image/png",
-    "sha256": "7dd77c9d203865518505bf3a625d2e94c57991c2bff2663f9d737d39df047ada"
+    "sha256": "8a407103cc8e18347107f5c38eb985b32c0b0459152c7bc7a9c2e5da5ceaad46"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-jumping-skull.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-jumping-skull/png",
-    "size": 1678,
+    "size": 2727,
     "mime": "image/png",
-    "sha256": "18c45339ba8c84eb868506095f560c73209da76c01eaa13d728f335a8a14e627"
+    "sha256": "036f6b9a61e2ebab40cc31402323a58478a47fc634710fc75ae1ed258efb6721"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-archer.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-archer/png",
-    "size": 3569,
+    "size": 5309,
     "mime": "image/png",
-    "sha256": "488e11624425dedda0bd4f764ba090046d6f19e67fa8a0ad6fd278bb3b79fe97"
+    "sha256": "ef1fb5c20fa2e07db9a1503b487cd6796f8ace1ee206ce9bd471d5fad09ed888"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-mage.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-mage/png",
-    "size": 4037,
+    "size": 8078,
     "mime": "image/png",
-    "sha256": "e4e2b7e1e2abb27ac69b9e673851fa8bdad7821abc4a66983a26ec09b0f9e45e"
+    "sha256": "2955c8b632cd0a9ad25833d4894f0549ea8ed23f3a1b58aa2a97329f9d5c5b73"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-skeleton-warrior.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-skeleton-warrior/png",
-    "size": 3438,
+    "size": 5548,
     "mime": "image/png",
-    "sha256": "0c68a27f3c59904ad30656b0039194d9450f798768418b8ee64dcba0001d147c"
+    "sha256": "f9bbe00316dd30613013a16bf55981c55a22b20df3247a21f93089f8511b618f"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-archer.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-archer/png",
-    "size": 5555,
+    "size": 7375,
     "mime": "image/png",
-    "sha256": "ccd72cf2b54f67b49fc01ea40cddd1241b9453a097c67f2076dad1b3b56340fd"
+    "sha256": "f3d817e8294b42e2f3cb7df71c5dc2c13c1ed72bcdbcfefad2c59904102924c6"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-mage.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-mage/png",
-    "size": 4847,
+    "size": 8765,
     "mime": "image/png",
-    "sha256": "9c154ecba5ef6de17db0f9eda24cf7a60368418fedb0eb497ebd8e735db9b968"
+    "sha256": "883cbd271adb3fb27812bd0eb23b139b17fed4df092b27b4718caef77ec3572b"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-reanimated-zombie-warrior.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-reanimated-zombie-warrior/png",
-    "size": 6092,
+    "size": 8093,
     "mime": "image/png",
-    "sha256": "d500c21efabc1d25644f312053d1676939e0a3942b29c752d68a3e18f111f08c"
+    "sha256": "02078e04993889564492981623c09a896c5324312b39219dbcce3ca1df1b766f"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-skeletal-horse-horse.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-skeletal-horse-horse/png",
-    "size": 3240,
+    "size": 4839,
     "mime": "image/png",
-    "sha256": "e9c29bfa7db53c440a8dccac12a7d9af2a4043f22d23e3a7d9c8e89142302f31"
+    "sha256": "d036f57ca11163983869eb96e4bf5e90ca0726f2d3cd56f1dada94c32be9eeef"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-skeleton-minotaur.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-skeleton-minotaur/png",
-    "size": 4785,
+    "size": 6963,
     "mime": "image/png",
-    "sha256": "2122e64ed0f7356800518de07084bc869ec6d98edf1be03db8b75ad0f28cacc2"
+    "sha256": "db22191b9b1d62671ff0d8fbd969873b737a473d4b54a1b7abf7b50dfb289374"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-zombie-bear.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-bear/png",
-    "size": 9782,
+    "size": 13219,
     "mime": "image/png",
-    "sha256": "5480bf62368305a55640e2a975522385ffcdff898003b4a3ae78c8d81d635ae8"
+    "sha256": "5b4833ef0c8955f2484326959c3a5104d07b10bff8d8b36c59f777f211935ffc"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-zombie-giant.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-giant/png",
-    "size": 9225,
+    "size": 12949,
     "mime": "image/png",
-    "sha256": "d040349cc2c90fdadb98871d11a523c079484e0db8b57a8abf05252951da07dc"
+    "sha256": "614891f24051508c9998fd57d7c3dfba74172701c17f7422eedf4770d60acbdf"
   },
   {
     "url": "/apps/glurff/characters/premade/undead-creatures-zombie-minotaur.png",
     "spur": "/lib/glurff/site/characters/premade/undead-creatures-zombie-minotaur/png",
-    "size": 4513,
+    "size": 7245,
     "mime": "image/png",
-    "sha256": "54416dd6bd7170f25141e63920f9ea93bd039d3aad221929eb7440819f234688"
+    "sha256": "7c7a360b036275708485b44435beff05855a87f81fd0d32cbfe82fb758b73dc6"
   },
   {
     "url": "/apps/glurff/characters/shoes.png",
@@ -4652,7 +4652,7 @@
     "spur": "/lib/glurff/site/index/html",
     "size": 727,
     "mime": "text/html; charset=utf-8",
-    "sha256": "59ec5468804a22b8304cc6770d878464fc183c87700f1e7440c21d8bf484510e"
+    "sha256": "de1e5bcd780fd22f7fafc4e9e89c113ca08f915a469d471b566b42b1e01d2cf1"
   },
   {
     "url": "/apps/glurff/licenses/jitsi-license.html",
@@ -4699,8 +4699,8 @@
   {
     "url": "/apps/glurff/style.css",
     "spur": "/lib/glurff/site/style/css",
-    "size": 55469,
+    "size": 57239,
     "mime": "text/css; charset=utf-8",
-    "sha256": "6893877666b1a1493a45aae243189a0b2911b4f9322ff501e809024b3a7514fe"
+    "sha256": "9fcc8415e2a7339758307f781ef852ec37ca4356f200d653d3a0322f36752884"
   }
 ]

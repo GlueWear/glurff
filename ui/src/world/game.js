@@ -9,12 +9,12 @@ import { versioned } from '../lib/build.js';
 import { MotionBuffer } from 'lib/motion';
 import { Space, SPACE_COLOR } from './space.js';
 import { bubbleText, WAVE_MS } from './bubbles.js';
-import { projectileTexture, TIP } from './projectiles.js';
+import { projectileTexture, shotKind, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
 import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED } from '../lib/touch.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
-import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, characterTop,
-  equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT } from 'world/parts';
+import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
+  equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT, spellColour, companionReach } from 'world/parts';
 import { CharacterAnimation } from './animation.js';
 import { buildWorld, regionAt, SPAWN, COMMONS, GAME_ROOM, MAIN_SCENE, VATICAN_SCENE, TILE,
   VATICAN_SPAWN, MAP_IMAGE, OVER_IMAGE, VATICAN_IMAGE, VATICAN_OVER_IMAGE,
@@ -527,8 +527,9 @@ export class Game {
     const compensated = Math.max(NAMEPLATE_MIN_SCREEN_SIZE,
       Math.min(NAMEPLATE_MAX_SCREEN_SIZE, natural));
     ch.nameplate.scale.set(compensated / natural);
+    /* A little above the top of the character: see world/parts nameHeight. */
     ch.nameplate.position.set(0,
-      -characterTop(ch.look) * ch.scale * NAME_HEIGHT - NAMEPLATE_SCREEN_GAP / this.zoom);
+      -nameHeight(ch.look, NAME_HEIGHT) * ch.scale - NAMEPLATE_SCREEN_GAP / this.zoom);
   }
 
   nameCharacter(ch, name) {
@@ -629,8 +630,10 @@ export class Game {
     const ch = ship === this.ourShip ? this.selfSprite : peer?.ch;
     if (!ch || (ship === this.ourShip ? this.scene : peer.scene) !== scene) return;
     if (kind === 'attack') {
+      /* A ready-made character's own attack runs its own length. */
+      const own = equipmentOf('premade', ch.look.premade?.part)?.animations?.attack;
       const weapon = equipmentOf('weapon',weaponKey ?? ch.look.weapon?.part);
-      ch.animation.attack(performance.now(),Math.max(1,...Object.values(weapon?.layers ?? {}).map(l=>l.frames)));
+      ch.animation.attack(performance.now(), own ? own.frames : Math.max(1,...Object.values(weapon?.layers ?? {}).map(l=>l.frames)));
     }
     else if (kind === 'emote') ch.animation.emote(performance.now(), animationFrames(ch.look, 'idle'));
     else ch.animation.hit(performance.now(), 12);
@@ -641,7 +644,7 @@ export class Game {
     ch.companion.visible = !!item && ch.node.visible;
     if (!ch.companion.visible) return;
     const tile = sceneTile(scene), scale = sceneCharacterScale(scene);
-    const distance = 12*scale/tile;
+    const distance = companionReach(item)*scale/tile;
     if (!ch.follow || ch.follow.scene !== scene || Math.hypot(ch.follow.x-x,ch.follow.y-y)>distance*8)
       ch.follow = {x:x-distance,y,scene,dir:ch.dir};
     const f = ch.follow, dx=x-f.x, dy=y-f.y, d=Math.hypot(dx,dy);
@@ -651,7 +654,12 @@ export class Game {
       f.x += dx/d*step; f.y += dy/d*step;
       f.dir = Math.abs(dx)>Math.abs(dy) ? (dx<0?'left':'right') : (dy<0?'up':'down');
     }
-    const frame = wholeFrame(item, f.dir, Math.floor(time/200), moving?'walk':'idle');
+    /* A companion stands still with us: it walks when we walk, and plays its
+     * idle when we emote -- for as long as our emote lasts -- and otherwise
+     * holds its first frame. */
+    const emoting = ch.animation.action?.kind === 'emote' && time < ch.animation.action.since + ch.animation.action.duration;
+    const step = moving || emoting ? Math.floor(time/200) : 0;
+    const frame = wholeFrame(item, f.dir, step, moving?'walk':'idle');
     if (ch.companionKey !== item.key) {ch.companion.texture=Texture.EMPTY;ch.companionKey=item.key;}
     const texture = frameTexture(frame);
     if (texture) ch.companion.texture = texture;
@@ -670,14 +678,17 @@ export class Game {
       let sprite = this.arrows.get(shot.key);
       if (!sprite) {
         /* Our own drawing, turned to wherever it is going; see world/projectiles. */
-        sprite = new Sprite(projectileTexture(shot.weapon));
-        const tip = TIP[shot.weapon === 'slingshot' ? 'stone' : 'arrow'];
+        sprite = new Sprite(projectileTexture(shot.weapon, spellColour(this.characterOf(shot.who)?.look)));
+        const tip = TIP[shotKind(shot.weapon)];
         sprite.anchor.set(tip.x, tip.y);
         this.arrows.set(shot.key,sprite); this.actors.addChild(sprite);
       }
       const [vx, vy] = shot.vec ?? {up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[shot.dir];
       sprite.rotation = Math.atan2(vy, vx);
-      sprite.scale.set(this.characterScale, this.characterScale);
+      /* A quarter of the character's scale: one art pixel to one world pixel
+       * in the main hall, never smaller than that anywhere. */
+      const shotScale = Math.max(1, this.characterScale / 4);
+      sprite.scale.set(shotScale, shotScale);
       sprite.position.set(shot.point.x*this.tile,
         (shot.point.y-sceneInfo(this.scene).collisionOffsetY)*this.tile);
       sprite.zIndex = Math.round(shot.point.y*this.tile);

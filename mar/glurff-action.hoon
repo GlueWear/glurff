@@ -56,6 +56,9 @@
       ?.  ?=([%s *] j)  ~
       (slaw %p p.j)
     ?:  =('leave' op)  [%leave peers ~]
+    ::  the Library's secret was said: we may choose weapons and the rest.
+    ::  Only ever on from here; Dojo turns it off.
+    ?:  =('unlock-equipment' op)  [%sprite-lab peers %.y]
     ::  our own settings, as the client's JSON text; empty clears them
     ?:  =('prefs' op)  [%prefs peers (fall (str 'text') '')]
     ?:  =('ensure-commons' op)  [%ensure-commons peers ~]

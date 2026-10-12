@@ -42,7 +42,8 @@ import { showWorldMembership } from 'ui/world-membership';
 import { HOTSPOTS, spotApp, spotsFor } from 'world/hotspots';
 import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
-import { DEFAULT_LOOK, DIRS, setSpriteLabEnabled, spriteLabEnabled } from 'world/parts';
+import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs } from 'world/parts';
+import { unlocks } from 'lib/unlock';
 
 const state = {
   look: DEFAULT_LOOK,
@@ -491,12 +492,20 @@ function sendWorldAction(event) {
     .filter(who => who !== our && palStatus(who) !== 'blocked');
   return G.sendWorldEffect(audience,event);
 }
-/* A weapon we could take out: equipment is on, and our character holds one. */
-const weaponReady = () => !!(builder.equipmentReady && state.look?.weapon?.part);
-/* What we hold changed: a weapon that is gone cannot stay out, and the
- * phone's sword button comes and goes with it. */
+/* A weapon we could take out: equipment is on, and our character holds one --
+ * from the list, or a ready-made character's own attack (world/parts). */
+const weaponReady = () => !!(builder.equipmentReady && fightingWeapon(state.look));
+/* What we hold changed. A NEW weapon is in our hands at once -- choosing one
+ * and pressing Done, or arriving with one -- without "1" first; one that is
+ * gone cannot stay out; and the phone's sword button comes and goes with it. */
+let heldWeapon = null;
 function weaponsChanged() {
-  if (game.armed && !weaponReady()) game.setArmed(false);
+  const now = weaponReady() ? fightingWeapon(state.look) : null;
+  if (now !== heldWeapon) {
+    heldWeapon = now;
+    game.setArmed(!!now);
+    if (presenceStarted) presence.publish();
+  }
   touchControls?.paint();
 }
 /* Out, or away: "1" on a keyboard, the sword button on a phone. */
@@ -513,7 +522,9 @@ const bow = createBow({
   our,
   /* Only a weapon we have OUT can be used; see "1" above. */
   self: () => game.selfSprite && ({...game.self,
-    weapon: builder.equipmentReady && game.armed ? game.selfSprite.look.weapon?.part : null,
+    weapon: builder.equipmentReady && game.armed ? fightingWeapon(game.selfSprite.look) : null,
+    /* The shot leaves on the attack's release frame (world/parts releaseMs). */
+    release: releaseMs(game.selfSprite.look),
     locked: game.selfSprite.animation.locked(performance.now()),
   }),
   visible: who => state.peers.has(who),
@@ -530,7 +541,18 @@ const events = createRoomEvents({our,room:()=>state.room,peers:()=>[...state.pee
   R.roomOf(ship,p.spot,p.chatPlace)===state.room).map(([ship])=>ship),send:G.sendRoomEvent,
   rooms:isChattyRoom,gameRoom:GAME_ROOM,trace:diagnostic});
 const hudRoot = document.getElementById('hud');
-const hud = new Hud(hudRoot, { events });
+/* THE LIBRARY'S SECRET: said in its chat, it is not sent as a message; it
+ * unlocks choosing weapons, mounts, companions and ready-made characters, for
+ * good (lib/unlock). */
+function secret(text, room) {
+  if (!unlocks(text, roomById(room)?.slug)) return false;
+  if (builder.equipmentReady) { showNotice('Already yours: choose weapons, mounts and companions in your character.'); return true; }
+  G.unlockEquipment().then(
+    () => showNotice('Unlocked: weapons, mounts, companions and ready-made characters. Choose them in your character.'),
+    () => showNotice('That did not reach your ship. Say it again.'));
+  return true;
+}
+const hud = new Hud(hudRoot, { events, secret });
 const railRoot = document.createElement('div');
 railRoot.id = 'rail';
 document.body.appendChild(railRoot);
@@ -745,7 +767,7 @@ const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
    * so the others are told rather than left to guess. See lib/rooms. */
   ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),
   /* A weapon we hold but have put away is not drawn for the others either. */
-  ...(state.look?.weapon?.part&&!game.armed?{sheathed:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
+  ...(weaponReady()&&!game.armed?{sheathed:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
   huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
 const presence = createMemberPresence({
   our, session:crypto.randomUUID(),
@@ -1013,7 +1035,7 @@ function onWorldFact(name, p, fromPresence=false) {
     if(!worldMember(p.who))return;
     reach.heard(p.who);
     try {const event=JSON.parse(p.body);if(event.world!==WORLD_ID)return;
-    if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){if(spriteLabEnabled())bow.receive(p.who,event);}else if(event.kind==='emote'){
+    if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){bow.receive(p.who,event);}else if(event.kind==='emote'){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
          ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
@@ -1088,7 +1110,7 @@ function onWorldFact(name, p, fromPresence=false) {
       clocks.load(typeof p === 'string' ? p : '');
       break;
     case 'our-look':
-      setSpriteLabEnabled(p.spriteLab === true);
+      /* Everybody sees equipment; choosing it is unlocked (lib/unlock). */
       builder.setEquipmentReady(p.equipment === true);
       if (p.look && Object.keys(p.look).length) {
         state.look = p.look;
@@ -1212,8 +1234,10 @@ function onWorldFact(name, p, fromPresence=false) {
   refreshNames();
   onChange(refreshNames, c => c.field === 'profiles');
   worldReady = true;
-  /* Every visit starts with our weapon put away: a stray click never attacks. */
-  game.setArmed(false);
+  /* Every visit starts with our weapon in our hands, if we have one (2026-10-12;
+   * it used to start put away, and a chosen weapon seemed to have vanished). */
+  heldWeapon = null;
+  weaponsChanged();
   touchControls.paint();
   /* Our clocks, if our settings came in before the sky was there. */
   game.setClocks(clocks.get().clocks);

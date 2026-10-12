@@ -1,7 +1,15 @@
 /* One action packet, local flight/strike check, and a victim-owned response.
  * No damage/health/score state is saved or sent. Scene is part of each action. */
-export const ARROW_SPEED = 12, ARROW_RANGE = 10, FIRE_COOLDOWN = 600;
-export const SLING_SPEED = 10, SLING_RANGE = 7;
+export const FIRE_COOLDOWN = 600;
+/* EVERY SHOT ALIKE (2026-10-12): an arrow, a stone and a spell fly at one
+ * speed, a little faster than arrows did, and keep going until they hit a
+ * wall (off the map counts as one). The range only stops one that somehow
+ * finds none. A spell is what a ready-made caster sends; older clients drop
+ * it rather than draw an arrow. */
+export const SHOT_SPEED = 14, SHOT_RANGE = 100;
+export const ARROW_SPEED = SHOT_SPEED, ARROW_RANGE = SHOT_RANGE;
+export const SLING_SPEED = SHOT_SPEED, SLING_RANGE = SHOT_RANGE;
+export const SPELL_SPEED = SHOT_SPEED, SPELL_RANGE = SHOT_RANGE;
 /* Reach is measured from the normal collision centre in map tiles. A longer
  * weapon can touch farther away; all use the SAME victim hitbox, whatever art
  * or premade body the player wears. */
@@ -13,7 +21,7 @@ export const VECTORS = {up:[0,-1], down:[0,1], left:[-1,0], right:[1,0]};
 /* FREE AIM (2026-09-30). A projectile can fly at any angle: its shot carries
  * `aim`, a unit vector, AND `dir`, the nearest of the four -- which is how a
  * character faces, how a swing goes, and all an older client understands. */
-export const PROJECTILES = ['bow','slingshot'];
+export const PROJECTILES = ['bow','slingshot','spell'];
 export const nearestDir = (vx,vy) => Math.abs(vx)>Math.abs(vy) ? (vx<0?'left':'right') : (vy<0?'up':'down');
 const validAim = a => Array.isArray(a) && a.length===2 && a.every(Number.isFinite) &&
   Math.abs(Math.hypot(a[0],a[1])-1)<0.05;
@@ -71,14 +79,18 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
       /* A free-aimed shot must say which way, properly; a swing never does. */
       if (e.aim!==undefined && (e.kind!=='arrow' || !validAim(e.aim)))return false;
       const weapon=e.kind==='strike' ? e.weapon : (e.weapon ?? 'bow');
-      if (e.kind==='strike' ? !Object.hasOwn(MELEE_REACH,weapon) : !['bow','slingshot'].includes(weapon))return false;
+      if (e.kind==='strike' ? !Object.hasOwn(MELEE_REACH,weapon) : !PROJECTILES.includes(weapon))return false;
+      /* RELEASE: a shot leaves the hand on the frame of the attack that lets it
+       * go (see world/parts releaseMs), up to 1.5s after the attack begins.
+       * Absent from older clients' shots, which leave at once. */
+      if (e.release!==undefined && (!Number.isFinite(e.release) || e.release<0 || e.release>1500))return false;
       const key=keyOf(who,e.id);
       if(seen.has(key) || t-(lastReceived.get(who)??-Infinity)<FIRE_COOLDOWN-100)return false;
       lastReceived.set(who,t);
       const [ax,ay]=e.aim ?? VECTORS[e.dir], len=Math.hypot(ax,ay);
       const shot={...e,weapon,from:{...e.from},who,key,distance:0,vec:[ax/len,ay/len],
         /* Unsynchronised ship clocks cannot leave arrows hanging in midair. */
-        began:t-Math.max(0,Math.min(350,t-e.t0)),point:{...e.from},stopped:false,hits:new Set()};
+        began:t-Math.max(0,Math.min(350,t-e.t0))+(e.kind==='arrow'?e.release??0:0),point:{...e.from},stopped:false,hits:new Set()};
       seen.set(key,{shot,until:t+10000});
       if(e.kind==='arrow') shots.set(key,shot);
       onShot(who,shot);
@@ -107,6 +119,7 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
     const event={kind:Object.hasOwn(MELEE_REACH,weapon)?'strike':'arrow',
       id:id(),from:{x:p.x,y:p.y},dir,scene:p.scene,t0:t};
     if(aim && event.kind==='arrow')event.aim=aim.map(v=>Math.round(v*1000)/1000);
+    if(event.kind==='arrow' && p.release>0)event.release=Math.min(1500,Math.round(p.release));
     if(weapon!=='bow')event.weapon=weapon;
     if(!receive(our,event))return false;
     fired=t; Promise.resolve(send(event)).catch(()=>{}); return true;
@@ -117,8 +130,7 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
     for(const [who,at] of lastReceived)if(t-at>10000)lastReceived.delete(who);
     for(const [key,s] of shots) {
       if(s.stopped || (s.who!==our && (!visible(s.who)||blocked(s.who)))) {shots.delete(key);continue;}
-      const speed=s.weapon==='slingshot'?SLING_SPEED:ARROW_SPEED;
-      const range=s.weapon==='slingshot'?SLING_RANGE:ARROW_RANGE;
+      const speed=SHOT_SPEED, range=SHOT_RANGE;
       const target=Math.min(range,Math.max(0,(t-s.began)/1000*speed));
       const [vx,vy]=s.vec ?? VECTORS[s.dir];
       // Small swept steps stop at thin walls and cannot skip a victim at low FPS.
@@ -137,7 +149,8 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
       }
       if(s.stopped || s.distance>=range)shots.delete(key);
     }
-    return [...shots.values()];
+    /* Not yet released: still in the hand, so not drawn. */
+    return [...shots.values()].filter((s)=>t>=s.began);
   }
   return {fire,receive,tick,clear(){shots.clear();seen.clear();lastReceived.clear();}, shots};
 }

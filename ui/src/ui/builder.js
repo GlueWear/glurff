@@ -9,8 +9,8 @@
  * a preview: the panel is fixed dead centre and the camera keeps you dead
  * centre, so the only thing you could not see while editing was yourself.
  */
-import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf } from 'world/parts';
-import { paintCharacter } from 'world/paint';
+import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf, choicesOf, ownAttack as ownAttackOf } from 'world/parts';
+import { paintStage } from 'world/paint';
 import { esc } from 'ui/html';
 
 const title = (s) => String(s).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -59,7 +59,10 @@ export class Builder {
     if (!this.open) return;
     /* Sheets arrive over the network on first open; repaint when one lands so
      * the preview fills in rather than staying half-drawn. */
-    paintCharacter(this.canvas, this.look, this.dir, this.frame, 9, () => this.paint());
+    /* ONE SIZE, whatever is worn (world/paint paintStage); smaller on a phone. */
+    const phone = typeof innerWidth === 'number' && innerWidth <= 700;
+    paintStage(this.canvas, this.look, this.dir, this.frame,
+      phone ? { scale: 8, width: 320, height: 230 } : { scale: 12, width: 500, height: 300 }, () => this.paint());
   }
 
   /* The style whose colours the row is showing. ALWAYS a real style, even
@@ -120,19 +123,24 @@ export class Builder {
         <div class="swatches">${swatches}</div>
       </div>`;
     }).join('');
+    /* A ready-made character with its own attack carries no other weapon. */
+    const ownAttack = premade?.animations?.attack ? premade.attack : null;
+    const extras = EXTRAS.filter((slot) => !(slot === 'weapon' && ownAttack));
     this.root.innerHTML = `<div class="builder">
       <h3>${premade ? esc(premade.name) : 'Your character'}</h3>
-      ${this.equipmentReady?`<button class="browse-characters">Choose a premade character · ${EQUIPMENT.premade.length} characters</button>`:''}
+      ${this.equipmentReady?`<div class="builder-modes"><button class="browse-characters">Pick a ready-made character</button>
+        ${premade ? '<button class="build-own-btn">Build your own</button>' : ''}</div>`:''}
       <div class="preview-box">
         <div class="preview-slot"></div>
         <div class="dirs">${DIRS.map((d) =>
           `<button class="dir${d === this.dir ? ' on' : ''}" data-dir="${d}">${d}</button>`).join('')}</div>
       </div>
       ${rows}
-      ${this.equipmentReady?`<div class="equipment">${EXTRAS.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
+      ${this.equipmentReady?`<div class="equipment">${extras.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
         <select id="equip-${slot}" data-equipment="${slot}">
-        <option value="">None</option>${EQUIPMENT[slot].map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
-      ${this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':''}
+        <option value="">None</option>${choicesOf(slot).map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
+      ${this.equipmentReady&&ownAttack?'<p class="bow-hint">'+weaponHint(ownAttackOf(this.look),true)+' Hits are just for fun—you get straight back up.</p>'
+        :this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':''}
       <p class="builder-error" role="status"></p>
       <button class="done">Done</button>
     </div>`;
@@ -149,23 +157,37 @@ export class Builder {
       s.onchange = () => this.wear(s.dataset.equipment,s.value));
     const browse=this.root.querySelector('.browse-characters');
     if(browse)browse.onclick = () => {this.picking=true;this.render();};
-    this.root.querySelector('.done').onclick = async e => {
-      e.currentTarget.disabled=true;
-      try {await this.onDone(this.look);this.open=false;this.render();}
-      catch {this.root.querySelector('.builder-error').textContent='Could not save. Please try again.';this.root.querySelector('.done').disabled=false;}
-    };
+    /* Back to a character of our own: the ready-made one comes off. */
+    const own=this.root.querySelector('.build-own-btn');
+    if(own)own.onclick = () => this.wear('premade','');
+    this.root.querySelector('.done').onclick = (e) => this.finish(e.currentTarget);
+  }
+
+  /* DONE: saved, and the editor closes -- from the editor or the picker. */
+  async finish(button) {
+    button.disabled=true;
+    try {await this.onDone(this.look);this.open=false;this.picking=false;this.render();}
+    catch {const err=this.root.querySelector('.builder-error');if(err)err.textContent='Could not save. Please try again.';button.disabled=false;}
   }
 
   renderPicker() {
-    const atlas=EQUIPMENT.picker, cell=atlas.cell;
+    /* Thumbnails at twice the atlas: its cells are small, and so are most of
+     * the characters in them. Names in two parts -- the character, then its
+     * kind -- so neither is squeezed into the other. */
+    const atlas=EQUIPMENT.picker, cell=atlas.cell, zoom=2;
+    const COLOURS=/^(blue|brown|green|purple|red|turquoise|yellow|regular|black|white|grey|gray)$/i;
+    const parts=(name)=>{const [kind,...rest]=name.replace(/^Choosen /,'Chosen ').split(' · ');
+      /* "Archer · Blue" is one name; "Chosen Ones · Dark Channeler" is a name and its kind. */
+      return rest.length&&!COLOURS.test(rest.join(' '))?[rest.join(' · '),kind]:[[kind,...rest].join(' · '),''];};
     this.root.innerHTML=`<div class="builder character-picker">
-      <h3>Choose your character</h3><button class="picker-back">Back to your character</button>
+      <div class="picker-head"><h3>Choose your character</h3><button class="picker-back">Back to your character</button><button class="picker-done">Done</button></div>
       <label class="character-search">Find a character <input type="search" placeholder="Name or collection" aria-label="Find a character"></label>
       <div class="character-grid"><button class="character-choice build-own" data-character=""><strong>Build your own</strong><span>Choose your body, clothes and colours</span></button>
-      ${EQUIPMENT.premade.map(item=>`<button class="character-choice${this.look.premade?.part===item.key?' selected':''}" data-character="${esc(item.key)}" data-search="${esc((item.name+' '+item.group).toLowerCase())}" title="${esc(item.group)}">
-        <span class="character-thumb" style="background-image:url('${artUrl(atlas.sheet)}');background-position:-${(item.thumb%atlas.cols)*cell}px -${Math.floor(item.thumb/atlas.cols)*cell}px"></span>
-        <span>${esc(item.name)}</span></button>`).join('')}</div><p class="character-credit">Minifantasy art by Krishna Palacio</p></div>`;
+      ${choicesOf('premade').map(item=>{const [name,kind]=parts(item.name);return `<button class="character-choice${this.look.premade?.part===item.key?' selected':''}" data-character="${esc(item.key)}" data-search="${esc((item.name+' '+item.group).toLowerCase())}" title="${esc(item.name+' — '+item.group)}">
+        <span class="character-thumb" style="background-image:url('${artUrl(atlas.sheet)}');background-size:${atlas.cols*cell*zoom}px ${atlas.rows*cell*zoom}px;background-position:-${(item.thumb%atlas.cols)*cell*zoom}px -${Math.floor(item.thumb/atlas.cols)*cell*zoom}px"></span>
+        <span class="character-name">${esc(name)}</span>${kind?`<span class="character-kind">${esc(kind)}</span>`:''}</button>`;}).join('')}</div><p class="character-credit">Minifantasy art by Krishna Palacio</p><p class="builder-error" role="status"></p></div>`;
     this.root.querySelector('.picker-back').onclick=()=>{this.picking=false;this.render();};
+    this.root.querySelector('.picker-done').onclick=(e)=>this.finish(e.currentTarget);
     this.root.querySelectorAll('[data-character]').forEach(b=>b.onclick=()=>{
       this.picking=false;this.wear('premade',b.dataset.character);
     });
@@ -178,9 +200,10 @@ export class Builder {
 
 /* How to use the weapon in hand: "1" and a click, or on a phone the sword
  * button and a tap (see ui/touch-controls). */
-function weaponHint(part) {
-  const verb = ['bow', 'slingshot'].includes(part) ? 'shoot' : 'strike';
-  return document.documentElement.classList.contains('touch')
-    ? `Tap the sword button to take it out, then tap where to ${verb}.`
-    : `Press 1 to take it out, then click where to ${verb} (Space ${verb}s the way you face).`;
+function weaponHint(part, own = false) {
+  const verb = part === 'spell' ? 'cast' : ['bow', 'slingshot'].includes(part) ? 'shoot' : 'strike';
+  const lead = own ? `Fights with its own ${{ cast: 'spell', shoot: 'shot' }[verb] ?? 'attack'}. ` : 'In your hands as soon as you’re done. ';
+  return lead + (document.documentElement.classList.contains('touch')
+    ? `Tap where to ${verb}; the sword button puts it away and back.`
+    : `Click where to ${verb} (Space ${verb}s the way you face); 1 puts it away and back.`);
 }

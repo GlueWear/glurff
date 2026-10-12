@@ -483,12 +483,14 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .host-offer .row button { flex: 1; }
 
 /* ---- your character, inside your profile ------------------------------- */
-.card-me { display: flex; align-items: center; gap: .7rem; }
-.card-sprite-slot { width: 96px; height: 96px; display: grid; place-items: center;
+/* Your character across the card, as big as the editor draws it, and what
+ * to do with it underneath. */
+.card-me { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
+.card-sprite-slot { height: 170px; display: grid; place-items: center;
   background: #0c0f16; border: 1px solid #2a3244; border-radius: 4px; }
 .card-sprite { image-rendering: pixelated; display: block; }
 .card-sprite.editable { cursor: pointer; }
-.card-me-text { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+.card-me-text { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 
 /* ---- sending $NOCK ------------------------------------------------------ */
 .send-form { display: flex; gap: .3rem; align-items: center; }
@@ -790,4 +792,27 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 @media (max-width: 700px), (max-height: 500px) {
   .sites-panel { position: fixed; left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); width: auto;
     top: calc(52px + var(--safe-t)); }
+}
+
+/* ---- the character editor, 2026-10-12 ------------------------------------ */
+/* Ready-made or our own; the preview at one size (world/paint paintStage);
+   the picker with bigger pictures, names in two parts, and a way out. */
+.builder-modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.builder-modes button { flex: 1 1 auto; padding: 10px 12px; border: 2px solid #7fd6c3; background: #233f3d; color: #ddfff6; font-weight: bold; }
+.builder .preview-slot { width: auto; height: auto; min-height: 0; background-size: 16px 16px; }
+.builder .preview-box { flex-direction: column; gap: 8px; }
+.builder .dirs { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.picker-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.picker-head h3 { flex: 1 1 auto; margin: 0; }
+.picker-done { border-color: #7fd6c3; color: #7fd6c3; }
+.character-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.character-choice { min-height: 136px; justify-content: flex-start; padding: 8px 6px; gap: 4px; }
+.character-thumb { width: 96px; height: 96px; image-rendering: pixelated; }
+.character-name { font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.character-kind { font-size: 10px; line-height: 1.2; color: #9aa7bd; text-align: center; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .character-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  /* Two columns on a phone: "Build your own" a short bar across them, not a
+   * card the height of a row. */
+  .character-choice.build-own { grid-column: 1 / -1; min-height: 0; padding: 10px 6px; }
 }

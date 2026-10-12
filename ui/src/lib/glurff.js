@@ -19,7 +19,7 @@ const tracked = (kind, p) => {
   return Promise.resolve(p).then((v) => { done(true); return v; }, (e) => { done(false); throw e; });
 };
 const ACTION_CLASS = {
-  move: 'legacy-movement', leave: 'legacy-movement', dress: 'avatar', 'fetch-look': 'avatar',
+  move: 'legacy-movement', leave: 'legacy-movement', dress: 'avatar', 'fetch-look': 'avatar', 'unlock-equipment': 'avatar',
   claim: 'room-control', release: 'room-control', lock: 'room-control', knock: 'room-control',
   lease: 'room-control', unlease: 'room-control',
   splash: 'world-event', roll: 'world-event', 'ensure-commons': 'note-install',
@@ -80,6 +80,8 @@ function sendLive(peers, body, kind) {
   return sent || !peers.length ? Promise.resolve(sent) : Promise.reject(new Error('Reconnecting'));
 }
 export const fetchLook = (who) => act('fetch-look', { who });
+/* The Library's secret was said: weapons and the rest are ours to choose (lib/unlock). */
+export const unlockEquipment = () => act('unlock-equipment');
 export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });
 export const lockRoom = (place, mode) => act('lock', { place, mode });

@@ -48,6 +48,9 @@
   ==
 ::  state-2 adds an owner-controlled preview switch for unfinished character
 ::  art. It defaults off and survives agent reloads; saved equipment remains.
+::  Since 2026-10-12 it says only whether we may CHOOSE that art -- everybody
+::  sees it -- and our page turns it on (the Library's secret; see /mar
+::  glurff-action, 'unlock-equipment').
 +$  state-2
   $:  %2
       =look:g

@@ -215,8 +215,9 @@
       [%lease-door peers=(list @p) vis=@tas members=(list @p)]
       ::  Ask a room's lease owner which note it is, or be told it is private.
       [%lease-ask peers=(list @p) host=@p =place]
-      ::  Owner-local development switch. Deliberately absent from the JSON
-      ::  parser: it is changed from Dojo, not from the public UI.
+      ::  Whether we may CHOOSE weapons, mounts, companions and ready-made
+      ::  characters (everybody sees them). Our page turns it on when we say
+      ::  the Library's secret ('unlock-equipment'); only Dojo turns it off.
       [%sprite-lab peers=(list @p) enabled=?]
       ::  Our own settings -- the clocks in the sky, our time zone -- as the
       ::  client's own JSON, stored so they follow us to any browser.
