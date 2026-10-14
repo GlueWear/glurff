@@ -44,6 +44,9 @@ import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs, bodyBox } from 'world/parts';
 import { unlocks } from 'lib/unlock';
+import { sendBox } from 'ui/send-box';
+import { sendBlocked } from 'lib/wallet';
+import { shipLike, validAmount } from 'lib/nock-receipt';
 
 const state = {
   look: DEFAULT_LOOK,
@@ -561,7 +564,31 @@ function secret(text, room) {
     () => showNotice('That did not reach your ship. Say it again.'));
   return true;
 }
-const hud = new Hud(hudRoot, { events, secret });
+/* $NOCK, SENT FROM A MESSAGE (a chat's or a DM's SEND; ui/messages): the
+ * send box, then the payment message at `at`, then the prize over their head
+ * for everybody. */
+async function sendFrom(ship, at) {
+  const why = sendBlocked(ship);
+  if (why) { showNotice(why); return; }
+  const sent = await sendBox({ ship, name: displayName(ship), at });
+  if (sent) rewarded(ship, sent);
+}
+/* "+5 $NOCK" over whoever was paid, here and for everybody in the world
+ * (world/game reward). Cosmetic: it is our word, and only says so. */
+function rewarded(ship, sent) {
+  game.reward(ship, sent.amount);
+  sendWorldAction({ kind: 'nock', id: crypto.randomUUID(), to: ship, amount: sent.amount, scene: game.scene, t0: Date.now() })
+    .catch(() => {});
+  if (!sent.posted) showNotice('Sent. The payment message could not be posted.');
+  else if (!sent.recorded) showNotice('Sent. Noltbook could not record it in your activity.');
+}
+/* Somebody else's prize: from somebody here, to us or somebody here. */
+function receiveReward(who, e) {
+  if (!state.peers.has(who) || palStatus(who) === 'blocked' || !validAmount(e.amount) || !shipLike(e.to) ||
+      (e.to !== our && !state.peers.has(e.to)) || !Number.isFinite(e.t0) || Math.abs(Date.now() - e.t0) > 10000) return;
+  game.reward(e.to, e.amount);
+}
+const hud = new Hud(hudRoot, { events, secret, send: (ship, at) => sendFrom(ship, at) });
 const railRoot = document.createElement('div');
 railRoot.id = 'rail';
 document.body.appendChild(railRoot);
@@ -621,8 +648,9 @@ const card = new ProfileCard(cardRoot, {
   /* Our clocks, edited with our profile; see lib/clocks. */
   clocks,
   onArrangeClocks: () => arrangeClocks(true),
+  onSent: (ship, sent) => rewarded(ship, sent),
 });
-const dms = new Dms(dmRoot, { onShowProfile: (ship) => card.open(ship) });
+const dms = new Dms(dmRoot, { onShowProfile: (ship) => card.open(ship), send: (ship, at) => sendFrom(ship, at) });
 new Contacts(contactsRoot, { onShowProfile: (ship) => card.open(ship) });
 const me = new Me(topRight, { onOpen: (ship) => card.open(ship), look: () => state.look });
 
@@ -1049,6 +1077,7 @@ function onWorldFact(name, p, fromPresence=false) {
          ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
     }else if(event.kind==='wave'){waves.receive(p.who);
+    }else if(event.kind==='nock'){receiveReward(p.who,event);
     }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else if(event.kind?.startsWith('player-')){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked')globalThis.__players?.store.receive(p.who,event);
     }else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}

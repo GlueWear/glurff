@@ -1,5 +1,6 @@
 /* Casual shared dice, and session-only chat for any room without a note of its
- * own. No history is replayed.
+ * own. No history is replayed. Since 2026-10-13 a line can be edited or
+ * deleted -- by whoever wrote it, and nobody else (ui/messages).
  *
  * `rooms` and `gameRoom` come from the map: hard-coded ids meant the dice
  * turned up in whichever room happened to have the old Game Room's number. */
@@ -17,6 +18,20 @@ export function createRoomEvents({our, room, peers, send, random = crypto, trace
     }
     if (!event || typeof event.id !== 'string' || event.id.length > 100 || !event.id.length) return false;
     prune();
+    /* An edit or a deletion: of a line its sender wrote, or nothing. */
+    if (event.kind === 'chat-edit' || event.kind === 'chat-delete') {
+      const target = typeof event.target === 'string' ? messages.find(m => m.eid === event.target) : null;
+      if (!target || target.who !== who) return false;
+      if (event.kind === 'chat-delete') messages = messages.filter(m => m !== target);
+      else {
+        if (typeof event.text !== 'string' || !event.text.trim() || event.text.length > 2000) return false;
+        if (target.text === event.text) return false;
+        messages = messages.map(m => m === target ? {...m, text: event.text, edited: true} : m);
+      }
+      changed(null);
+      trace('room-chat-' + (event.kind === 'chat-edit' ? 'edited' : 'deleted'), {who, place});
+      return true;
+    }
     if (messages.some(m => m.eid === event.id)) return false;
     let text;
     if (event.kind === 'chat' && typeof event.text === 'string' && event.text.trim() && event.text.length <= 2000) text = event.text;
@@ -44,6 +59,8 @@ export function createRoomEvents({our, room, peers, send, random = crypto, trace
     clear: () => { messages=[]; changed(); },
     onChange: f => { listeners.add(f); return () => listeners.delete(f); },
     chat: (text,parent=null) => publish({kind:'chat',id:random.randomUUID(),text,parent}),
+    edit: (target,text) => publish({kind:'chat-edit',id:random.randomUUID(),target,text}),
+    remove: (target) => publish({kind:'chat-delete',id:random.randomUUID(),target}),
     roll: () => {
       if (room() !== gameRoom) return Promise.reject(Error('Enter the Game Room first'));
       const dice=[];

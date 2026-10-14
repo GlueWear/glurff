@@ -11,6 +11,7 @@ import { Space, SPACE_COLOR } from './space.js';
 import { bubbleText, WAVE_MS } from './bubbles.js';
 import { projectileTexture, shotKind, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
+import { shortAmount, validAmount } from '../lib/nock-receipt.js';
 import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED } from '../lib/touch.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
@@ -41,6 +42,8 @@ const NAMEPLATE_SCREEN_GAP = 2;
  * how far away you must get before it offers again. Two tiles and three, the
  * same gap huddles use to stop somebody on an edge flickering in and out. */
 const NEAR_DOOR = 2, LEAVE_DOOR = 3;
+/* How long a "+5 $NOCK" stays over somebody. */
+export const REWARD_MS = 2600;
 /* Where to look for one: around the feet, at a third of a tile apart. Sixteen
  * points covers a doorway from any approach without scanning the map. */
 const DOOR_LOOK = (() => {
@@ -946,6 +949,56 @@ export class Game {
     return true;
   }
 
+  /* $NOCK, RECEIVED (2026-10-13): "+5 $NOCK" pops up over whoever was paid --
+   * for everybody in the world, like a prize in a game -- flashes, rises and
+   * fades. It rides on the nameplate, above the name and any bubble. */
+  reward(ship, amount) {
+    const ch = this.characterOf(ship);
+    if (!ch || !validAmount(amount)) return false;
+    ch.reward = { text: `+${shortAmount(amount)} $NOCK`, start: performance.now() };
+    return true;
+  }
+
+  paintReward(ch, time) {
+    const r = ch.reward, t = time - r.start;
+    if (!ch.rewardNode) {
+      const node = new Container(), sparks = new Graphics();
+      const words = new Text('', { fontFamily: 'Copperplate, "Copperplate Gothic Light", "Trebuchet MS", sans-serif',
+        fontWeight: 'bold', fontSize: 16, fill: 0xffd23f, stroke: 0x3b2400, strokeThickness: 4,
+        dropShadow: true, dropShadowColor: 0x000000, dropShadowAlpha: 0.6, dropShadowDistance: 2 });
+      words.anchor.set(0.5, 1); words.resolution = 2;
+      node.addChild(sparks, words);
+      ch.nameplate.addChild(node);
+      Object.assign(ch, { rewardNode: node, rewardWords: words, rewardSparks: sparks });
+    }
+    const { rewardNode: node, rewardWords: words, rewardSparks: sparks } = ch;
+    if (t >= REWARD_MS) { node.visible = false; ch.reward = null; return; }
+    if (words.text !== r.text) words.text = r.text;
+    const size = Math.round(Number(ch.label.style.fontSize) * 1.35);
+    if (words.style.fontSize !== size) words.style.fontSize = size;
+    /* Above the name, and above a bubble if there is one. */
+    const base = -ch.label.height - 6 - (ch.bubble?.visible ? ch.bubbleWords.height + 8 : 0);
+    const pop = t < 220 ? 0.4 + 0.9 * Math.sin((t / 220) * Math.PI / 2) * (1.2 - 0.2 * (t / 220)) : 1;
+    node.scale.set(pop);
+    node.position.set(0, base - 26 * Math.min(1, t / REWARD_MS));
+    node.alpha = t < 120 ? t / 120 : t > REWARD_MS - 600 ? Math.max(0, (REWARD_MS - t) / 600) : 1;
+    /* Flashing, gold and white, for the first second and a half. */
+    const fill = t < 1500 && Math.floor(t / 110) % 2 ? 0xffffff : 0xffd23f;
+    if (words.style.fill !== fill) words.style.fill = fill;
+    /* A burst of sparks, out from the middle. */
+    sparks.clear();
+    if (t < 900) {
+      const k = t / 900, reach = 6 + 30 * k, h = words.height / 2;
+      sparks.beginFill(0xffe680, 1 - k);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + 0.3;
+        sparks.drawRect(Math.cos(a) * reach * 1.6 - 1.5, -h + Math.sin(a) * reach - 1.5, 3, 3);
+      }
+      sparks.endFill();
+    }
+    node.visible = true;
+  }
+
   /* The bubble rides on the nameplate, so it is sized for the screen the way
    * the name is. Built on first use; redrawn only when its words change. */
   paintBubble(ch, time) {
@@ -1128,8 +1181,10 @@ export class Game {
       this.animateCharacter(p.ch,point.dir??p.spot.dir,walking||distance>.001,time);
       this.followCharacter(p.ch,p.render.x,p.render.y,p.scene,time,dt);
       if(p.ch.asleep||p.ch.waveUntil||p.ch.activity)this.paintBubble(p.ch,time);
+      if(p.ch.reward)this.paintReward(p.ch,time);
     }
     if(this.selfSprite.asleep||this.selfSprite.waveUntil)this.paintBubble(this.selfSprite,time);
+    if(this.selfSprite.reward)this.paintReward(this.selfSprite,time);
 
     let dx = 0, dy = 0;
     if (this.keys.has('a') || this.keys.has('arrowleft')) dx -= 1;

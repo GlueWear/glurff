@@ -15,8 +15,11 @@
 import {
   nb, dmList, dmWith, counterparty, anyUnreadDm, unread, displayName, avatarUrl,
   openDm, messagesFor, postMessage, markRead, subscribeNote, onChange,
-  requestProfile, retryProfile, searchMessages, noteUrl,
+  requestProfile, retryProfile, searchMessages, noteUrl, editMessage, deleteMessage,
 } from 'lib/noltbook';
+import { chatLines, thread } from 'lib/timeline';
+import { messageActions, openMenu, closeMenu, paintText, aboutLine } from 'ui/messages';
+import { ask } from 'ui/ask';
 /* Search -- and urbit-ob with its big-number library behind it -- loads the
  * first time somebody searches, not with the app. */
 let searchLib = null, searchLoading = null;
@@ -33,15 +36,18 @@ const avatar = (ship) => `<span class="av">${avatarHtml(ship)}</span>`;
 const NOTE_TYPE = { gossip: 'gossip', group: 'group', notebook: 'note' };
 const openNote = (id) => window.open(noteUrl(id), '_blank', 'noopener');
 
-import { render as renderText } from 'ui/media';
 import { esc } from 'ui/html';
 import { avatarHtml } from 'ui/avatar';
 
 export class Dms {
-  constructor(root, { onShowProfile } = {}) {
+  constructor(root, { onShowProfile, send } = {}) {
     this.root = root;
     this.root.className = 'dms';
     this.onShowProfile = onShowProfile ?? (() => {});
+    /* (ship, at): a message's SEND; see ui/send-box. */
+    this.send = send ?? (() => {});
+    /* The message being answered or edited in the open conversation. */
+    this.replyTo = null; this.editing = null;
     this.panelOpen = false;
     this.query = '';
     this.searchReq = 0;      //  the message search whose answer we will show
@@ -258,6 +264,7 @@ export class Dms {
     this.open = null;
     this.built = null;
     this.body = null;
+    this.replyTo = null; this.editing = null; closeMenu();
   }
 
   paintWindow() {
@@ -275,8 +282,20 @@ export class Dms {
           <button class="dm-close" title="Close">&times;</button>
         </div>
         <div class="dm-body"></div>
+        <div class="dm-replying replying" hidden></div>
         <form class="dm-send"><input placeholder="Message ${esc(displayName(ship))}" autocomplete="off"></form>`;
       this.body = this.win.querySelector('.dm-body');
+      /* A click on a message opens what may be done with it -- Noltbook's
+       * own menu but pinning; see ui/messages. */
+      this.body.addEventListener('click', (e) => {
+        const el = e.target.closest('.line'); if (!el || !aboutLine(e)) return;
+        const line = this.lines?.get(el.dataset.eid);
+        const actions = messageActions(line, { our, note: nb.notes[noteId] ?? null });
+        if (actions.length) openMenu(e.clientX, e.clientY, actions, (act) => this.act(act, line));
+      });
+      /* Gone when WE scroll, not when a new message moves the list. */
+      this.body.addEventListener('wheel', closeMenu, { passive: true });
+      this.body.addEventListener('touchmove', closeMenu, { passive: true });
       /* The cross puts the conversation away and nothing else opens: going
        * back to the menu meant closing two things to get back to the world. */
       this.win.querySelector('.dm-close').onclick = () => this.closeAll();
@@ -290,8 +309,21 @@ export class Dms {
         const text = input.value.trim();
         if (!text) return;
         input.value = '';
-        postMessage(noteId, text).catch((e2) => console.error('dm send', e2));
+        const editing = this.editing, replyTo = this.replyTo;
+        this.editing = null; this.replyTo = null; this.paintBar();
+        if (editing) {
+          if (text !== editing.text) editMessage(noteId, editing.replyId, text).catch((e2) => console.error('dm edit', e2));
+          return;
+        }
+        postMessage(noteId, text, replyTo?.replyId ?? null).catch((e2) => console.error('dm send', e2));
       };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && (this.editing || this.replyTo)) {
+          e.preventDefault(); e.stopPropagation();
+          if (this.editing) input.value = '';
+          this.editing = null; this.replyTo = null; this.paintBar();
+        }
+      });
       input.focus();
     }
 
@@ -300,17 +332,25 @@ export class Dms {
      * missed line. */
     const atBottom =
       this.body.scrollHeight - this.body.scrollTop - this.body.clientHeight < 40;
-    const msgs = messagesFor(noteId);
-    this.body.innerHTML = msgs.length
-      ? msgs.map((m) => `<div class="dm-msg${m.author === our ? ' mine' : ''}">
-           <span class="a">${esc(displayName(m.author))}</span>
-           <span class="t"></span></div>`).join('')
+    /* THE SAME LINES AS THE ROOM CHATS: who, when, what -- threaded under
+     * what they answer, the way Noltbook threads a DM. */
+    const lines = thread(chatLines(messagesFor(noteId), displayName));
+    const note = nb.notes[noteId] ?? null;
+    this.lines = new Map(lines.map((m) => [m.eid, m]));
+    this.body.innerHTML = lines.length
+      ? lines.map((m) => `<article class="line${m.depth ? ' reply-line' : ''}${m.author === our ? ' mine' : ''}${messageActions(m, { our, note }).length ? ' actionable' : ''}" data-eid="${esc(m.eid)}" style="--depth:${m.depth}">
+           <header><span class="who">${esc(m.who ?? '')}</span><time>${Number.isFinite(m.at) && m.at ? esc(timeFormat.format(new Date(m.at))) : ''}</time>${m.replies ? `<span class="replies">${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}</span>` : ''}</header>
+           <div class="post-text"></div></article>`).join('')
       : '<div class="dim pad">nothing yet</div>';
     /* A picture is built as nodes, never as a string of somebody else's
-     * text; see ui/media. */
-    if (msgs.length) {
-      const said = this.body.querySelectorAll('.dm-msg .t');
-      msgs.forEach((m, i) => { if (said[i]) renderText(said[i], m.text ?? ''); });
+     * text; see ui/media. A payment message reads as one (ui/messages). */
+    if (lines.length) {
+      const said = this.body.querySelectorAll('.line .post-text');
+      lines.forEach((m, i) => {
+        if (!said[i]) return;
+        paintText(said[i], m.text, { our, name: displayName });
+        if (m.edited) { const ed = document.createElement('span'); ed.className = 'edited'; ed.textContent = '(edited)'; said[i].append(' ', ed); }
+      });
     }
 
     /* Reading it is what marks it read; the dot has no other way to clear. */
@@ -318,7 +358,39 @@ export class Dms {
     if (atBottom) this.scrollDown();
   }
 
+  /* What the menu does, in the open conversation. */
+  async act(act, line) {
+    const noteId = this.open?.noteId;
+    if (!noteId || !line) return;
+    const input = this.win.querySelector('.dm-send input');
+    if (act === 'reply') { this.editing = null; this.replyTo = line; this.paintBar(); input.focus(); }
+    else if (act === 'edit') { this.replyTo = null; this.editing = line; input.value = line.text; this.paintBar(); input.focus(); }
+    else if (act === 'send') this.send(line.author, { noteId, replyToEid: line.replyId });
+    else if (act === 'delete') {
+      if (!(await ask('Delete this message?', { yes: 'Delete' }))) return;
+      deleteMessage(noteId, line.replyId).catch((e) => console.error('dm delete', e));
+    }
+  }
+
+  /* "replying to …" or "editing your message", with a way out. */
+  paintBar() {
+    const bar = this.win?.querySelector('.dm-replying');
+    if (!bar) return;
+    const text = this.editing ? 'editing your message' : this.replyTo ? `replying to ${this.replyTo.who ?? ''}` : '';
+    bar.hidden = !text; bar.textContent = text;
+    if (!text) return;
+    const cancel = document.createElement('button'); cancel.className = 'cancel'; cancel.textContent = '×';
+    cancel.title = this.editing ? 'Stop editing' : 'Stop replying';
+    cancel.onclick = () => {
+      if (this.editing) this.win.querySelector('.dm-send input').value = '';
+      this.editing = null; this.replyTo = null; this.paintBar();
+    };
+    bar.append(' ', cancel);
+  }
+
   scrollDown() {
     requestAnimationFrame(() => { if (this.body) this.body.scrollTop = this.body.scrollHeight; });
   }
 }
+
+const timeFormat = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });

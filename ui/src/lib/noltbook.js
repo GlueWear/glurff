@@ -549,6 +549,10 @@ export const postMessage = (noteId, text, replyToEid = null) => {
         { attribute: true });
 };
 export const openDm = (ship) => nbApi('find-or-create-dm', { ship }).then((r) => r?.noteId ?? null);
+/* EDIT AND DELETE, by the message's eid, as Noltbook's own page does; its
+ * backend decides who may (2026-10-13). */
+export const editMessage = (noteId, eid, text) => nbApi('edit-message', { noteId, eid, text });
+export const deleteMessage = (noteId, eid) => nbApi('delete-message', { noteId, eid });
 export const markRead = (noteId) => {
   /* Move the local read mark now. The fact comes back too, but the dot has to
    * clear on the click rather than on the round trip. */

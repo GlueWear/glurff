@@ -4,17 +4,23 @@ import { createChatUnread } from 'lib/chat-unread';
 import { our } from 'lib/api';
 import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   displayName, noteName, noteUrl, watchNotes, setChatHistory, chatHistoryCount,
-  hasEarlierMessages, loadEarlierMessages, onChange } from 'lib/noltbook';
+  hasEarlierMessages, loadEarlierMessages, onChange, editMessage, deleteMessage } from 'lib/noltbook';
+import { messageActions, openMenu, closeMenu, paintText, aboutLine } from 'ui/messages';
+import { ask } from 'ui/ask';
 import { roomById, GAME_ROOM } from 'world/places';
-import { render as renderText } from 'ui/media';
 import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
 import { esc } from 'ui/html';
 
 
 export class Hud {
-  constructor(root, { events, secret } = {}) {
+  constructor(root, { events, secret, send } = {}) {
     this.root = root;
     this.events = events;
+    /* (ship, at): a message's SEND -- the send box, and the payment message
+     * at `at` (lib/wallet postReceipt). */
+    this.send = send ?? (() => {});
+    /* The line being edited, its words back in the box; see ui/messages. */
+    this.editing = null;
     /* (text, room) => true when what was typed is not a message at all (the
      * Library's secret; see lib/unlock), and so is not sent. */
     this.secret = secret ?? (() => false);
@@ -28,7 +34,7 @@ export class Hud {
     this.rows = new Map(); this.models = new Map();
     /* Our Commons and Rumors posts, shown before Noltbook confirms them. */
     this.pending = createPending();
-    this.profileRevision = 0; this.expanded = false; this.historySize = 100;
+    this.profileRevision = 0; this.historySize = CHAT_LINES;
     /* The note this room's chat is currently bound to, so we can notice it
      * changing under us; see retune. */
     this.boundNote = null;
@@ -70,11 +76,11 @@ export class Hud {
   async setRoom(room) {
     this.unread.reset();
     this.room = room;
-    this.historySize = 100;
-    this.replyTo = null;
+    this.historySize = CHAT_LINES;
+    this.replyTo = null; this.editing = null; closeMenu();
     const note = this.noteFor(room);
     this.boundNote = note;
-    setChatHistory(this.chatOpen?(this.expanded?this.historySize:3):0);
+    setChatHistory(this.chatOpen ? this.historySize : 0);
     const watching=note && (note!==COMMONS_NOTE || nb.world.joined)?watchNotes(note):watchNotes();
     this.paint(); // Cached chat must not wait for a network subscription ACK.
     await watching.catch(() => {});
@@ -89,7 +95,7 @@ export class Hud {
     if (note === this.boundNote) return;
     this.unread.reset();
     this.boundNote = note;
-    this.replyTo = null;
+    this.replyTo = null; this.editing = null; closeMenu();
     (note && (note!==COMMONS_NOTE || nb.world.joined) ? watchNotes(note) : watchNotes()).catch(() => {});
     this.invalidate();
   }
@@ -97,10 +103,37 @@ export class Hud {
   /* Threaded replies are Noltbook's, so a reply here is a real reply there --
    * it carries the parent's eid rather than being a new top-level line. */
   setReply(m) {
-    this.replyTo = m;
+    this.replyTo = m; if (m) this.editing = null;
     this.paint();
     if(m)this.setOpen(true);
     if (m) this.root.querySelector('.say input').focus({ preventScroll: true });
+  }
+
+  /* What may be done in this chat (ui/messages messageActions). */
+  context() {
+    const note = this.noteFor(this.room);
+    return { our, note: note ? nb.notes[note] ?? null : null, anonymous: note === RUMORS_NOTE };
+  }
+
+  async act(act, line) {
+    const note = this.noteFor(this.room);
+    if (act === 'reply') this.setReply(line);
+    else if (act === 'edit') {
+      this.replyTo = null; this.editing = line;
+      const input = this.root.querySelector('.say input');
+      input.value = line.text; this.chatSticky = true;
+      this.setOpen(true); input.focus({ preventScroll: true });
+    } else if (act === 'send') {
+      /* The payment message goes where the send was made: a saved chat as a
+       * reply to the message, a session chat as one of its lines. */
+      this.send(line.author, note ? { noteId: note, replyToEid: line.replyId }
+        : { room: (text) => this.events.chat(text, line.eid) });
+    } else if (act === 'delete') {
+      if (!(await ask('Delete this message?', { yes: 'Delete' }))) return;
+      (note ? deleteMessage(note, line.replyId) : this.events.remove(line.eid)).catch(() => {
+        this.root.querySelector('.error').textContent = 'That could not be deleted. Try again.';
+      });
+    }
   }
 
   invalidate() {
@@ -118,7 +151,8 @@ export class Hud {
     const old = this.cached;
     if (old && old.messages === messages && old.room === this.room && old.profiles === this.profileRevision &&
         old.pending === this.pending.revision()) return old.lines;
-    const flat = note ? chatLines(messages, displayName, note === RUMORS_NOTE) : messages.map(m => ({...m, who: displayName(m.who)}));
+    const flat = note ? chatLines(messages, displayName, note === RUMORS_NOTE)
+      : messages.map(m => ({...m, who: displayName(m.who), author: m.who, replyId: m.eid}));
     const mine = note ? this.pending.lines(note, messages, { who: note === RUMORS_NOTE ? null : displayName(our) }) : [];
     const lines = thread(mine.length ? [...flat, ...mine] : flat);
     this.cached = {messages, room: this.room, profiles: this.profileRevision, pending: this.pending.revision(), lines};
@@ -133,6 +167,9 @@ export class Hud {
         <div class="where"></div>
         <div class="game-controls"><button type="button">Roll 3 dice</button></div>
         <div class="error" role="status"></div>
+        <div class="rumors-note" hidden><strong>Rumors</strong> No name is on anything said here. It goes from pal to pal:
+          you hear what your pals pass on, and they pass on what you say. With no pals, nobody hears you and nothing
+          reaches you; add pals from their profile cards.</div>
         <div class="stream"></div>
         <div class="replying"></div>
         <form class="say"><input placeholder="say something" enterkeyhint="send" /></form>
@@ -143,35 +180,45 @@ export class Hud {
     /* ON A PHONE there is no hovering over the chat to see more of it: open is
      * all of it, in a panel that scrolls. html.chat-open lets the layout make
      * room for it; see style.css. */
-    this.setOpen=open=>{this.chatOpen=open;if(touchy()){this.expanded=open;this.root.querySelector('.say input').placeholder='Say something';}
-      document.documentElement.classList.toggle('chat-open',open);this.unread.open(open);setChatHistory(open?(this.expanded?this.historySize:3):0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
+    /* OPEN IS OPEN (2026-10-13): the last CHAT_LINES messages, the same size
+     * whatever the pointer does -- nothing grows on hover and shrinks when the
+     * pointer heads for a line's menu. Older ones are a scroll up. */
+    this.setOpen=open=>{this.chatOpen=open;if(open)this.historySize=CHAT_LINES;if(touchy())this.root.querySelector('.say input').placeholder='Say something';
+      document.documentElement.classList.toggle('chat-open',open);this.unread.open(open);setChatHistory(open?this.historySize:0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
     this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
     this.stream = this.root.querySelector('.stream');
-    this.stream.addEventListener('mouseenter', () => {
-      if (touchy()) return;
-      this.expanded = true; setChatHistory(this.historySize); this.paint(); this.stream.scrollTop = this.stream.scrollHeight;
-    });
-    this.stream.addEventListener('mouseleave', () => {
-      if (touchy()) return;
-      this.expanded = false; this.historySize = 100; setChatHistory(3); this.paint();
-      this.stream.scrollTop = this.stream.scrollHeight;
-    });
-    this.stream.addEventListener('scroll', () => {
+    /* OLDER MESSAGES: scrolled to the top -- or, while everything still fits,
+     * a wheel turned up there -- brings fifty more. */
+    const older = () => {
       const note=this.noteFor(this.room);
-      if (!this.expanded || this.stream.scrollTop >= 30) return;
       const available=note?chatHistoryCount(note):this.lines().length;
       if (this.historySize < available) {
-        this.historySize = Math.min(500, this.historySize + 100);
+        this.historySize = Math.min(500, this.historySize + 50);
         setChatHistory(this.historySize); this.paint();
       }
       if (note && this.historySize >= available && hasEarlierMessages(note))
         loadEarlierMessages(note).catch(error => console.warn('Could not load earlier chat:', error.message));
+    };
+    /* Only a scroll UP: the chat keeping itself at the newest message scrolls
+     * too, and that is no request for more. */
+    let lastTop = 0;
+    this.stream.addEventListener('scroll', () => {
+      const top = this.stream.scrollTop, up = top < lastTop; lastTop = top;
+      if (up && top < 30) older();
     });
+    this.stream.addEventListener('wheel', (e) => { if (e.deltaY < 0 && this.stream.scrollTop === 0) older(); }, { passive: true });
+    /* A click on a line opens what may be done with it, where it was
+     * clicked (ui/messages); nothing for Rumors, which is nobody's. */
     this.stream.addEventListener('click', e => {
-      const el = e.target.closest('.line'); if (!el) return;
-      if (e.target.closest('.reply')) { e.stopPropagation(); this.setReply(this.models.get(el.dataset.eid)); }
-      else el.classList.toggle('open');
+      const el = e.target.closest('.line'); if (!el || !aboutLine(e)) return;
+      const line = this.models.get(el.dataset.eid);
+      const actions = messageActions(line, this.context());
+      if (actions.length) openMenu(e.clientX, e.clientY, actions, act => this.act(act, line));
     });
+    /* The menu goes when WE scroll the chat, not when it moves under us --
+     * a new message keeping it at the bottom closed it before a choice. */
+    this.stream.addEventListener('wheel', closeMenu, { passive: true });
+    this.stream.addEventListener('touchmove', closeMenu, { passive: true });
     this.where = this.root.querySelector('.where');
     const form = this.root.querySelector('.say');
     const input = form.querySelector('input');
@@ -182,6 +229,7 @@ export class Hud {
       if (document.activeElement === input) {
         if (e.key === 'Escape') {
           e.preventDefault();
+          if (this.editing) { this.editing = null; input.value = ''; this.paint(); }
           input.blur();
         } else if (e.key === 'Enter') {
           e.preventDefault();
@@ -210,6 +258,16 @@ export class Hud {
       const v = input.value.trim();
       if (!v) return;
       input.value = '';
+      /* AN EDIT: the same line, new words. */
+      if (this.editing) {
+        const target = this.editing, note = this.noteFor(this.room);
+        this.editing = null; this.paint();
+        if (v === target.text) return;
+        (note ? editMessage(note, target.replyId, v) : this.events.edit(target.eid, v)).catch(() => {
+          this.root.querySelector('.error').textContent = 'That could not be edited. Try again.';
+        });
+        return;
+      }
       if (this.secret(v, this.room)) return;
       const note = this.noteFor(this.room);
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
@@ -257,14 +315,15 @@ export class Hud {
     const label = `${esc(title)} ${saved}`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
     this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
+    this.root.querySelector('.rumors-note').hidden = note !== RUMORS_NOTE;
     if (!this.chatOpen) return;
     const all = this.lines();
-    const shown = recentLines(all, this.expanded ? this.historySize : 3);
-    const recent = new Set(recentLines(all, 3).map(m => m.eid));
+    const shown = recentLines(all, this.historySize);
+    const recent = new Set(shown.map(m => m.eid));
     const scroll = this.stream.scrollTop;
     const atBottom = this.stream.scrollHeight - scroll - this.stream.clientHeight < 40;
     const top = this.stream.getBoundingClientRect().top;
-    const anchor = this.expanded && !atBottom ? [...this.stream.children].find(el => el.getBoundingClientRect().bottom > top) : null;
+    const anchor = !atBottom ? [...this.stream.children].find(el => el.getBoundingClientRect().bottom > top) : null;
     const anchorOffset = anchor ? anchor.getBoundingClientRect().top - top : 0;
     const keys = new Set(shown.map(m => m.eid));
     for (const [key, el] of this.rows) if (!keys.has(key)) { el.remove(); this.rows.delete(key); }
@@ -274,10 +333,10 @@ export class Hud {
       let el = this.rows.get(m.eid);
       if (!el) {
         el = document.createElement('article'); el.className = 'line'; el.dataset.eid = m.eid;
-        el.innerHTML = '<header><span class="who"></span><time></time><span class="replies"></span><button class="reply">Reply</button></header><div class="post-text"></div>';
+        el.innerHTML = '<header><span class="who"></span><time></time><span class="replies"></span></header><div class="post-text"></div>';
         this.rows.set(m.eid, el);
       }
-      const value = [m.who, m.text, m.at, m.depth, m.replies, m.sendEid, recent.has(m.eid), m.pending];
+      const value = [m.who, m.text, m.at, m.depth, m.replies, m.sendEid, recent.has(m.eid), m.pending, m.edited, m.author, this.profileRevision];
       if (!el.chatValue || value.some((v, i) => v !== el.chatValue[i])) {
         el.classList.toggle('reply-line', Boolean(m.depth));
         el.classList.toggle('recent', recent.has(m.eid)); el.style.setProperty('--depth', m.depth);
@@ -285,30 +344,40 @@ export class Hud {
         const setText = (selector, text) => { const node = el.querySelector(selector); if (node.textContent !== text) node.textContent = text; };
         setText('.who', String(m.who ?? 'Anonymous'));
         /* Rumors is anonymous, so it stays letters for letters; see ui/media. */
-        renderText(el.querySelector('.post-text'), String(m.text),
-          { embed: this.noteFor(this.room) !== RUMORS_NOTE });
+        const said = el.querySelector('.post-text');
+        paintText(said, m.text, { our, name: displayName, embed: this.noteFor(this.room) !== RUMORS_NOTE });
+        if (m.edited) { const ed = document.createElement('span'); ed.className = 'edited'; ed.textContent = '(edited)'; said.append(' ', ed); }
+        el.classList.toggle('mine', !!m.author && m.author === our);
+        el.classList.toggle('actionable', messageActions(m, this.context()).length > 0);
         setText('time', Number.isFinite(m.at) && m.at ? timeFormat.format(new Date(m.at)) : '');
         setText('.replies', m.replies ? `${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}` : '');
-        el.querySelector('.reply').hidden = !m.eid || m.sendEid === null;
         el.chatValue = value;
       }
       if (el !== cursor) this.stream.insertBefore(el, cursor);
       cursor = el.nextSibling;
     }
-    if (!this.expanded || atBottom) this.stream.scrollTop = this.stream.scrollHeight;
+    if (atBottom) this.stream.scrollTop = this.stream.scrollHeight;
     else if (anchor?.isConnected) this.stream.scrollTop = scroll + anchor.getBoundingClientRect().top - top - anchorOffset;
     else this.stream.scrollTop = scroll;
     const banner = this.root.querySelector('.replying');
-    const replyLabel = this.replyTo ? `replying to ${this.replyTo.who ?? 'anon'}` : '';
+    const replyLabel = this.editing ? 'editing your message' : this.replyTo ? `replying to ${this.replyTo.who ?? 'anon'}` : '';
     if (this.replyLabel !== replyLabel) {
       this.replyLabel = replyLabel; banner.textContent = replyLabel;
-      if (this.replyTo) {
-        const cancel = document.createElement('button'); cancel.className = 'cancel'; cancel.textContent = 'x';
-        cancel.onclick = () => this.setReply(null); banner.append(' ', cancel);
+      if (this.editing || this.replyTo) {
+        const cancel = document.createElement('button'); cancel.className = 'cancel'; cancel.textContent = '×';
+        cancel.title = this.editing ? 'Stop editing' : 'Stop replying';
+        cancel.onclick = () => {
+          if (this.editing) { this.editing = null; this.root.querySelector('.say input').value = ''; this.paint(); }
+          else this.setReply(null);
+        };
+        banner.append(' ', cancel);
       }
     }
   }
 }
+
+/* How many messages an open chat shows, before scrolling up for more. */
+export const CHAT_LINES = 7;
 
 /* Played by touch: see ui/touch-controls. */
 const touchy = () => typeof document !== 'undefined' && document.documentElement.classList.contains('touch');

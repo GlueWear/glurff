@@ -33,7 +33,7 @@ const classify = (event) => {
   if (typeof k === 'string' && k.startsWith('player-')) return 'player-state';
   if (k === 'room-state') return 'room-state';
   if (typeof k === 'string' && k.startsWith('room-')) return 'room-list';
-  if (k === 'shot' || k === 'arrow' || k === 'arrow-hit' || k === 'strike' || k === 'strike-hit' || k === 'wave') return 'world-event';
+  if (k === 'shot' || k === 'arrow' || k === 'arrow-hit' || k === 'strike' || k === 'strike-hit' || k === 'wave' || k === 'nock') return 'world-event';
   return 'presence-other';
 };
 

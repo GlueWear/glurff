@@ -16,7 +16,7 @@ import {
 } from 'lib/noltbook';
 import { our } from 'lib/api';
 import { bioHtml, externalAvatar } from 'lib/profile-text';
-import { sendNock, sendBlocked } from 'lib/wallet';
+import { pay, sendBlocked, previewFee, unlockIris, sendError } from 'lib/wallet';
 import { paintStage } from 'world/paint';
 /* urbit-ob, and the big-number library behind it, is loaded the first time a
  * profile card is opened rather than with the app: nothing else needs it. */
@@ -112,12 +112,15 @@ function zoneSelect(zone) {
 const GHOST_CLICK_MS = 400;
 
 export class ProfileCard {
-  constructor(root, { onOpenDm, look, onEditCharacter, presenceOf, onWave, clocks = null, onArrangeClocks } = {}) {
+  constructor(root, { onOpenDm, look, onEditCharacter, presenceOf, onWave, clocks = null, onArrangeClocks, onSent } = {}) {
     this.root = root;
     this.root.className = 'card-overlay';
     this.root.hidden = true;
     this.ship = null;
     this.onOpenDm = onOpenDm ?? (() => {});
+    /* (ship, sent): $NOCK went to them from this card -- the prize over their
+     * head, for everybody (world/game reward). */
+    this.onSent = onSent ?? (() => {});
     /* Your character is part of your profile, the way your picture is; the
      * editor is opened by clicking it. */
     this.look = look ?? (() => null);
@@ -333,6 +336,7 @@ export class ProfileCard {
           <input class="send-amount" type="number" min="0" step="0.0001" placeholder="NOCK" autocomplete="off">
           <button type="submit" class="b-confirm">SEND</button>
           <button type="button" class="b-cancel">CANCEL</button>
+          <div class="send-fee dim" aria-live="polite"></div>
         </form>
         <div class="send-status" role="status">${esc(this.status ?? '')}</div>
         <div class="card-notes">
@@ -456,22 +460,43 @@ export class ProfileCard {
     const form = q('.send-form');
     if (form) {
       form.querySelector('.b-cancel').onclick = () => { this.sending = false; this.status = ''; this.paint(); };
+      /* WHAT THE NETWORK WILL CHARGE, as the amount is typed: Iris works it
+       * out without sending anything (lib/wallet previewFee). */
+      const amountIn = form.querySelector('.send-amount'), fee = form.querySelector('.send-fee');
+      let feeTimer = null, feeSeq = 0, retries = 0;
+      const showFee = async () => {
+        const mine = ++feeSeq;
+        if (!(Number(amountIn.value) > 0)) { fee.textContent = ''; return; }
+        fee.textContent = 'Working out the network fee…';
+        const r = await previewFee(ship, amountIn.value);
+        if (mine !== feeSeq || !fee.isConnected) return;
+        if (r.busy && retries++ < 3) { feeTimer = setTimeout(showFee, 500); return; }
+        retries = 0; fee.textContent = r.text;
+        if (r.locked) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'send-unlock'; b.textContent = 'UNLOCK';
+          b.onclick = async () => { fee.textContent = 'Unlock Iris in its window…'; await unlockIris(); showFee(); };
+          fee.append(' ', b);
+        }
+      };
+      amountIn.addEventListener('input', () => { clearTimeout(feeTimer); feeTimer = setTimeout(showFee, 500); });
+      /* SENT: Iris, then Noltbook's record of it and a payment message in our
+       * DM with them (lib/wallet pay) -- and the card gets out of the way so
+       * the prize over their head can be seen. */
       form.onsubmit = async (e) => {
         e.preventDefault();
-        const amount = form.querySelector('.send-amount').value;
         const button = form.querySelector('.b-confirm');
         button.disabled = true;
         this.say('Approve it in Iris…');
         try {
-          const tx = await sendNock(ship, amount);
+          const sent = await pay({ ship, amount: amountIn.value, at: { dm: true } });
           if (this.ship !== ship) return;
           this.sending = false;
-          this.status = tx ? `Sent · ${String(tx).slice(0, 12)}…` : 'Sent.';
-          this.paint();
+          this.close();
+          this.onSent(ship, sent);
         } catch (err) {
           if (this.ship !== ship) return;
           button.disabled = false;
-          this.say(err?.message || 'Iris could not send that.');
+          this.say(sendError(err));
         }
       };
     }

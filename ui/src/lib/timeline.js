@@ -67,9 +67,14 @@ export function chatLines(messages, name, anonymous = false) {
   /* Call markers never reach a reader, here or in Noltbook. */
   messages = visibleMessages(messages);
   const byId = new Map(messages.map(m => [String(m.id), messageKey(m)]));
-  return messages.map(m => ({eid: messageKey(m), sendEid: m.meta?.eid ?? null,
+  /* `author` is the ship, for what may be done with a line (ui/messages);
+   * anonymous lines have none. `replyId` is what a reply, an edit or a
+   * deletion names: the message's eid. */
+  return messages.map(m => ({eid: messageKey(m), sendEid: m.meta?.eid ?? null, replyId: m.meta?.eid ?? null,
     parent: m.meta?.replyToEid ?? (m.replyTo != null ? byId.get(String(m.replyTo)) : null),
-    who: anonymous ? null : name(m.author), text: m.text ?? '', at: m.timestamp ?? m.id, via: m.via}));
+    who: anonymous ? null : name(m.author), author: anonymous ? null : m.author ?? null,
+    edited: !!m.edited, imported: !!m.import,
+    text: m.text ?? '', at: m.timestamp ?? m.id, via: m.via}));
 }
 
 /* Break only cyclic parent edges, then aggregate the forest once, bottom up.
