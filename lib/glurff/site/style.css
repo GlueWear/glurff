@@ -86,6 +86,8 @@ button:hover { border-color: #7fd6c3; }
 .media-url input { width: min(520px,75vw); background: rgba(15,19,29,.9); border: 1px solid #2a3244;
   color: inherit; font: inherit; padding: .45rem; border-radius: 3px; }
 .media-url input:focus { outline: none; border-color: #7fd6c3; }
+.media-share-row { display: flex; justify-content: stretch; }
+.media-share-row .media-share { width: 100%; border-color: #7fd6c3; color: #7fd6c3; font-weight: 700; }
 .media-error { min-height: 1.2em; color: #ee6262; }
 .media-question .ask { width: min-content; max-width: 90vw; }
 .rail-btns { display: flex; gap: 3px; }
@@ -772,6 +774,14 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .app-panel.staged .app-frame { width: 100% !important; height: 100% !important; }
 #stage-media { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 #stage-media:empty { display: none; }
+#stage-call-media { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+#stage-call-media:empty { display: none; }
+.tile.staged-call-tile { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: auto;
+  border: 0; border-radius: 0; background: #000; }
+.tile.staged-call-tile video { width: 100%; height: 100%; object-fit: contain; }
+.tile.staged-call-tile .face { width: 100%; height: 100%; object-fit: contain; }
+.tile.staged-call-tile .initials { height: 100%; aspect-ratio: auto; font-size: min(20vw,20vh); }
+.tile.staged-call-tile .grip { display: none; }
 .world-media.staged-media { position: fixed; inset: 0; width: auto; height: auto; pointer-events: auto;
   border: 0; box-shadow: none; background: #000; }
 .staged #world-media-layer, .staged .touch-controls, .staged .arrange-bar, .staged .clock-tip { display: none !important; }
@@ -780,16 +790,21 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .overlay-off #top-right, .overlay-off .call-panels, .overlay-off .card-overlay,
 .overlay-off .app-panel:not(.staged) { display: none !important; }
 /* The tab: what is on the stage, Glurff's interface off and on, and close. */
-.stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: calc(100vw - 24px); pointer-events: none; }
-.stage-bar { pointer-events: auto; display: flex; align-items: center; gap: .35rem; max-width: 100%;
+.stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 12px; right: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+.stage-wake { position: fixed; z-index: 0; left: 0; right: 0; top: 0; height: calc(96px + var(--safe-t)); pointer-events: none; }
+.stage-bar { position: relative; z-index: 1; pointer-events: auto; display: flex; align-items: center; gap: .35rem; max-width: 100%;
   padding: 3px 4px 3px 12px; background: rgba(10,12,18,.92); border: 1px solid #2a3244; border-radius: 999px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.5); font-size: 12px; }
+  box-shadow: 0 2px 10px rgba(0,0,0,.5); font-size: 12px; transition: opacity .25s, transform .25s; }
 .stage-title { min-width: 0; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff6dc; }
 .stage-bar button { border-radius: 999px; padding: 2px 10px; font-size: 12px; white-space: nowrap; }
 .stage-bar .stage-close { padding: 0 9px; font-size: 16px; line-height: 1.25; }
-.stage-hint { pointer-events: none; background: rgba(10,12,18,.92); border: 1px solid #2a3244; border-radius: 6px;
-  padding: 5px 10px; font-size: 11px; line-height: 1.4; color: #c9d4e4; text-align: center; max-width: min(520px, 100%); }
+.stage-hint { position: relative; z-index: 1; pointer-events: none; background: rgba(10,12,18,.92); border: 1px solid #2a3244; border-radius: 6px;
+  padding: 5px 10px; font-size: 11px; line-height: 1.4; color: #c9d4e4; text-align: center; max-width: min(520px, 100%);
+  transition: opacity .25s; }
+.overlay-off .stage-tab.sleeping .stage-bar { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.overlay-off .stage-tab.sleeping .stage-hint { opacity: 0; }
+.overlay-off .stage-tab.sleeping .stage-wake { pointer-events: auto; }
 @media (max-width: 1000px) { .stage-tab { top: calc(52px + var(--safe-t)); } }
 @media (max-height: 500px) { .stage-tab { top: calc(48px + var(--safe-t)); } }
 

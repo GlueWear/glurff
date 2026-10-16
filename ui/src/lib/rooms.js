@@ -687,7 +687,7 @@ export const onRooms=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
 const changed=()=>{gateEpoch++;listeners.forEach(fn=>{try{fn();}catch(e){console.error(e);}});};
 
 function selectRemoteCamera(ship) {
-  const video=[...rooms.remoteStreams.values()].find(r=>r.ship===ship && r.label!=='screen' && r.stream.getVideoTracks().some(t=>t.readyState!=='ended'));
+  const video=[...rooms.remoteStreams.values()].find(r=>r.ship===ship && !String(r.label).startsWith('screen') && r.stream.getVideoTracks().some(t=>t.readyState!=='ended'));
   if(video)rooms.streams.set(ship,video.stream);else rooms.streams.delete(ship);
 }
 function removeRemoteStream(id,ship) {
@@ -1804,17 +1804,23 @@ const cameraForCall=()=>startPreview().then(p=>{if(!p)throw new Error('Camera is
  * It ends when it should: you turn it off, the browser's own "stop sharing"
  * ends it, an admin mutes you, the track fails, or the tab closes. */
 let display=null, displaying=null;
+const freshScreenToken=()=>globalThis.crypto?.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 function startDisplay(){
   if(display)return Promise.resolve(display);
   if(displaying)return displaying;
-  const task=navigator.mediaDevices.getDisplayMedia({video:true}).then(stream=>{
+  /* Ask for audio as part of the display capture. Browsers only offer the
+   * checkbox for sources and operating systems that support it; declining it
+   * still returns an ordinary video-only screen share. */
+  const task=navigator.mediaDevices.getDisplayMedia({video:true,audio:true}).then(stream=>{
     /* Asked again while this one was in flight, or switched off while the
      * browser was still asking: do not leave a capture running unwatched. */
     if(displaying!==task || !intent.screen){stream.getTracks().forEach(t=>t.stop());return null;}
     displaying=null;
-    display={stream};
+    display={stream,token:freshScreenToken()};
     rooms.localStreams.set('screen',stream);
-    for(const t of stream.getTracks())t.addEventListener?.('ended',()=>{
+    /* Losing optional system audio must not stop healthy screen video. The
+     * browser's own Stop sharing control ends the display video track. */
+    for(const t of stream.getVideoTracks())t.addEventListener?.('ended',()=>{
       /* The browser's own "stop sharing", or the window going away. */
       if(display?.stream!==stream)return;
       intent.screen=false;unpublish('screen');stopDisplay();rooms.screenOn=false;changed();
@@ -1837,6 +1843,7 @@ function stopDisplay(){
 }
 const screenForCall=()=>startDisplay().then(d=>{if(!d)throw new Error('Screen sharing is off');return cloneStream(d.stream);});
 export const screenSource=()=>display?.stream??null;
+export const screenShare=()=>display?{stream:display.stream,token:display.token}:null;
 
 /* Drop any publication the SFU no longer holds -- a reconnect clears them all
  * -- so intent can be restored into the new connection. The capture itself is
@@ -1881,13 +1888,16 @@ async function capture(kind, get, label) {
   const stream = media.stream;
   if(epoch !== captureEpoch || !intent[kind]) {media.cleanup();return;}
   let id;
-  try { id = await sfu.publish(stream, label); } catch(e) {media.cleanup();throw e;}
+  /* A capture token distinguishes this screen share from a later share by the
+   * same ship. Theater surfaces use it to avoid reviving stale live content. */
+  const publicationLabel=kind==='screen'&&display?.token?`screen:${display.token}`:label;
+  try { id = await sfu.publish(stream, publicationLabel); } catch(e) {media.cleanup();throw e;}
   if(epoch !== captureEpoch || !intent[kind]) {sfu.unpublish(id);media.cleanup();return;}
   published[kind] = { id, stream, cleanup:media.cleanup, raw:media.raw??null, context:media.context??null };
   if(kind==='mic')watchMic();
   /* The call's own copy dying -- a renegotiation gone wrong -- is not the end
    * of the share: drop the publication and let restoreIntent make another. */
-  if(kind==='screen')for(const track of stream.getTracks())track.addEventListener?.('ended',()=>{
+  if(kind==='screen')for(const track of stream.getVideoTracks())track.addEventListener?.('ended',()=>{
     if(published.screen?.id!==id)return;
     unpublish('screen');
     if(intent.screen && display && rooms.voice==='connected')restoreIntent();
@@ -1993,6 +2003,19 @@ async function toggleMedia(kind) {
 export const toggleMic = () => toggleMedia('mic');
 export const toggleCam = () => toggleMedia('cam');
 export const toggleScreen = () => toggleMedia('screen');
+/* Turn screen sharing on without making an already-live share toggle off.
+ * The theater's SHARE SCREEN button uses this and then points its painted
+ * surface at the capture token. */
+export async function startScreen(){
+  resumeAudio('control');
+  if(!worldMember(our) || (rooms.mutedByAdmin&&!intent.screen))return null;
+  if(!intent.screen){intent.screen=true;rooms.screenOn=true;changed();}
+  const live=await startDisplay();
+  if(!live)return null;
+  if(rooms.voice==='connected')await publish('screen',screenForCall,LABEL.screen);
+  changed();
+  return {stream:live.stream,token:live.token};
+}
 
 /* ------------------------------------------------------------ moderation */
 

@@ -14,11 +14,17 @@ import { our } from 'lib/api';
 import { esc } from 'ui/html';
 import { pictureFor } from 'ui/avatar';
 
+const maxTileWidth=()=>Math.max(720,(globalThis.innerWidth??744)-24);
+const screenPublication=label=>String(label??'').startsWith('screen');
+
 export class Rail {
-  constructor(root, strip) {
+  constructor(root, strip, {stage=null} = {}) {
     this.root = root;
     this.strip = strip;
+    this.stage = stage;
     this.expanded = null;
+    this.staged = null;
+    this.stageRoot=document.createElement('div');this.stageRoot.id='stage-call-media';document.body.appendChild(this.stageRoot);
     /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
      * resized every screen in the strip rather than the one under the hand. */
     this.sizes = new Map();
@@ -69,7 +75,7 @@ export class Rail {
     const cameras = new Map(), screens = [];
     for (const [id, r] of rooms.remoteStreams.entries()) {
       if (muted.has(r.ship) || !live(r.stream)) continue;
-      if (r.label === 'screen') screens.push({ key: 'remote:' + id, ship: r.ship, label: `${displayName(r.ship)} · Screen`, stream: r.stream, mine: false, screen: true });
+      if (screenPublication(r.label)) screens.push({ key: 'remote:' + id, ship: r.ship, label: `${displayName(r.ship)} · Screen`, stream: r.stream, mine: false, screen: true });
       else if (!cameras.has(r.ship)) cameras.set(r.ship, r.stream);
     }
     const byName = (a, b) => displayName(a).toLowerCase().localeCompare(displayName(b).toLowerCase());
@@ -107,6 +113,7 @@ export class Rail {
     this.tiles ??= new Map();
     const wanted = new Set(vids.map(v=>v.key));
     for (const [key,el] of this.tiles) if(!wanted.has(key)) {
+      if(this.staged===key){this.staged=null;this.stage?.leave(`call-media-${key}`);}
       const video=el.querySelector('video');video.pause();video.srcObject=null;el.remove();this.tiles.delete(key);
       this.sizes.delete(key);
       if(this.expanded===key)this.expanded=null;
@@ -120,16 +127,16 @@ export class Rail {
       /* The one you have opened up gets a floor of 320 and twice the width;
        * everything else keeps whatever it was last dragged to. */
       const own = this.sizes.get(v.key) ?? this.size;
-      const w = this.expanded === v.key ? Math.max(own, 320) * 2 : own;
+      const w = Math.min(maxTileWidth(),this.expanded === v.key ? Math.max(own, 320) * 2 : own);
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
         el.innerHTML='<video autoplay playsinline muted></video><img class="face" alt="" data-own="1"><b class="initials"></b>'+
-          '<span><em class="who"></em><small class="tags"></small></span><i class="grip"></i>';
+          '<span><em class="who"></em><small class="tags"></small></span><i class="grip" title="Drag to resize; double-click for full screen"></i>';
         this.tiles.set(v.key,el);
         /* A picture that will not load: the next one (ui/avatar). */
         el.querySelector('.face').addEventListener('error',()=>this.paintStrip());
-        el.ondblclick=()=>{this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
+        el.ondblclick=e=>{if(e.target.closest('.grip'))return;this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
         /* Pointer events with capture: the drag follows the pointer even when
          * it leaves the little square, and it ends with the pointer wherever
          * that happens -- including a touch or pen. */
@@ -141,7 +148,7 @@ export class Rail {
            * that, so the drag is measured against the size, not the drawing. */
           const startX=e.clientX,scale=this.expanded===v.key?2:1,startW=el.offsetWidth/scale;
           try{grip.setPointerCapture?.(e.pointerId);}catch{}
-          const move=ev=>{this.sizes.set(v.key,Math.max(96,Math.min(720,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
+          const move=ev=>{this.sizes.set(v.key,Math.max(96,Math.min(maxTileWidth()/scale,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
           const up=()=>{
             grip.removeEventListener('pointermove',move);
             grip.removeEventListener('pointerup',up);
@@ -152,9 +159,12 @@ export class Rail {
           grip.addEventListener('pointerup',up);
           grip.addEventListener('pointercancel',up);
         });
+        grip.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();this.stageTile(v.key,v.label);});
       }
-      el.classList.toggle('big',this.expanded===v.key);
-      el.style.width=`${w}px`;
+      const staged=this.staged===v.key;
+      el.classList.toggle('big',this.expanded===v.key&&!staged);
+      el.classList.toggle('staged-call-tile',staged);
+      el.style.width=staged?'':`${w}px`;
       /* Text only, never markup: a name is whatever its owner typed. */
       const who=el.querySelector('.who'),tags=el.querySelector('.tags'),tag=this.tags(v.screen?null:v.ship);
       if(who.textContent!==v.label)who.textContent=v.label;
@@ -180,9 +190,25 @@ export class Rail {
           if(initials.textContent!==mark)initials.textContent=mark;
         }
       }
-      const at=mediaCount+i;
-      if(this.strip.children[at]!==el)this.strip.insertBefore(el,this.strip.children[at]??null);
+      if(!staged){const at=mediaCount+i;
+        if(this.strip.children[at]!==el)this.strip.insertBefore(el,this.strip.children[at]??null);}
     }
+  }
+
+  stageTile(key,title){
+    const el=this.tiles?.get(key);if(!el||!this.stage)return;
+    if(this.staged===key){this.unstageTile(key);return;}
+    if(this.staged)this.unstageTile(this.staged);
+    this.staged=key;this.expanded=null;this.stageRoot.appendChild(el);
+    this.stage.enter({id:`call-media-${key}`,kind:'media',title:title??'Call video',close:()=>this.unstageTile(key)});
+    this.paintStrip();
+  }
+
+  unstageTile(key){
+    if(this.staged!==key)return;
+    this.staged=null;this.stage?.leave(`call-media-${key}`);
+    const el=this.tiles?.get(key);if(el)this.strip.appendChild(el);
+    this.paintStrip();
   }
 
   paint() {

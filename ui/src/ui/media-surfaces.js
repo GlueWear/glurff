@@ -1,10 +1,24 @@
 import { createMediaAdapter, parseMediaRef, youtubeRef } from 'lib/player-providers';
 import { playbackPosition } from 'lib/player-state';
 import { SCREEN_RECTS } from 'world/hotspots';
+import { roomBySlug } from 'world/places';
+import { rooms, onRooms, callPeers, startScreen, screenShare } from 'lib/rooms';
 import { esc } from 'ui/html';
 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
 
+
+const SCREEN_ROOMS = {
+  amphitheatre: roomBySlug('presentation')?.id ?? 2,
+  movie: roomBySlug('movie')?.id ?? 3,
+};
+const maxPopupWidth = () => Math.max(720, (globalThis.innerWidth ?? 744) - 24);
+const liveRef = ref => {
+  if (typeof ref !== 'string') return null;
+  const split=ref.indexOf('|'),ship=ref.slice(0,split),token=ref.slice(split+1);
+  return split>0&&/^~[a-z-]{3,56}$/.test(ship)&&token.length>0&&token.length<=128?{ship,token}:null;
+};
+const screenRef = (ship, token) => `${ship}|${token}`;
 
 function mediaQuestion(surface, current) {
   return new Promise(resolve => {
@@ -12,7 +26,11 @@ function mediaQuestion(surface, current) {
     const root = document.createElement('div'); root.className = 'ask-overlay media-question';
     root.innerHTML = `<form class="ask" role="dialog" aria-modal="true">
       <div class="ask-q">${esc(name)}</div>
-      <label class="media-url">Media link<input type="url" required placeholder="YouTube, Vimeo, media, radio or SoundCloud" value="${esc(current?.ref ?? '')}"></label>
+      <label class="media-url">Media link<input type="url" required placeholder="YouTube, Vimeo, media, radio or SoundCloud" value="${esc(current?.provider==='screen'?'':current?.ref ?? '')}"></label>
+      <!-- Screen-to-theater transport is retained for later work, but is not
+           currently offered to users. Hidden removes it visually and disabled
+           keeps it out of mouse and keyboard interaction. -->
+      <div class="media-share-row" hidden><button type="button" class="media-share" disabled>SHARE SCREEN</button></div>
       <div class="media-error" role="alert"></div>
       <div class="ask-row"><button type="button" class="media-cancel">Cancel</button>
         ${current && current.provider !== 'none' ? '<button type="button" class="media-stop">Stop for everyone</button>' : ''}
@@ -22,6 +40,10 @@ function mediaQuestion(surface, current) {
     const key = e => { if (e.key === 'Escape') { e.preventDefault(); finish(null); } };
     root.querySelector('.media-cancel').onclick = () => finish(null);
     root.querySelector('.media-stop')?.addEventListener('click', () => finish({ stop:true }));
+    root.querySelector('.media-share').onclick = e => {
+      e.preventDefault();
+      finish({screen:true});
+    };
     root.addEventListener('pointerdown', e => { if (e.target === root) finish(null); });
     root.querySelector('form').onsubmit = e => {
       e.preventDefault();
@@ -48,7 +70,7 @@ class SurfaceView {
       ${this.isScreen ? '<button type="button" class="media-full" title="Full screen">⛶</button><button type="button" class="media-pop" title="Open in a resizable window">□</button><button type="button" class="media-change">Change</button>' : ''}
       <button type="button" class="media-stop" title="Stop this stream for everyone">Stop all</button>
       <button type="button" class="media-close" title="Leave this stream locally">×</button>
-    </div><i class="grip" title="Resize"></i>`;
+    </div><i class="grip" title="Drag to resize; double-click for full screen"></i>`;
     this.frame = this.root.querySelector('.media-frame');
     this.root.querySelector('.media-mute').onclick = e => { e.stopPropagation(); owner.toggleMute(surface); };
     this.root.querySelector('.media-skip').onclick = e => { e.stopPropagation(); this.skip(true); };
@@ -84,19 +106,26 @@ class SurfaceView {
       e.preventDefault(); e.stopPropagation();
       const start = e.clientX, width = this.root.offsetWidth;
       try { grip.setPointerCapture(e.pointerId); } catch {}
-      const move = p => { this.width = Math.max(96, Math.min(720, width + p.clientX - start)); this.root.style.width=`${this.width}px`; };
+      const move = p => { this.width = Math.max(96, Math.min(maxPopupWidth(), width + p.clientX - start)); this.root.style.width=`${this.width}px`; };
       const up = () => { grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',up); };
       grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);grip.addEventListener('pointercancel',up);
+    });
+    grip.addEventListener('dblclick',e=>{
+      if(this.mode!=='popup')return;
+      e.preventDefault();e.stopPropagation();this.owner.toggleStage(this.surface);
     });
   }
 
   destroyAdapter() {
-    this.adapter?.destroy?.(); this.adapter = null; this.key = null; this.frame.replaceChildren();
+    this.adapter?.destroy?.(); this.adapter = null; this.key = null;
+    for(const video of this.frame.querySelectorAll('video')){try{video.pause();video.srcObject=null;}catch{}}
+    this.frame.replaceChildren();this.owner.cancelMissing(this.surface);
   }
 
   setMode(mode) {
-    if (!['docked','popup','hidden','stage'].includes(mode) || (!this.isScreen && ['docked','stage'].includes(mode))) return;
+    if (!['docked','popup','hidden','stage'].includes(mode) || (!this.isScreen && mode==='docked')) return;
     if (this.mode === mode) return;
+    if(mode==='stage')this.returnMode=this.mode==='hidden'?(this.isScreen?'docked':'popup'):this.mode;
     /* Off the stage: let it go (see ui/stage). */
     if (this.mode === 'stage') { this.mode = mode; this.owner.stage?.leave(`media-${this.surface}`); }
     this.destroyAdapter(); this.mode = mode; this.root.dataset.mode = mode;
@@ -114,7 +143,8 @@ class SurfaceView {
       this.root.style.left='';this.root.style.top='';this.root.style.width='';this.root.style.height='';
       this.root.style.transform='';this.root.style.transformOrigin='';
       this.owner.stage?.enter({ id:`media-${this.surface}`, kind:'media',
-        title:this.surface==='amphitheatre'?'Amphitheatre screen':'Movie Theater screen', close:()=>this.setMode('docked') });
+        title:this.surface==='jukebox'?'Jukebox':this.surface==='amphitheatre'?'Amphitheatre screen':'Movie Theater screen',
+        close:()=>this.owner.leaveStage(this.surface) });
     }
     if (tile) {
       /* A docked screen is positioned over its painted counterpart. Those
@@ -133,12 +163,14 @@ class SurfaceView {
   async apply(state) {
     this.state = state;
     /* Stopped for everyone: off the stage, back to the painted screen. */
-    if ((!state || state.provider === 'none') && this.mode === 'stage') this.setMode('docked');
+    if ((!state || state.provider === 'none') && this.mode === 'stage') this.owner.leaveStage(this.surface);
     if (!state || state.provider === 'none') { this.destroyAdapter(); this.root.hidden = true; return; }
     if (this.mode === 'hidden') { this.destroyAdapter();this.root.hidden=true;return; }
     this.root.hidden = false;
     if(this.mode==='popup')this.owner.orderTiles();
     this.root.querySelector('.media-skip').hidden = state.provider !== 'youtube';
+    this.root.querySelector('.media-mute').hidden = state.provider === 'screen';
+    if(state.provider==='screen'){this.applyScreen(state);return;}
     const key = `${state.provider}|${state.ref}|${state.playlistIndex??0}`;
     if (this.key !== key) {
       this.destroyAdapter(); this.key = key; this.notice('');
@@ -159,6 +191,21 @@ class SurfaceView {
       if (state.provider !== 'radio' && Math.abs((adapter.currentTime?.() ?? 0) - wanted) > 1500) await adapter.seek(wanted);
       void Promise.resolve(state.paused ? adapter.pause() : adapter.play()).catch(e=>console.warn('media playback was blocked',e));
     } catch (e) { if(adapter===this.adapter)this.error(e); }
+  }
+
+  applyScreen(state){
+    const ref=liveRef(state.ref),key=`screen|${state.ref}`;
+    if(!ref){this.destroyAdapter();this.notice('This screen share is no longer available.');return;}
+    if(this.key!==key){this.destroyAdapter();this.key=key;this.notice('');}
+    let video=this.frame.querySelector('video');
+    if(!video){video=document.createElement('video');video.autoplay=true;video.playsInline=true;video.muted=true;this.frame.appendChild(video);}
+    const live=this.owner.liveScreen(state);
+    if(!live){
+      if(video.srcObject){video.pause();video.srcObject=null;}
+      this.notice(`Waiting for ${ref.ship}'s screen…`);this.owner.missing(this.surface,state);return;
+    }
+    this.owner.cancelMissing(this.surface);this.notice('');
+    if(video.srcObject!==live.stream){video.srcObject=live.stream;video.play().catch(()=>{});}
   }
 
   localChange(change) {
@@ -242,10 +289,12 @@ export class MediaSurfaces {
   constructor({ game, strip, store, our, stage = null }) {
     this.game=game;this.strip=strip;this.store=store;this.our=our;this.stage=stage;
     this.views = new Map(); this.mutes = new Map(); this.jukeboxClosed = false;
+    this.missingTimers = new Map();
     this.worldRoot = document.createElement('div'); this.worldRoot.id = 'world-media-layer'; document.body.appendChild(this.worldRoot);
     /* A screen sent full screen sits here, on the stage (ui/stage). */
     this.stageRoot = document.createElement('div'); this.stageRoot.id = 'stage-media'; document.body.appendChild(this.stageRoot);
     this.lastScene = game.scene;
+    this.stopRooms=onRooms(()=>this.roomsChanged());
     this.frame = requestAnimationFrame(() => this.layout());
   }
 
@@ -293,7 +342,12 @@ export class MediaSurfaces {
   /* Full screen, on the stage, and back to the painted screen. */
   toggleStage(surface) {
     const view=this.view(surface);
-    view.setMode(view.mode==='stage'?'docked':'stage');
+    if(view.mode==='stage')this.leaveStage(surface);else view.setMode('stage');
+  }
+
+  leaveStage(surface){
+    const view=this.view(surface);
+    view.setMode(view.returnMode??(view.isScreen?'docked':'popup'));
   }
 
   activate(surface) {
@@ -316,8 +370,48 @@ export class MediaSurfaces {
     const answer = await mediaQuestion(surface, this.store.get(surface));
     if (!answer) return;
     if (answer.stop) { this.store.clear(surface); return; }
+    if(answer.screen){
+      let live;
+      try{live=await startScreen();}catch{return;}
+      if(!live)return;
+      this.mutes.set(surface,false);
+      this.store.write(surface,{provider:'screen',ref:screenRef(this.our,live.token),positionMs:0,paused:false},{newItem:true});
+      return;
+    }
     this.mutes.set(surface, false);
     this.store.write(surface, { provider:answer.provider, ref:answer.ref, positionMs:0, paused:false }, { newItem:true });
+  }
+
+  liveScreen(state){
+    const ref=liveRef(state?.ref);if(!ref)return null;
+    if(ref.ship===this.our){const live=screenShare();return live?.token===ref.token?{stream:live.stream,id:null}:null;}
+    for(const [id,r] of rooms.remoteStreams)if(r.ship===ref.ship&&r.label===`screen:${ref.token}`&&
+      r.stream?.getVideoTracks?.().some(t=>t.readyState!=='ended'))return{id,stream:r.stream};
+    return null;
+  }
+
+  cancelMissing(surface){clearTimeout(this.missingTimers.get(surface));this.missingTimers.delete(surface);}
+  missing(surface,state){
+    if(this.missingTimers.has(surface)||state.startedBy===this.our||rooms.here!==SCREEN_ROOMS[surface]||rooms.voice!=='connected')return;
+    const ref=liveRef(state.ref);if(!ref||callPeers().has(ref.ship))return;
+    const timer=setTimeout(()=>{
+      this.missingTimers.delete(surface);
+      const current=this.store.get(surface),again=liveRef(current?.ref);
+      if(current?.provider==='screen'&&current.rev===state.rev&&rooms.here===SCREEN_ROOMS[surface]&&
+        rooms.voice==='connected'&&again&&!callPeers().has(again.ship))this.store.clear(surface);
+    },8000);
+    this.missingTimers.set(surface,timer);
+  }
+
+  roomsChanged(){
+    for(const surface of ['amphitheatre','movie']){
+      const state=this.store.get(surface);if(state?.provider!=='screen')continue;
+      const ref=liveRef(state.ref),live=screenShare();
+      if(state.startedBy===this.our&&(!ref||!live||ref.token!==live.token)){
+        this.store.clear(surface);continue;
+      }
+      if(this.game.scene==='main'&&this.views.get(surface)?.mode!=='hidden')void this.view(surface).apply(state);
+    }
   }
 
   layout() {

@@ -22,6 +22,7 @@ import { esc } from 'ui/html';
 import { activityText } from 'lib/sites';
 
 const HINT_MS = 7000;
+const HIDE_TAB_MS = 5000;
 const SHORTCUT = (e) => e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyG';
 
 export class Stage {
@@ -33,7 +34,7 @@ export class Stage {
     this.tab = document.createElement('div');
     this.tab.className = 'stage-tab';
     this.tab.hidden = true;
-    this.tab.innerHTML = `<div class="stage-bar"><span class="stage-title"></span>
+    this.tab.innerHTML = `<div class="stage-wake" aria-hidden="true"></div><div class="stage-bar"><span class="stage-title"></span>
       <button type="button" class="stage-overlay"></button>
       <button type="button" class="stage-newtab" hidden>Open in a new tab</button>
       <button type="button" class="stage-close" title="Close" aria-label="Close">&times;</button></div>
@@ -43,7 +44,13 @@ export class Stage {
     this.q('.stage-overlay').onclick = () => this.setOverlay(!this.overlay);
     this.q('.stage-close').onclick = () => this.source?.close();
     this.q('.stage-newtab').onclick = () => { if (this.source?.url) window.open(this.source.url, '_blank', 'noopener'); };
-    this.onKey = (e) => { if (this.source && SHORTCUT(e)) { e.preventDefault(); e.stopPropagation(); this.setOverlay(!this.overlay); } };
+    this.q('.stage-wake').addEventListener('pointerenter',()=>this.wake());
+    this.q('.stage-wake').addEventListener('pointerdown',e=>{e.preventDefault();this.wake();});
+    this.q('.stage-bar').addEventListener('pointermove',()=>this.keepAwake());
+    this.onKey = (e) => {
+      if (this.source && SHORTCUT(e)) { e.preventDefault(); e.stopPropagation(); this.setOverlay(!this.overlay); return; }
+      if(this.source&&!this.overlay&&e.key==='Escape')this.wake();
+    };
     window.addEventListener('keydown', this.onKey, true);
   }
 
@@ -67,6 +74,7 @@ export class Stage {
     if (!this.source || this.source.id !== id) return;
     this.source = null;
     document.documentElement.classList.remove('staged', 'overlay-off');
+    clearTimeout(this.sleepTimer);this.sleepTimer=null;this.tab.classList.remove('sleeping');
     this.overlay = true;
     this.tab.hidden = true;
     this.q('.stage-hint').hidden = true;
@@ -81,7 +89,19 @@ export class Stage {
     const b = this.q('.stage-overlay');
     b.textContent = this.overlay ? 'Hide Glurff' : 'Show Glurff';
     b.title = this.touch() ? '' : 'Ctrl+Shift+G';
+    clearTimeout(this.sleepTimer);this.sleepTimer=null;this.tab.classList.remove('sleeping');
+    if(!this.overlay)this.keepAwake();
   }
+
+  /* Hidden Glurff should leave the stage clean. The bar remains for five
+   * seconds, then fades completely; the invisible top strip, Esc, and the
+   * keyboard shortcut can always bring it back. */
+  keepAwake(){
+    if(!this.source||this.overlay)return;
+    this.tab.classList.remove('sleeping');clearTimeout(this.sleepTimer);
+    this.sleepTimer=setTimeout(()=>{if(this.source&&!this.overlay)this.tab.classList.add('sleeping');},HIDE_TAB_MS);
+  }
+  wake(){if(this.source&&!this.overlay)this.keepAwake();}
 
   /* Ctrl+Shift+G inside a game that runs on our own ship. A website's page
    * cannot be listened to; there, it is Esc and the tab. Again on every page

@@ -6,7 +6,7 @@
  * Nothing here is persisted on either Glurff or Noltbook. */
 
 export const PLAYER_SURFACES = ['jukebox', 'amphitheatre', 'movie'];
-export const PLAYER_PROVIDERS = ['none', 'youtube', 'vimeo', 'direct', 'radio', 'soundcloud'];
+export const PLAYER_PROVIDERS = ['none', 'youtube', 'vimeo', 'direct', 'radio', 'soundcloud', 'screen'];
 const surfaceSet = new Set(PLAYER_SURFACES), providerSet = new Set(PLAYER_PROVIDERS);
 
 const finite = n => Number.isFinite(n);
@@ -32,7 +32,7 @@ export function comparePlayerState(a, b) {
 }
 
 export function playbackPosition(state, now = Date.now()) {
-  if (!validPlayerState(state) || state.paused || state.provider === 'radio' || state.provider === 'none')
+  if (!validPlayerState(state) || state.paused || state.provider === 'radio' || state.provider === 'screen' || state.provider === 'none')
     return validPlayerState(state) ? state.positionMs : 0;
   return Math.max(0, state.positionMs + Math.max(0, now - state.at));
 }
