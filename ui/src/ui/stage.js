@@ -8,7 +8,7 @@
  * the others what we are doing (see lib/sites activityText).
  *
  * THE TAB, always on screen at the top: what is on the stage, a button that
- * hides Glurff's interface or brings it back, "Open in a new tab" for a
+ * hides Glurff's controls or brings them back, "Open in a new tab" for a
  * website, and the cross that closes it. A game that has taken the mouse
  * gives it back on Esc -- the browser guarantees that -- and then the tab is
  * one click away. Inside a game that runs on our own ship, Ctrl+Shift+G does
@@ -82,18 +82,19 @@ export class Stage {
     this.onActivity(null);
   }
 
-  /* Glurff's interface over the stage, or not. Wave notices still show. */
+  /* Glurff's controls over the stage, or not. The player's own play/pause and
+   * timeline remain its own; wave notices still show. */
   setOverlay(on) {
     this.overlay = !!on;
     document.documentElement.classList.toggle('overlay-off', !this.overlay);
     const b = this.q('.stage-overlay');
-    b.textContent = this.overlay ? 'Hide Glurff' : 'Show Glurff';
+    b.textContent = this.overlay ? 'Hide Controls' : 'Show Controls';
     b.title = this.touch() ? '' : 'Ctrl+Shift+G';
     clearTimeout(this.sleepTimer);this.sleepTimer=null;this.tab.classList.remove('sleeping');
     if(!this.overlay)this.keepAwake();
   }
 
-  /* Hidden Glurff should leave the stage clean. The bar remains for five
+  /* Hidden controls should leave the stage clean. The bar remains for five
    * seconds, then fades completely; the invisible top strip, Esc, and the
    * keyboard shortcut can always bring it back. */
   keepAwake(){
@@ -118,7 +119,7 @@ export class Stage {
     const parts = [];
     if (source.kind !== 'media' && !this.hinted) {
       this.hinted = true;
-      parts.push(this.touch() ? 'Tap “Hide Glurff” to give the game the whole screen.'
+      parts.push(this.touch() ? 'Tap “Hide Controls” to give the game the whole screen.'
         : 'If the game has your mouse, press Esc, then use this bar. Ctrl+Shift+G works in Urbit games.');
     }
     if (source.kind === 'web') parts.push('Blank? This site doesn’t allow being shown inside Glurff — open it in a new tab.');

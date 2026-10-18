@@ -71,6 +71,7 @@ button:hover { border-color: #7fd6c3; }
   border-radius: 3px; background: linear-gradient(to top,rgba(0,0,0,.88),rgba(0,0,0,.45)); }
 .media-tile .media-tools { right: 14px; }
 .media-tools button { padding: 1px 4px; font-size: 10px; background: rgba(8,10,15,.86); }
+.media-menu { display: none; }
 .media-tile > .grip { z-index: 3; }
 .media-notice { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%,-50%);
   max-width: 80%; padding: .35rem .5rem; border-radius: 3px; text-align: center;
@@ -671,6 +672,19 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .touch .chat .stream { max-height: 40vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .touch .world-media .media-tools { opacity: 1; }
 .touch .tile .grip { width: 22px; height: 22px; }
+/* One dependable media target on touch. It opens a tray whose actions meet a
+   finger-sized minimum instead of squeezing six ten-pixel buttons over a
+   native movie player. */
+.touch .media-menu { position: absolute; z-index: 4; right: var(--media-control-inset,4px); bottom: var(--media-control-inset,4px);
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  font-size: 16px; font-weight: 700; background: rgba(8,10,15,.9);
+  transform: scale(var(--media-control-scale,1)); transform-origin: bottom right; }
+.touch .media-tools { display: none; opacity: 1; right: var(--media-control-inset,4px); bottom: var(--media-control-bottom,52px);
+  max-width: min(320px,calc(100vw - 16px)); flex-wrap: wrap; z-index: 5;
+  transform: scale(var(--media-control-scale,1)); transform-origin: bottom right; }
+.touch .media-tools.open { display: flex; }
+.touch .media-tools button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 12px; }
+.touch .media-controls-open { overflow: visible; z-index: 12; }
 
 /* A phone, either way up. */
 @media (max-width: 700px), (max-height: 500px) {
@@ -789,6 +803,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .overlay-off #hud, .overlay-off #rail, .overlay-off #strip, .overlay-off #top-left, .overlay-off #top-mid,
 .overlay-off #top-right, .overlay-off .call-panels, .overlay-off .card-overlay,
 .overlay-off .app-panel:not(.staged) { display: none !important; }
+/* These are Glurff's controls, not the player's native play/pause/timeline. */
+.overlay-off #stage-media .media-tools, .overlay-off #stage-media .media-menu { display: none !important; }
 /* The tab: what is on the stage, Glurff's interface off and on, and close. */
 .stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 12px; right: 12px;
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }

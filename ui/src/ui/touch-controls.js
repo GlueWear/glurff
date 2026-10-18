@@ -1,6 +1,6 @@
 /* ON A PHONE: a joystick to walk with, bottom left, and -- when we hold a
- * weapon -- a button that takes it out or puts it away, as "1" does on a
- * keyboard. Out, a tap on the world attacks there (see main's onTap).
+ * weapon -- a button that uses it once in the joystick's last direction.
+ * World taps remain free for people, clocks and hotspots.
  *
  * Shown only where touch is how the world is played: a phone or tablet, or
  * anything somebody has touched (html.touch). The rest of the phone layout is
@@ -44,16 +44,16 @@ export function watchLayout(rail, doc = document, win = window) {
 }
 
 export class TouchControls {
-  constructor(root, { game, onArm = () => {}, weaponReady = () => false } = {}) {
-    Object.assign(this, { root, game, onArm, weaponReady });
+  constructor(root, { game, onUse = () => {}, weaponReady = () => false } = {}) {
+    Object.assign(this, { root, game, onUse, weaponReady });
     root.className = 'touch-controls';
     root.innerHTML = `<div class="stick" aria-label="Walk: hold and push the way to go; push to the edge to run"><i class="stick-knob"></i></div>
-      <button type="button" class="weapon-btn" aria-pressed="false" title="Take your weapon out, or put it away" hidden>${SWORD}</button>`;
+      <button type="button" class="weapon-btn" title="Use weapon" aria-label="Use weapon" hidden>${SWORD}</button>`;
     this.stick = root.querySelector('.stick');
     this.knob = root.querySelector('.stick-knob');
     this.weapon = root.querySelector('.weapon-btn');
     this.held = null;
-    this.weapon.onclick = () => { this.onArm(); this.paint(); };
+    this.weapon.onclick = () => { this.onUse(); this.paint(); };
     this.wireStick();
     this.paint();
   }
@@ -91,12 +91,10 @@ export class TouchControls {
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) stick.addEventListener(type, letGo);
   }
 
-  /* The weapon button: there only with a weapon to hold, lit while it is out. */
+  /* The weapon button: there only when there is a weapon to use. */
   paint() {
-    const ready = !!this.weaponReady(), out = !!this.game?.armed;
+    const ready = !!this.weaponReady();
     this.weapon.hidden = !ready;
-    this.weapon.classList.toggle('on', ready && out);
-    this.weapon.setAttribute('aria-pressed', String(ready && out));
-    this.weapon.setAttribute('aria-label', out ? 'Put your weapon away' : 'Take your weapon out');
+    this.weapon.classList.toggle('on', ready);
   }
 }

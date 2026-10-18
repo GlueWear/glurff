@@ -70,15 +70,19 @@ class SurfaceView {
       ${this.isScreen ? '<button type="button" class="media-full" title="Full screen">⛶</button><button type="button" class="media-pop" title="Open in a resizable window">□</button><button type="button" class="media-change">Change</button>' : ''}
       <button type="button" class="media-stop" title="Stop this stream for everyone">Stop all</button>
       <button type="button" class="media-close" title="Leave this stream locally">×</button>
-    </div><i class="grip" title="Drag to resize; double-click for full screen"></i>`;
+    </div><button type="button" class="media-menu" title="Media controls" aria-label="Media controls" aria-expanded="false">•••</button>
+      <i class="grip" title="Drag to resize; double-click for full screen"></i>`;
     this.frame = this.root.querySelector('.media-frame');
-    this.root.querySelector('.media-mute').onclick = e => { e.stopPropagation(); owner.toggleMute(surface); };
-    this.root.querySelector('.media-skip').onclick = e => { e.stopPropagation(); this.skip(true); };
-    this.root.querySelector('.media-stop').onclick = e => { e.stopPropagation(); owner.store.clear(surface); };
-    this.root.querySelector('.media-pop')?.addEventListener('click', e => { e.stopPropagation(); owner.togglePopout(surface); });
-    this.root.querySelector('.media-full')?.addEventListener('click', e => { e.stopPropagation(); owner.toggleStage(surface); });
-    this.root.querySelector('.media-change')?.addEventListener('click', e => { e.stopPropagation(); void owner.choose(surface); });
-    this.root.querySelector('.media-close').addEventListener('click', e => { e.stopPropagation(); owner.hide(surface); });
+    const used=(e,action)=>{e.stopPropagation();this.setControls(false);action();};
+    this.root.querySelector('.media-mute').onclick = e => used(e,()=>owner.toggleMute(surface));
+    this.root.querySelector('.media-skip').onclick = e => used(e,()=>this.skip(true));
+    this.root.querySelector('.media-stop').onclick = e => used(e,()=>owner.store.clear(surface));
+    this.root.querySelector('.media-pop')?.addEventListener('click', e => used(e,()=>owner.togglePopout(surface)));
+    this.root.querySelector('.media-full')?.addEventListener('click', e => used(e,()=>owner.toggleStage(surface)));
+    this.root.querySelector('.media-change')?.addEventListener('click', e => used(e,()=>void owner.choose(surface)));
+    this.root.querySelector('.media-close').addEventListener('click', e => used(e,()=>owner.hide(surface)));
+    this.root.querySelector('.media-menu').onclick=e=>{e.stopPropagation();this.setControls(!this.controlsOpen);};
+    document.addEventListener('pointerdown',e=>{if(this.controlsOpen&&!this.root.contains(e.target))this.setControls(false);});
     this.root.addEventListener('pointerdown', e => e.stopPropagation());
     this.root.addEventListener('dblclick',e=>{if(this.mode==='docked'&&!e.target.closest('button'))void owner.choose(surface);});
     this.adapter = null; this.key = null; this.state = null; this.suppressUntil = 0;
@@ -94,6 +98,23 @@ class SurfaceView {
     window.addEventListener('blur',()=>{if(this.pointerInside)this.armedUntil=Date.now()+5000;});
     this.makeResizable();
     this.root.querySelector('.grip').hidden = this.mode !== 'popup';
+    this.setControlScale(1);
+  }
+
+  /* A phone gets one reliable target, then a tray of finger-sized actions.
+   * At the furthest map zoom the painted player is composited down; counter
+   * that transform for controls only, never for the movie itself. */
+  setControls(open){
+    this.controlsOpen=!!open;
+    this.root.classList.toggle('media-controls-open',this.controlsOpen);
+    this.root.querySelector('.media-tools').classList.toggle('open',this.controlsOpen);
+    this.root.querySelector('.media-menu').setAttribute('aria-expanded',String(this.controlsOpen));
+  }
+  setControlScale(scale=1){
+    const n=Number.isFinite(scale)&&scale>0?scale:1;
+    this.root.style.setProperty('--media-control-scale',String(n));
+    this.root.style.setProperty('--media-control-bottom',`${52*n}px`);
+    this.root.style.setProperty('--media-control-inset',`${4*n}px`);
   }
 
   makeResizable() {
@@ -126,6 +147,7 @@ class SurfaceView {
     if (!['docked','popup','hidden','stage'].includes(mode) || (!this.isScreen && mode==='docked')) return;
     if (this.mode === mode) return;
     if(mode==='stage')this.returnMode=this.mode==='hidden'?(this.isScreen?'docked':'popup'):this.mode;
+    this.setControls(false);this.setControlScale(1);
     /* Off the stage: let it go (see ui/stage). */
     if (this.mode === 'stage') { this.mode = mode; this.owner.stage?.leave(`media-${this.surface}`); }
     this.destroyAdapter(); this.mode = mode; this.root.dataset.mode = mode;
@@ -437,6 +459,7 @@ export class MediaSurfaces {
        * known-working 1x dimensions and let the browser composite it down to
        * the same visual rectangle. Both painted screens use this path. */
       const playerZoom=Math.max(1,z);
+      view.setControlScale(z<1?1/z:1);
       view.root.style.width=`${rect.w*playerZoom}px`;view.root.style.height=`${rect.h*playerZoom}px`;
       view.root.style.transformOrigin='top left';
       view.root.style.transform=z<1?`scale(${z})`:'';

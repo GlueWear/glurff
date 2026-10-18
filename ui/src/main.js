@@ -436,10 +436,10 @@ const game = new Game(document.getElementById('stage'), {
   /* "1": our weapon out, or away -- if we have one. */
   onArm: () => toggleArmed(),
   /* A TAP on the world, on a phone (see lib/touch): what a double-click does
-   * with a mouse -- or, with our weapon out, an attack there. */
+   * with a mouse. The separate phone weapon button attacks, so carrying a
+   * weapon never takes taps away from people, clocks or hotspots. */
   onTap: (x, y) => {
     if (game.arranging()) return;
-    if (game.armed) { game.fireAt(x, y); return; }
     const ship = game.characterAt(x, y);
     if (ship) { card.open(ship); return; }
     const clock = game.skyClockAt(x, y);
@@ -520,6 +520,20 @@ function toggleArmed() {
   if (presenceStarted) presence.publish();
   touchControls?.paint();
   if (game.armed && touching() && !armedHint) { armedHint = true; showNotice('Weapon out: tap where you want to attack'); }
+}
+/* A phone does not have an armed interaction mode. Its one weapon button uses
+ * the weapon once, in the last joystick direction, while taps stay taps. A
+ * touchscreen laptop may have put the weapon away with the desktop `1` key;
+ * drawing it again here is only preparation for the same button press. */
+function useTouchWeapon() {
+  if (!weaponReady()) { showNotice('No weapon yet: choose one in your character'); return; }
+  if (!game.armed) {
+    game.setArmed(true);
+    diagnostic('weapon', { reason: 'touch-use' });
+    if (presenceStarted) presence.publish();
+  }
+  game.fireTouchWeapon();
+  touchControls?.paint();
 }
 const bow = createBow({
   our,
@@ -709,10 +723,10 @@ const builder = new Builder(builderRoot, {
   onDone: (look) => G.dress(look),
 });
 window.__builder = builder;
-/* ON A PHONE: a joystick to walk, and the sword button when there is a sword. */
+/* ON A PHONE: a joystick to walk, and one use-weapon button when we have one. */
 const touchRoot = document.createElement('div');
 document.body.appendChild(touchRoot);
-touchControls = new TouchControls(touchRoot, { game, onArm: () => toggleArmed(), weaponReady });
+touchControls = new TouchControls(touchRoot, { game, onUse: () => useTouchWeapon(), weaponReady });
 
 let proximityAt = -Infinity;
 function reportPosition(self, force = false, urgent = false) {

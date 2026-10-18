@@ -96,11 +96,14 @@ export class Game {
     this.armed = false;
     /* A finger tapped the world here: (clientX, clientY). See lib/touch. */
     this.onTap = onTap ?? (() => {});
-    /* The on-screen joystick's say, {x, y, run} or null; see ui/touch-controls. */
+    /* The on-screen joystick's say, {x, y, run} or null; see ui/touch-controls.
+     * Its last direction aims the phone's weapon button. Before the first move,
+     * a phone fires right. */
     this.stick = null;
+    this.touchDir = 'right';
     /* Fingers on the world, by pointer: {x, y, at}. */
     this.touches = new Map();
-    this.tap = null; this.gesture = null; this.touchAt = -Infinity;
+    this.tap = null; this.touchPan = null; this.gesture = null; this.touchAt = -Infinity;
     /* The pointer is over a clock in the sky, or no longer is: (id | null, x, y). */
     this.onClockHover = onClockHover ?? (() => {});
     /* A clock in the sky was dragged somewhere new: (id, x, y, width, height). */
@@ -227,8 +230,8 @@ export class Game {
     window.addEventListener('blur', release);
     this.mount.addEventListener('mouseleave', () => { this.showHotspot(null); this.onClockHover(null); });
     window.addEventListener('blur', () => {this.keys.clear();this.running=false;});
-    /* TOUCH (see lib/touch). One finger taps -- or, arranging, carries a clock;
-     * two drag the world about and pinch to zoom. The browser's own panning and
+    /* TOUCH (see lib/touch). One finger taps or drags the world -- or, while
+     * arranging, carries a clock; two fingers pinch to zoom. The browser's own panning and
      * zooming are off over the world (touch-action), and so are the mouse
      * events it would make up from a touch: the handlers above are the mouse's. */
     const finger = (e) => ({ x: e.clientX, y: e.clientY, at: performance.now() });
@@ -242,7 +245,7 @@ export class Game {
       try { this.mount.setPointerCapture(e.pointerId); } catch {}
       this.touches.set(e.pointerId, finger(e));
       if (this.touches.size === 1) {
-        this.panned = false;
+        this.panned = false; this.touchPan = null;
         if (this.space?.arranging) {
           const p = this.screenPoint(e), hit = this.space.clockAt(p.x, p.y);
           if (hit) { this.clockDrag = { id: hit.id, dx: hit.dx, dy: hit.dy, touch: e.pointerId }; return; }
@@ -253,7 +256,7 @@ export class Game {
         return;
       }
       /* Another finger: not a tap any more, a look around. */
-      this.tap = null; this.showHotspot(null);
+      this.tap = null; this.touchPan = null; this.showHotspot(null);
       this.startGesture();
     });
     this.mount.addEventListener('pointermove', (e) => {
@@ -265,20 +268,31 @@ export class Game {
         return;
       }
       if (this.tap?.id === e.pointerId && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > TAP_SLOP_PX) {
+        const tap = this.tap;
         this.tap = null; this.showHotspot(null);
+        this.anchorPanToCamera();
+        this.touchPan = { id:e.pointerId, x:tap.x, y:tap.y };
+      }
+      /* Once a would-be tap has moved, that same finger pans. Starting at the
+       * original down point means the first deliberate swipe is not discarded. */
+      if (this.touches.size === 1 && this.touchPan?.id === e.pointerId) {
+        const dx=e.clientX-this.touchPan.x, dy=e.clientY-this.touchPan.y;
+        this.touchPan={id:e.pointerId,x:e.clientX,y:e.clientY};
+        this.pan.x -= (dx * TOUCH_PAN_SPEED) / this.zoom;
+        this.pan.y -= (dy * TOUCH_PAN_SPEED) / this.zoom;
+        this.panned = true; this.centreCamera(); return;
       }
       if (!this.gesture || this.touches.size < 2) return;
       const s = spreadOf(this.touches.values());
       const z = pinchZoom(this.gesture.zoom, this.gesture.spread, s.spread, ZOOMS);
       if (z !== this.zoom) this.setZoom(z);
-      this.pan.x -= ((s.x - this.gesture.x) * TOUCH_PAN_SPEED) / this.zoom;
-      this.pan.y -= ((s.y - this.gesture.y) * TOUCH_PAN_SPEED) / this.zoom;
       this.gesture.x = s.x; this.gesture.y = s.y;
       this.panned = true;
       this.centreCamera();
     });
     const lift = (e) => {
       if (e.pointerType !== 'touch' || !this.touches.has(e.pointerId)) return;
+      const pinching=!!this.gesture;
       this.touches.delete(e.pointerId);
       this.touchAt = performance.now();
       if (this.clockDrag?.touch === e.pointerId) { this.dropClock(); return; }
@@ -287,8 +301,14 @@ export class Game {
         this.tap = null; this.showHotspot(null);
         if (e.type === 'pointerup' && isTap(tap, finger(e))) this.onTap(e.clientX, e.clientY);
       }
-      /* Down to one finger: it does nothing more until it lifts. */
-      if (this.touches.size >= 2) this.startGesture(); else this.gesture = null;
+      if (this.touchPan?.id === e.pointerId) this.touchPan=null;
+      if (this.touches.size >= 2) this.startGesture();
+      else {
+        this.gesture = null;
+        /* After a pinch, the remaining finger may carry straight on panning,
+         * anchored where it is so the camera never jumps. */
+        if(pinching && this.touches.size===1){const [id,p]=this.touches.entries().next().value;this.touchPan={id,x:p.x,y:p.y};}
+      }
     };
     this.mount.addEventListener('pointerup', lift);
     this.mount.addEventListener('pointercancel', lift);
@@ -358,8 +378,7 @@ export class Game {
     this.app?.ticker.start();
   }
 
-  /* Two or more fingers down: measure from here. Again whenever one comes or
-   * goes, so the world does not jump. */
+  /* Two or more fingers down: measure the pinch from here. */
   startGesture() {
     const s = spreadOf(this.touches.values());
     this.anchorPanToCamera();
@@ -368,8 +387,12 @@ export class Game {
   /* A touch a moment ago: the browser's own double-tap may still turn up as a
    * double-click, and must not open somebody a second time. */
   touchedRecently() { return performance.now() - this.touchAt < 800; }
-  /* The joystick: which way, and whether running; null to stop. */
-  setStick(walk) { this.stick = walk ? { x: walk.x, y: walk.y, run: !!walk.run } : null; }
+  /* The joystick: which way, and whether running; null to stop. Its latest
+   * direction remains the phone weapon's aim after the thumb lifts. */
+  setStick(walk) {
+    this.stick = walk ? { x: walk.x, y: walk.y, run: !!walk.run } : null;
+    if(walk)this.touchDir=nearestDir(walk.x,walk.y);
+  }
   /* A clock carried by mouse or finger, put down: kept where it landed. */
   dropClock() {
     if (!this.clockDrag) return;
@@ -851,6 +874,15 @@ export class Game {
     ch.sheathed = !!sheathed; ch.posedKey = null;
   }
   restCursor() { return this.armed ? 'crosshair' : ''; }
+
+  /* The phone's weapon button: face the last joystick direction (right before
+   * the first move) and use the weapon once. World taps remain interactions. */
+  fireTouchWeapon() {
+    if(!this.bow || !this.selfSprite)return false;
+    const dir=this.touchDir??'right';
+    if(this.self.dir!==dir){this.self.dir=dir;this.onMove({...this.self});}
+    return this.bow.fire();
+  }
 
   /* Attack toward a page point: turn to face the nearest way, tell everybody,
    * and let the weapon fly exactly there (a swing goes the nearest way). */

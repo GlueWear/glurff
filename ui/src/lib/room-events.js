@@ -10,7 +10,10 @@ export function createRoomEvents({our, room, peers, send, random = crypto, trace
   const listeners = new Set();
   const changed = message => listeners.forEach(f => f(message));
   const ordinary = () => rooms(room());
-  const prune = () => { messages = messages.filter(m => Date.now()-m.at < 300000).slice(-100); };
+  /* Session chat lasts for the room visit, however long that visit lasts.
+   * Bound memory by count instead of age so a quiet movie-length conversation
+   * does not disappear while everybody is still sitting in the room. */
+  const prune = () => { messages = messages.slice(-100); };
   function receive(who, place, event) {
     if (!ordinary() || place !== room() || (who !== our && !peers().includes(who))) {
       trace('room-chat-drop', {who, place, reason: place !== room() ? 'different-room' : 'not-in-room'});

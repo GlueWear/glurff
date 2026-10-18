@@ -4,11 +4,11 @@
  *                  walk in. A little play in the middle does nothing, so a
  *                  resting thumb does not wander; pushed to the rim, we run --
  *                  the double-tap of the keyboard.
- *   two fingers    drag together to look around; pinch to zoom, in the same
- *                  whole steps the wheel uses, so pixels stay square.
- *   one finger     a tap -- a touch that neither moves nor lingers -- is what a
- *                  double-click is with a mouse: open somebody, open a spot,
- *                  read a clock; with a weapon out, attack there.
+ *   one finger     drag to look around. A tap -- a touch that neither moves nor
+ *                  lingers -- is what a double-click is with a mouse: open
+ *                  somebody, open a spot, or read a clock.
+ *   two fingers    pinch to zoom, in the same whole steps the wheel uses, so
+ *                  pixels stay square.
  *
  * Pure: the DOM and the game wire it up (ui/touch-controls, world/game).
  */
@@ -19,8 +19,8 @@ export const STICK_RUN_AT = 0.9;
 /* A tap may wander this far, and last this long, and still be a tap. */
 export const TAP_SLOP_PX = 12;
 export const TAP_MS = 500;
-/* Two fingers move the world this much faster than they move: a phone is
- * small, and crossing a room should not take a dozen swipes. */
+/* One finger moves the world this much faster than it moves: a phone is small,
+ * and crossing a room should not take a dozen swipes. */
 export const TOUCH_PAN_SPEED = 1.5;
 
 /* A thumb (dx, dy) from the centre of a stick that reaches `radius`: where the
