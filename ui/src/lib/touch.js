@@ -13,9 +13,18 @@
  * Pure: the DOM and the game wire it up (ui/touch-controls, world/game).
  */
 
-/* Of the stick's reach: inside this, nothing; past RUN_AT, running. */
+/* Of the stick's reach: inside this, nothing; past RUN_AT, the rim -- held
+ * there RUN_HOLD_MS, running. A thumb lands on the rim all the time, so
+ * merely touching it ran us everywhere (2026-10-20). */
 export const STICK_DEAD = 0.2;
 export const STICK_RUN_AT = 0.9;
+export const RUN_HOLD_MS = 500;
+/* Walking follows the push: from STICK_SLOWEST of full pace just past the
+ * dead zone, to full pace at STICK_FULL_AT -- and a phone's full pace is
+ * TOUCH_WALK of a keyboard's. */
+export const STICK_FULL_AT = 0.85;
+export const STICK_SLOWEST = 0.35;
+export const TOUCH_WALK = 0.85;
 /* A tap may wander this far, and last this long, and still be a tap. */
 export const TAP_SLOP_PX = 12;
 export const TAP_MS = 500;
@@ -25,14 +34,16 @@ export const TOUCH_PAN_SPEED = 1.5;
 
 /* A thumb (dx, dy) from the centre of a stick that reaches `radius`: where the
  * knob is drawn (held inside the rim), and which way to walk -- a unit vector,
- * or null inside the dead zone. */
+ * how fast (`speed`, of full pace), and whether at the rim -- or null inside
+ * the dead zone. Running is the rim held: see ui/touch-controls. */
 export function stickVector(dx, dy, radius) {
   const d = Math.hypot(dx, dy);
   if (!(radius > 0) || !Number.isFinite(d)) return { knob: { x: 0, y: 0 }, walk: null };
   const reach = Math.min(1, d / radius);
   const knob = d > radius ? { x: (dx / d) * radius, y: (dy / d) * radius } : { x: dx, y: dy };
   if (reach < STICK_DEAD) return { knob, walk: null };
-  return { knob, walk: { x: dx / d, y: dy / d, run: reach >= STICK_RUN_AT } };
+  const speed = STICK_SLOWEST + (1 - STICK_SLOWEST) * Math.min(1, (reach - STICK_DEAD) / (STICK_FULL_AT - STICK_DEAD));
+  return { knob, walk: { x: dx / d, y: dy / d, speed, rim: reach >= STICK_RUN_AT } };
 }
 
 /* The zoom a pinch asks for: the zoom it started at, scaled by how far the

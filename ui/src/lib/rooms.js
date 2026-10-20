@@ -684,6 +684,50 @@ export function admittedByShip(who,place){
 }
 let listeners=new Set();
 export const onRooms=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
+
+/* WHO IS TALKING (2026-10-20), for a mark on their tile. Polled while in a
+ * call: a voice louder than SPEAKING_LEVEL marks its ship, and the mark
+ * lingers SPEAKING_HOLD_MS so it does not flicker between words. Others'
+ * loudness is the receivers' (lib/sfu levels); ours, our own microphone's.
+ * Told on its own channel: a tile's ring changing is no reason to repaint
+ * everything that listens to the rooms. */
+export const SPEAKING_LEVEL=0.03, OWN_SPEAKING_LEVEL=0.02, SPEAKING_HOLD_MS=450, SPEAKING_POLL_MS=150;
+rooms.speaking=new Set();
+const speakListeners=new Set(),lastHeard=new Map();
+export const onSpeaking=fn=>{speakListeners.add(fn);return()=>speakListeners.delete(fn);};
+let meter=null;
+function ownLevel(){
+  const stream=published.mic?.stream;
+  const live=rooms.micOn&&!!stream?.getAudioTracks().some(t=>t.enabled&&t.readyState==='live');
+  if(!live){meter?.close();meter=null;return null;}
+  if(meter?.stream!==stream){meter?.close();meter=makeMeter(stream);}
+  return meter?.level()??null;
+}
+function makeMeter(stream){
+  try{
+    const Ctx=globalThis.AudioContext??globalThis.webkitAudioContext;if(!Ctx)return null;
+    const ctx=new Ctx(),source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();
+    analyser.fftSize=512;source.connect(analyser);
+    const buf=new Float32Array(analyser.fftSize);
+    return {stream,
+      level(){if(ctx.state==='suspended')ctx.resume().catch(()=>{});analyser.getFloatTimeDomainData(buf);
+        let sum=0;for(const v of buf)sum+=v*v;return Math.sqrt(sum/buf.length);},
+      close(){try{source.disconnect();ctx.close();}catch{}}};
+  }catch{return null;}
+}
+export function pollSpeaking(now=performance.now()){
+  if(rooms.voice!=='connected'&&!rooms.speaking.size&&!lastHeard.size)return;
+  if(rooms.voice==='connected'){
+    for(const [ship,level] of sfu?.levels?.()??[])if(level>=SPEAKING_LEVEL&&!(rooms.blocked??[]).includes(ship))lastHeard.set(ship,now);
+    const mine=ownLevel();if(mine!=null&&mine>=OWN_SPEAKING_LEVEL)lastHeard.set(our,now);
+  }else{meter?.close();meter=null;lastHeard.clear();}
+  for(const [ship,at] of lastHeard)if(now-at>=SPEAKING_HOLD_MS)lastHeard.delete(ship);
+  const next=new Set(lastHeard.keys());
+  if(next.size===rooms.speaking.size&&[...next].every(s=>rooms.speaking.has(s)))return;
+  rooms.speaking=next;
+  speakListeners.forEach(fn=>{try{fn(next);}catch(e){console.error(e);}});
+}
+if(typeof window!=='undefined')setInterval(()=>{try{pollSpeaking();}catch{}},SPEAKING_POLL_MS);
 const changed=()=>{gateEpoch++;listeners.forEach(fn=>{try{fn();}catch(e){console.error(e);}});};
 
 function selectRemoteCamera(ship) {

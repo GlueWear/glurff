@@ -35,12 +35,26 @@ export class Stage {
     this.tab.className = 'stage-tab';
     this.tab.hidden = true;
     this.tab.innerHTML = `<div class="stage-wake" aria-hidden="true"></div><div class="stage-bar"><span class="stage-title"></span>
+      <button type="button" class="stage-hide"></button>
       <button type="button" class="stage-overlay"></button>
       <button type="button" class="stage-newtab" hidden>Open in a new tab</button>
       <button type="button" class="stage-close" title="Close" aria-label="Close">&times;</button></div>
       <div class="stage-hint" hidden></div>`;
     document.body.appendChild(this.tab);
+    /* HIDDEN, STILL RUNNING (2026-10-20): what was on the stage, put away to
+     * the bottom right -- the game still connected, the video still playing --
+     * and brought back from here; its cross stops it. */
+    this.dock = document.createElement('div');
+    this.dock.className = 'stage-dock';
+    this.dock.hidden = true;
+    this.dock.innerHTML = `<button type="button" class="stage-restore"></button>
+      <button type="button" class="stage-dock-close" title="Close" aria-label="Close">&times;</button>`;
+    document.body.appendChild(this.dock);
+    this.dock.querySelector('.stage-restore').onclick = () => this.restore();
+    this.dock.querySelector('.stage-dock-close').onclick = () => this.source?.close();
+    this.minimized = false;
     this.q = (s) => this.tab.querySelector(s);
+    this.q('.stage-hide').onclick = () => this.minimize();
     this.q('.stage-overlay').onclick = () => this.setOverlay(!this.overlay);
     this.q('.stage-close').onclick = () => this.source?.close();
     this.q('.stage-newtab').onclick = () => { if (this.source?.url) window.open(this.source.url, '_blank', 'noopener'); };
@@ -54,15 +68,21 @@ export class Stage {
     window.addEventListener('keydown', this.onKey, true);
   }
 
-  get active() { return this.source; }
+  /* Something on the stage, and showing: hidden in the corner, we are back
+   * in the world (asleep when idle, waves with their button). */
+  get active() { return this.minimized ? null : this.source; }
 
   enter(source) {
     if (this.source && this.source.id !== source.id) { const old = this.source; this.source = null; old.close(); }
     this.source = source;
+    this.unminimize();
     document.documentElement.classList.add('staged');
     this.game?.pause?.();
     this.q('.stage-title').textContent = source.title ?? '';
     this.q('.stage-newtab').hidden = source.kind !== 'web';
+    const hide = this.q('.stage-hide');
+    hide.hidden = source.hideable === false;
+    hide.textContent = source.hideLabel ?? (source.kind === 'media' ? 'Hide video' : `Hide ${source.title || 'app'}`);
     this.tab.hidden = false;
     this.setOverlay(true);
     if (source.frame) this.listenInside(source.frame);
@@ -73,6 +93,7 @@ export class Stage {
   leave(id) {
     if (!this.source || this.source.id !== id) return;
     this.source = null;
+    this.unminimize();
     document.documentElement.classList.remove('staged', 'overlay-off');
     clearTimeout(this.sleepTimer);this.sleepTimer=null;this.tab.classList.remove('sleeping');
     this.overlay = true;
@@ -80,6 +101,63 @@ export class Stage {
     this.q('.stage-hint').hidden = true;
     this.game?.resume?.();
     this.onActivity(null);
+  }
+
+  /* HIDE: off the stage, still running. A source may know where it goes (a
+   * theater's video, back onto its painted screen); anything else shrinks away
+   * to the corner and waits there. */
+  minimize() {
+    const source = this.source;
+    if (!source || this.minimized || source.hideable === false) return;
+    if (source.minimize) { source.minimize(); return; }
+    this.minimized = true;
+    const restore = this.dock.querySelector('.stage-restore');
+    restore.textContent = `▸ ${source.title || 'App'}`;
+    restore.title = `Back to ${source.title || 'it'}`;
+    this.dock.hidden = false;
+    this.shrink(this.stagedElements(), true).then(() => {
+      if (!this.minimized || this.source !== source) return;
+      document.documentElement.classList.add('stage-min');
+      document.documentElement.classList.remove('staged', 'overlay-off');
+      this.tab.hidden = true;
+      this.game?.resume?.();
+    });
+  }
+  /* Back onto the stage, from the corner. */
+  restore() {
+    const source = this.source;
+    if (!source || !this.minimized) return;
+    this.minimized = false;
+    this.dock.hidden = true;
+    document.documentElement.classList.remove('stage-min');
+    document.documentElement.classList.add('staged');
+    this.game?.pause?.();
+    this.tab.hidden = false;
+    this.setOverlay(true);
+    this.shrink(this.stagedElements(), false);
+  }
+  /* Forget any hiding: something new took the stage, or it was let go. */
+  unminimize() {
+    this.minimized = false;
+    this.dock.hidden = true;
+    document.documentElement.classList.remove('stage-min');
+  }
+  stagedElements() {
+    return [...document.querySelectorAll('.app-panel.staged, #stage-media > *, #stage-call-media > *')];
+  }
+  /* The little animation: down into the corner, or up out of it. */
+  shrink(elements, away) {
+    const to = this.dock.getBoundingClientRect();
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const runs = elements.map((el) => {
+      if (reduced || typeof el.animate !== 'function') return Promise.resolve();
+      const r = el.getBoundingClientRect();
+      const dx = to.left + to.width / 2 - (r.left + r.width / 2), dy = to.top + to.height / 2 - (r.top + r.height / 2);
+      const small = { transform: `translate(${dx}px, ${dy}px) scale(.06)`, opacity: 0.2 }, full = { transform: 'none', opacity: 1 };
+      return el.animate(away ? [full, small] : [small, full], { duration: 260, easing: away ? 'cubic-bezier(.5,0,1,.6)' : 'cubic-bezier(0,.4,.5,1)' })
+        .finished.catch(() => {});
+    });
+    return Promise.all(runs);
   }
 
   /* Glurff's controls over the stage, or not. The player's own play/pause and

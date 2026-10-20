@@ -4,7 +4,7 @@
  * readout of who can hear you and what you are sending. Video sits along the
  * top: double-click a tile to expand it, drag its corner to size it.
  */
-import { rooms, onRooms, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged, hostReach,
+import { rooms, onRooms, onSpeaking, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged, hostReach,
          canModerate, mayRecord, mutedShip, roleFor, callPeers, retryMic, soundless, micOff } from 'lib/rooms';
 import { devices, onDevices, refreshDevices, chosenDevice, chooseDevice, canPickOutput, noiseReduction, setNoiseReduction } from 'lib/devices';
 import { displayName, avatarUrl, onChange } from 'lib/noltbook';
@@ -13,6 +13,7 @@ import { roomById, COMMONS } from 'world/places';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
 import { pictureFor } from 'ui/avatar';
+import { columnMode, columnWidth, setColumnWidth, applyColumnWidth, onColumnMode } from 'ui/strip-column';
 
 const maxTileWidth=()=>Math.max(720,(globalThis.innerWidth??744)-24);
 const screenPublication=label=>String(label??'').startsWith('screen');
@@ -28,8 +29,10 @@ export class Rail {
     /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
      * resized every screen in the strip rather than the one under the hand. */
     this.sizes = new Map();
-    /* What a feed starts at: smaller on a phone, where the world is small too. */
+    /* What a feed starts at: smaller on a phone, where the world is small too.
+     * On a desktop every feed is the column's width instead (ui/strip-column). */
     this.size = smallScreen() ? 96 : 132;
+    applyColumnWidth(strip);
     /* The settings panel lives OUTSIDE the repainted markup.
      *
      * The rail redraws on every presence tick -- several times a second -- and
@@ -44,6 +47,10 @@ export class Rail {
     this.settingsOpen = false;
     onDevices(() => { if (this.settingsOpen) this.paintSettings(); });
     onRooms(() => this.paint());
+    /* A ring on whoever is talking: just the classes, nothing repainted. */
+    onSpeaking(() => this.paintSpeaking());
+    /* Column on a desktop, strip on a phone: sized again on the way across. */
+    onColumnMode(() => this.paintStrip());
     /* A picture arriving, or a name, changes a tile. */
     onChange(() => this.paintStrip(), (c) => c.field === 'profiles');
     this.paint();
@@ -127,7 +134,8 @@ export class Rail {
       /* The one you have opened up gets a floor of 320 and twice the width;
        * everything else keeps whatever it was last dragged to. */
       const own = this.sizes.get(v.key) ?? this.size;
-      const w = Math.min(maxTileWidth(),this.expanded === v.key ? Math.max(own, 320) * 2 : own);
+      const column = columnMode();
+      const w = Math.min(maxTileWidth(),this.expanded === v.key && !column ? Math.max(own, 320) * 2 : own);
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
@@ -136,7 +144,11 @@ export class Rail {
         this.tiles.set(v.key,el);
         /* A picture that will not load: the next one (ui/avatar). */
         el.querySelector('.face').addEventListener('error',()=>this.paintStrip());
-        el.ondblclick=e=>{if(e.target.closest('.grip'))return;this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
+        /* Opened up: twice the size in the strip; in the column, which has
+         * one width, the whole screen instead. */
+        el.ondblclick=e=>{if(e.target.closest('.grip'))return;
+          if(columnMode()){this.stageTile(v.key,v.label);return;}
+          this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
         /* Pointer events with capture: the drag follows the pointer even when
          * it leaves the little square, and it ends with the pointer wherever
          * that happens -- including a touch or pen. */
@@ -148,7 +160,10 @@ export class Rail {
            * that, so the drag is measured against the size, not the drawing. */
           const startX=e.clientX,scale=this.expanded===v.key?2:1,startW=el.offsetWidth/scale;
           try{grip.setPointerCapture?.(e.pointerId);}catch{}
-          const move=ev=>{this.sizes.set(v.key,Math.max(96,Math.min(maxTileWidth()/scale,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
+          /* In the column, any corner drags the whole column's width. */
+          const column=columnMode(),startColumn=columnWidth();
+          const move=ev=>{if(column){setColumnWidth(startColumn+(ev.clientX-startX),this.strip);return;}
+            this.sizes.set(v.key,Math.max(96,Math.min(maxTileWidth()/scale,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
           const up=()=>{
             grip.removeEventListener('pointermove',move);
             grip.removeEventListener('pointerup',up);
@@ -161,10 +176,12 @@ export class Rail {
         });
         grip.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();this.stageTile(v.key,v.label);});
       }
+      el.dataset.ship=v.screen?'':v.ship;
+      el.classList.toggle('speaking',!v.screen&&rooms.speaking.has(v.ship));
       const staged=this.staged===v.key;
-      el.classList.toggle('big',this.expanded===v.key&&!staged);
+      el.classList.toggle('big',this.expanded===v.key&&!staged&&!column);
       el.classList.toggle('staged-call-tile',staged);
-      el.style.width=staged?'':`${w}px`;
+      el.style.width=staged||column?'':`${w}px`;
       /* Text only, never markup: a name is whatever its owner typed. */
       const who=el.querySelector('.who'),tags=el.querySelector('.tags'),tag=this.tags(v.screen?null:v.ship);
       if(who.textContent!==v.label)who.textContent=v.label;
@@ -195,12 +212,17 @@ export class Rail {
     }
   }
 
+  /* WHO IS TALKING: a ring on their tile (lib/rooms onSpeaking). */
+  paintSpeaking(){
+    for(const el of this.tiles?.values()??[])el.classList.toggle('speaking',!!el.dataset.ship&&rooms.speaking.has(el.dataset.ship));
+  }
+
   stageTile(key,title){
     const el=this.tiles?.get(key);if(!el||!this.stage)return;
     if(this.staged===key){this.unstageTile(key);return;}
     if(this.staged)this.unstageTile(this.staged);
     this.staged=key;this.expanded=null;this.stageRoot.appendChild(el);
-    this.stage.enter({id:`call-media-${key}`,kind:'media',title:title??'Call video',close:()=>this.unstageTile(key)});
+    this.stage.enter({id:`call-media-${key}`,kind:'media',title:title??'Call video',hideable:false,close:()=>this.unstageTile(key)});
     this.paintStrip();
   }
 

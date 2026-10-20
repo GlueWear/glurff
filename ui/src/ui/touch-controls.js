@@ -8,7 +8,7 @@
  * the call bar is (--rail-h) and how much of the page the on-screen keyboard
  * covers (--kb).
  */
-import { stickVector, keyboardCover } from 'lib/touch';
+import { stickVector, keyboardCover, RUN_HOLD_MS } from 'lib/touch';
 
 const SWORD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></svg>';
@@ -58,6 +58,20 @@ export class TouchControls {
     this.paint();
   }
 
+  /* WHERE THE THUMB IS, to the game: running once it has been at the rim
+   * RUN_HOLD_MS -- a thumb that sits still there still starts to run. */
+  walk(walk) {
+    const now = performance.now();
+    if (walk?.rim) this.rimSince ??= now; else this.rimSince = null;
+    clearTimeout(this.runTimer);
+    const run = !!walk?.rim && now - this.rimSince >= RUN_HOLD_MS;
+    if (walk?.rim && !run) this.runTimer = setTimeout(() => { if (this.held != null && this.lastWalk === walk) this.walk(walk); },
+      RUN_HOLD_MS - (now - this.rimSince) + 5);
+    this.lastWalk = walk;
+    this.stick.classList.toggle('run', run);
+    this.game.setStick(walk ? { ...walk, run } : null);
+  }
+
   /* One thumb at a time; it keeps the stick until it lets go, wherever it
    * wanders. */
   wireStick() {
@@ -68,12 +82,12 @@ export class TouchControls {
       /* The knob stays inside the ring; the thumb may reach past it. */
       const k = w > 0 ? (w - knob.offsetWidth) / w : 0;
       knob.style.transform = `translate(${Math.round(at.x * k)}px, ${Math.round(at.y * k)}px)`;
-      stick.classList.toggle('run', !!walk?.run);
-      this.game.setStick(walk);
+      this.walk(walk);
     };
     const letGo = (e) => {
       if (e.pointerId !== this.held) return;
       this.held = null;
+      clearTimeout(this.runTimer); this.rimSince = null; this.lastWalk = null;
       stick.classList.remove('held', 'run');
       knob.style.transform = '';
       this.game.setStick(null);

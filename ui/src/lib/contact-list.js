@@ -14,16 +14,19 @@ export const PAL_PRESENTATION = {
 export const palPresentation = (status) =>
   PAL_PRESENTATION[status] ?? PAL_PRESENTATION.none;
 
-export function contactRows({ pals = {}, contacts = {}, profiles = {} } = {}, self = '') {
+export function contactRows({ pals = {}, contacts = {}, profiles = {}, palDeclined = new Set() } = {}, self = '') {
+  /* A request we dismissed is no request here: they still ask, but it is not
+   * shown -- and somebody we only knew by their asking is not listed. */
+  const dismissed = (ship) => pals[ship] === 'requested' && palDeclined.has(ship);
   const ships = new Set([
-    ...Object.keys(pals),
+    ...Object.keys(pals).filter((ship) => !dismissed(ship) || contacts[ship]),
     ...Object.keys(contacts).filter((ship) => contacts[ship]),
   ]);
   ships.delete(self);
   const rank = (status) => status === 'requested' ? 0 : status === 'blocked' ? 2 : 1;
   return [...ships].map((ship) => ({
     ship,
-    status: pals[ship] ?? 'none',
+    status: dismissed(ship) ? 'none' : pals[ship] ?? 'none',
     name: profiles[ship]?.displayName || ship,
     contact: !!contacts[ship],
   })).sort((a, b) => rank(a.status) - rank(b.status) ||

@@ -295,16 +295,15 @@ export class ProfileCard {
             ${az ? `<div class="dim">${az.rank} &middot; ${esc(az.point)}</div>` : ''}
             ${az?.chain.length ? `<div class="dim">sponsor ${az.chain.map(esc).join(' &rarr; ')}</div>` : ''}
           </div>
+          ${worn ? `<div class="card-me">
+            <div class="card-sprite-slot"></div>
+            ${ship === our ? '<button class="b-edit">EDIT CHARACTER</button>'
+              : `<span class="dim card-here">${idleMin ? `In Glurff · idle ${idleMin} min` : 'In Glurff now'}</span>`}
+          </div>` : ''}
         </div>
         ${!this.editing && bio ? `<div class="card-bio"><span class="dim">BIO</span><div>${bioHtml(bio)}</div></div>` : ''}
         ${ship !== our && LOOKUP[lookup] ? `<div class="card-lookup ${LOOKUP[lookup][1] ? 'busy' : 'done'}" data-state="${lookup}"${LOOKUP[lookup][1] ? ' aria-busy="true"' : ' role="button" tabindex="0"'}><span>${LOOKUP[lookup][0]}</span>${LOOKUP[lookup][1] ? '<span class="dots"><i></i><i></i><i></i></span>' : ''}</div>` : ''}
-        ${worn ? `<div class="card-me">
-          <div class="card-sprite-slot"></div>
-          <div class="card-me-text">${ship === our
-            ? '<span class="dim">Your character</span><button class="b-edit">EDIT CHARACTER</button>'
-            : `<span class="dim">${idleMin ? `In Glurff · idle ${idleMin} min` : 'In Glurff now'}</span>`}</div>
-        </div>` : ''}
-        ${ship === our ? `${this.editing ? '' : '<div class="card-btns"><button class="b-profile-edit">EDIT PROFILE</button></div>'}
+        ${ship === our ? `${this.editing ? '' : '<div class="card-profile-btn"><button class="b-profile-edit">EDIT PROFILE</button></div>'}
         ${this.editing ? `<form class="card-profile-form">
           <label><span>USER NAME</span><input class="profile-name" maxlength="32" value="${esc(profile.displayName ?? '')}" placeholder="set display name…" autocomplete="off"></label>
           <label><span>BIO</span><textarea class="profile-bio" placeholder="say something about yourself…">${esc(bio)}</textarea></label>
@@ -403,11 +402,10 @@ export class ProfileCard {
     const slot = q('.card-sprite-slot');
     if (slot) {
       slot.appendChild(this.sprite);
-      /* As big as the editor draws it, across the card: centred, unless a
-       * companion stands beside. Smaller only if it would not fit. */
-      const width = Math.max(200, Math.floor(slot.clientWidth) - 2);
-      const draw = () => paintStage(this.sprite, worn, 'down', 0,
-        { scale: 12, width, height: 168, anchor: worn.companion?.part ? 0.4 : 0.5 }, draw);
+      /* Beside who they are, small and centred (2026-10-20): the card is about
+       * them; a box across the whole card made it long. Smaller only if it
+       * would not fit. */
+      const draw = () => paintStage(this.sprite, worn, 'down', 0, { scale: 7, width: 116, height: 116, pad: 6 }, draw);
       draw();
       if (ship === our) this.sprite.onclick = toEditor;
       this.sprite.classList.toggle('editable', ship === our);

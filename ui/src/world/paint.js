@@ -43,11 +43,13 @@ function inkOf(img, f) {
 
 /* ONE CHARACTER, ON A CANVAS: the editor's preview, and the profile card's.
  * One fixed scale, so a character never changes size as things are added --
- * a mount, a weapon, a companion -- with the feet on the same spot every time
- * (`anchor` of the way across: left of centre leaves room for a companion).
- * Only something that would not fit at all (a very tall creature on a mount)
- * is drawn a whole step smaller, so pixels stay square. */
-export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, height = 300, anchor = 0.4 } = {}, onLoad = null) {
+ * a mount, a weapon, a companion -- and only something that would not fit at
+ * all (a very tall creature on a mount) is drawn a whole step smaller, so
+ * pixels stay square. Since 2026-10-20 whatever is drawn -- a character, and
+ * its companion with it -- sits in the MIDDLE of the box, which can then be
+ * small: the feet pinned left of centre, for a companion that was not there,
+ * left a big box with the character off to one side. */
+export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, height = 300, pad = 8 } = {}, onLoad = null) {
   const dpr = Math.max(1, Math.round(globalThis.devicePixelRatio || 1));
   if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
     canvas.width = width * dpr; canvas.height = height * dpr;
@@ -62,7 +64,6 @@ export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, h
   const companion = equipmentOf('companion', worn.companion?.part);
   /* Beside us, as far as it keeps in the world (world/parts companionReach). */
   if (companion) layers.push({ ...wholeFrame(companion, dir, 0), dx: companionReach(companion) + 2, dy: 2 });
-  const ax = Math.round(width * anchor), ay = height - Math.round(height * 0.13);
   /* Everything drawn, in art pixels around the feet. */
   let left = -1, right = 1, top = -1, bottom = 1;
   const ready = [];
@@ -77,8 +78,10 @@ export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, h
     left = Math.min(left, dx + x0); right = Math.max(right, dx + x1);
     top = Math.min(top, dy + ink[1] - f.feet); bottom = Math.max(bottom, dy + ink[3] - f.feet);
   }
-  const fit = Math.min(scale, ax / -left, (width - ax) / right, ay / -top, (height - ay) / bottom);
-  const s = Math.max(1, Math.floor(fit)) * dpr;
+  const fit = Math.min(scale, (width - 2 * pad) / (right - left), (height - 2 * pad) / (bottom - top));
+  const unit = Math.max(1, Math.floor(fit)), s = unit * dpr;
+  /* The drawing's middle on the box's middle, on whole pixels. */
+  const ax = Math.round(width / 2 - ((left + right) / 2) * unit), ay = Math.round(height / 2 - ((top + bottom) / 2) * unit);
   for (const [f, img] of ready) {
     ctx.save();
     ctx.translate(ax * dpr + (f.dx ?? 0) * s, ay * dpr + (f.dy ?? 0) * s);

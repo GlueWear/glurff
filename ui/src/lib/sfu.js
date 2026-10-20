@@ -558,6 +558,22 @@ export class SfuSession {
 
   /* Other ships in this call right now, as the server reports them. Joining the
    * server is not the same as being in a call with somebody. */
+  /* WHO IS TALKING (2026-10-20): each voice we receive, its latest loudness
+   * (0..1) by ship, read from the receivers' own packet levels -- nothing
+   * extra to decode, and no audio context to start. */
+  levels() {
+    const out = new Map();
+    for (const d of this.down.values()) {
+      if (!d.ship || !d.pc?.getReceivers) continue;
+      for (const r of d.pc.getReceivers()) {
+        if (r.track?.kind !== 'audio' || typeof r.getSynchronizationSources !== 'function') continue;
+        for (const s of r.getSynchronizationSources())
+          if (Number.isFinite(s.audioLevel)) out.set(d.ship, Math.max(out.get(d.ship) ?? 0, s.audioLevel));
+      }
+    }
+    return out;
+  }
+
   others() {
     const out = new Set();
     for (const name of this.users.values()) { const s = shipOf(name); if (s && s !== this.our) out.add(s); }

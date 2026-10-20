@@ -47,6 +47,9 @@ export const nb = {
   notes: {},      //  id -> note
   messages: {},   //  noteId -> [message]
   pals: {},       //  ship -> status
+  /* Pal requests we dismissed: Noltbook's list (2026-10-20). They still ask;
+   * we just do not show it. */
+  palDeclined: new Set(),
   profiles: {},   //  ship -> profile
   contacts: {},   //  ship -> true
   callMods: {},   //  noteId -> {noteId, rev, mod}  moderation of that note's call
@@ -361,6 +364,12 @@ export function applyFact(name, p) {
       nb.pals = Object.fromEntries(p.map(e => [e.ship, e.status]));
       nb.palsReady = true; field = 'pals'; break;
     case 'pal-update': nb.pals[p.ship] = p.status; field = 'pals'; break;
+    /* DISMISSED REQUESTS, as Noltbook keeps them: its own page hides these,
+     * and so do we -- the Dismiss that "did nothing" was this, unread. */
+    case 'pal-declined-list': nb.palDeclined = new Set(Array.isArray(p) ? p : []); field = 'pals'; break;
+    case 'pal-declined-updated':
+      if (p?.declined) nb.palDeclined.add(p.ship); else nb.palDeclined.delete(p?.ship);
+      field = 'pals'; break;
     case 'pal-removed': delete nb.pals[p.ship]; field = 'pals'; break;
     case 'dial-update':
       if (nb.dialReady && nb.dial === p) return;

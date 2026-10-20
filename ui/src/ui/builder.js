@@ -59,10 +59,11 @@ export class Builder {
     if (!this.open) return;
     /* Sheets arrive over the network on first open; repaint when one lands so
      * the preview fills in rather than staying half-drawn. */
-    /* ONE SIZE, whatever is worn (world/paint paintStage); smaller on a phone. */
-    const phone = typeof innerWidth === 'number' && innerWidth <= 700;
+    /* ONE SIZE, whatever is worn (world/paint paintStage), in the middle of a
+     * box no bigger than it needs to be; smaller on a phone. */
+    const phone = typeof innerWidth === 'number' && innerWidth <= 760;
     paintStage(this.canvas, this.look, this.dir, this.frame,
-      phone ? { scale: 8, width: 320, height: 230 } : { scale: 12, width: 500, height: 300 }, () => this.paint());
+      phone ? { scale: 10, width: 260, height: 160 } : { scale: 12, width: 240, height: 190 }, () => this.paint());
   }
 
   /* The style whose colours the row is showing. ALWAYS a real style, even
@@ -126,26 +127,39 @@ export class Builder {
     /* A ready-made character with its own attack carries no other weapon. */
     const ownAttack = premade?.animations?.attack ? premade.attack : null;
     const extras = EXTRAS.filter((slot) => !(slot === 'weapon' && ownAttack));
-    this.root.innerHTML = `<div class="builder">
+    /* TWO COLUMNS (2026-10-20): the character on the left, what it wears on
+     * the right, Done always in reach -- it fits without scrolling on a
+     * desktop, and on a phone it stacks. Rebuilt on every change, so where
+     * the lists were scrolled to is kept: jumping back to the top under the
+     * pointer was the worst of it. */
+    const kept = [this.root.querySelector('.builder')?.scrollTop ?? 0, this.root.querySelector('.builder-main')?.scrollTop ?? 0];
+    this.root.innerHTML = `<div class="builder editor">
+      <div class="builder-head">
       <h3>${premade ? esc(premade.name) : 'Your character'}</h3>
       ${this.equipmentReady?`<div class="builder-modes"><button class="browse-characters">Pick a ready-made character</button>
         ${premade ? '<button class="build-own-btn">Build your own</button>' : ''}</div>`:''}
-      <div class="preview-box">
-        <div class="preview-slot"></div>
+      </div>
+      <div class="builder-body">
+      <div class="builder-side">
+        <div class="preview-box"><div class="preview-slot"></div></div>
         <div class="dirs">${DIRS.map((d) =>
           `<button class="dir${d === this.dir ? ' on' : ''}" data-dir="${d}">${d}</button>`).join('')}</div>
       </div>
+      <div class="builder-main">
       ${rows}
       ${this.equipmentReady?`<div class="equipment">${extras.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
         <select id="equip-${slot}" data-equipment="${slot}">
         <option value="">None</option>${choicesOf(slot).map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
       ${this.equipmentReady&&ownAttack?'<p class="bow-hint">'+weaponHint(ownAttackOf(this.look),true)+' Hits are just for fun—you get straight back up.</p>'
         :this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':''}
-      <p class="builder-error" role="status"></p>
-      <button class="done">Done</button>
+      </div>
+      </div>
+      <div class="builder-foot"><p class="builder-error" role="status"></p><button class="done">Done</button></div>
     </div>`;
     this.root.querySelector('.preview-slot').appendChild(this.canvas);
     this.paint();
+    this.root.querySelector('.builder').scrollTop = kept[0];
+    this.root.querySelector('.builder-main').scrollTop = kept[1];
 
     this.root.querySelectorAll('button[data-dir]').forEach((b) =>
       b.onclick = () => this.face(b.dataset.dir));

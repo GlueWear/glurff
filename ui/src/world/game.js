@@ -12,7 +12,7 @@ import { bubbleText, WAVE_MS } from './bubbles.js';
 import { projectileTexture, shotKind, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
 import { shortAmount, validAmount } from '../lib/nock-receipt.js';
-import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED } from '../lib/touch.js';
+import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED, TOUCH_WALK } from '../lib/touch.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT, spellColour, companionReach } from 'world/parts';
@@ -76,6 +76,9 @@ function frameTexture(f) {
 const RUN_MULT = 1.8;
 const DOUBLE_TAP_MS = 280;
 const FRAME_MS = 200;       //  Minifantasy walk timing
+/* A companion following: how far behind its place it sets off walking, and
+ * how near counts as there (in tiles). */
+const COMPANION_START = 0.2, COMPANION_SETTLE = 0.05;
 /* How far the world moves for a drag of the mouse. Above one, so crossing the
  * building is one pull rather than several. */
 const PAN_SPEED = 2.5;
@@ -206,7 +209,7 @@ export class Game {
         this.onClockHover(null);
         return;
       }
-      if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY); this.hoverClock(e); return; }
+      if (!this.panning) { this.hoverHotspot(e.clientX, e.clientY, e.target); this.hoverClock(e); return; }
       this.onClockHover(null);
       const dx = e.clientX - this.panning.x, dy = e.clientY - this.panning.y;
       if(!this.panning.anchored)this.anchorPanToCamera();
@@ -390,7 +393,7 @@ export class Game {
   /* The joystick: which way, and whether running; null to stop. Its latest
    * direction remains the phone weapon's aim after the thumb lifts. */
   setStick(walk) {
-    this.stick = walk ? { x: walk.x, y: walk.y, run: !!walk.run } : null;
+    this.stick = walk ? { x: walk.x, y: walk.y, run: !!walk.run, speed: walk.speed ?? 1 } : null;
     if(walk)this.touchDir=nearestDir(walk.x,walk.y);
   }
   /* A clock carried by mouse or finger, put down: kept where it landed. */
@@ -674,7 +677,11 @@ export class Game {
     if (!ch.follow || ch.follow.scene !== scene || Math.hypot(ch.follow.x-x,ch.follow.y-y)>distance*8)
       ch.follow = {x:x-distance,y,scene,dir:ch.dir};
     const f = ch.follow, dx=x-f.x, dy=y-f.y, d=Math.hypot(dx,dy);
-    const moving = d>distance;
+    /* Catching up eases in and never quite arrives, so "any way still to go"
+     * walked it in place for as long as we stood still (2026-10-20). It sets
+     * off a little way behind and is there within a pixel. */
+    f.walking = d-distance > (f.walking ? COMPANION_SETTLE : COMPANION_START);
+    const moving = f.walking;
     if (moving) {
       const step = (d-distance)*(1-Math.exp(-dt*8));
       f.x += dx/d*step; f.y += dy/d*step;
@@ -817,9 +824,19 @@ export class Game {
     return findHotspot(this.hotspots, this.scene, this.worldPixelAt(clientX, clientY));
   }
 
-  hoverHotspot(clientX, clientY) {
-    if (this.panning) return this.showHotspot(null);
+  /* A spot swells under the pointer only when the pointer is ON the world --
+   * not on a panel over it -- and no menu is up (2026-10-20): moving through
+   * the character editor over the board room table swelled the table. */
+  hoverHotspot(clientX, clientY, target = null) {
+    if (this.panning || this.menuOpen() || (target && this.app?.view && target !== this.app.view))
+      return this.showHotspot(null);
     this.showHotspot(this.hotspotAt(clientX, clientY));
+  }
+
+  /* A MENU IS UP: the character editor, a card, a question, any dialog. */
+  menuOpen() {
+    return [...document.querySelectorAll('.builder, .card-overlay:not([hidden]), .ask-overlay, dialog[open], [role="dialog"]')]
+      .some(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
   }
 
   showHotspot(hotspot) {
@@ -842,6 +859,7 @@ export class Game {
   }
 
   activateHotspot(clientX, clientY) {
+    if (this.menuOpen()) return false;
     const hotspot = this.hotspotAt(clientX, clientY);
     if (!hotspot) return false;
     hotspot.onActivate?.(hotspot);
@@ -1225,15 +1243,16 @@ export class Game {
     if (this.keys.has('s') || this.keys.has('arrowdown')) dy += 1;
     /* No keys: the joystick, if a thumb is on it -- any angle, and pushed to
      * the rim, running. */
-    let run = this.running;
-    if (!dx && !dy && this.stick) { dx = this.stick.x; dy = this.stick.y; run = this.stick.run; }
+    let run = this.running, pace = 1;
+    /* A phone's walk follows the push, and is a little slower (lib/touch). */
+    if (!dx && !dy && this.stick) { dx = this.stick.x; dy = this.stick.y; run = this.stick.run; pace = this.stick.speed * TOUCH_WALK; }
 
     if(time<(this.stunnedUntil??0) || this.selfSprite.animation.locked(time))dx=dy=0;
     const wasMoving=this.self.moving;
     const moving = dx !== 0 || dy !== 0;
     if (moving) {
       const len = Math.hypot(dx, dy) || 1;
-      const step = (sceneWalkSpeed(this.scene) * (run ? RUN_MULT : 1) * dt) / len;
+      const step = (sceneWalkSpeed(this.scene) * (run ? RUN_MULT : 1) * pace * dt) / len;
       /* Axis at a time, so sliding along a wall works instead of sticking. */
       const nx = this.self.x + dx * step;
       if (!this.solidAt(nx, this.self.y)) this.self.x = nx;

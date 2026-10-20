@@ -68,7 +68,8 @@ const ADJUST = {
     'mounts-new-mounts-unicorn-unicorn': { riderBack: 2 },
     'mounts-new-mounts-war-horse-war-horse-stallion': { riderBack: 2 },
     'mounts-new-mounts-bicycle-bicycle': { riderBack: 3 },
-    'mounts-new-mounts-magic-carpet-magic-carpet': { under: true },
+    /* Under its rider -- who sits two pixels higher on it (2026-10-20). */
+    'mounts-new-mounts-magic-carpet-magic-carpet': { under: true, riderY: -4 },
   },
 };
 /* The ready-made characters, as chosen one by one (world/roster): some no

@@ -4,6 +4,7 @@ import { SCREEN_RECTS } from 'world/hotspots';
 import { roomBySlug } from 'world/places';
 import { rooms, onRooms, callPeers, startScreen, screenShare } from 'lib/rooms';
 import { esc } from 'ui/html';
+import { columnMode, columnWidth, setColumnWidth } from 'ui/strip-column';
 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
 
@@ -127,7 +128,11 @@ class SurfaceView {
       e.preventDefault(); e.stopPropagation();
       const start = e.clientX, width = this.root.offsetWidth;
       try { grip.setPointerCapture(e.pointerId); } catch {}
-      const move = p => { this.width = Math.max(96, Math.min(maxPopupWidth(), width + p.clientX - start)); this.root.style.width=`${this.width}px`; };
+      /* In the call column (ui/strip-column) its width is the column's. */
+      const column = columnMode() && this.root.parentElement === this.owner.strip, startColumn = columnWidth();
+      const move = p => {
+        if (column) { setColumnWidth(startColumn + p.clientX - start, this.owner.strip); return; }
+        this.width = Math.max(96, Math.min(maxPopupWidth(), width + p.clientX - start)); this.root.style.width=`${this.width}px`; };
       const up = () => { grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',up); };
       grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);grip.addEventListener('pointercancel',up);
     });
@@ -164,9 +169,13 @@ class SurfaceView {
       /* THE STAGE: the whole screen, behind Glurff's interface. */
       this.root.style.left='';this.root.style.top='';this.root.style.width='';this.root.style.height='';
       this.root.style.transform='';this.root.style.transformOrigin='';
+      /* Hide puts it back where it was -- its painted screen, still playing;
+       * the cross stops it, for us (2026-10-20). */
       this.owner.stage?.enter({ id:`media-${this.surface}`, kind:'media',
         title:this.surface==='jukebox'?'Jukebox':this.surface==='amphitheatre'?'Amphitheatre screen':'Movie Theater screen',
-        close:()=>this.owner.leaveStage(this.surface) });
+        hideLabel:this.surface==='jukebox'?'Hide jukebox':'Hide video',
+        minimize:()=>this.owner.leaveStage(this.surface),
+        close:()=>this.owner.hide(this.surface) });
     }
     if (tile) {
       /* A docked screen is positioned over its painted counterpart. Those

@@ -43,7 +43,7 @@ export class Contacts {
     });
     onChange(() => {
       for (const [ship, pending] of this.busy) {
-        if ((nb.pals[ship] ?? 'none') !== pending.status) this.busy.delete(ship);
+        if ((nb.pals[ship] ?? 'none') !== pending.status || nb.palDeclined.has(ship)) this.busy.delete(ship);
       }
       this.paint();
     }, (c) => ['pals', 'contacts', 'profiles'].includes(c.field));

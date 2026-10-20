@@ -51,6 +51,17 @@ button:hover { border-color: #7fd6c3; }
 #strip { position: absolute; left: 12px; top: 48px; right: 320px; z-index: 4; display: flex;
   gap: 6px; flex-wrap: wrap; align-items: flex-start; align-content: flex-start;
   pointer-events: auto; }
+/* THE CALL COLUMN (2026-10-20; ui/strip-column): on a desktop, one column
+   down the left -- top to bottom, between the buttons at the top and the call
+   bar at the bottom -- every tile its width, scrolling when there are too many.
+   (A phone keeps the strip across the top: see the phone rules below.) */
+@media (min-width: 701px) and (min-height: 501px) {
+  #strip { right: auto; top: 56px; bottom: calc(var(--rail-h, 84px) + 24px); width: var(--strip-w, 180px);
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; padding-right: 2px; }
+  #strip:empty { display: none; }
+  #strip > .tile, #strip > .media-tile { width: auto !important; align-self: stretch; flex: 0 0 auto; }
+}
 .tile { position: relative; background: #000; border: 1px solid #2a3244; border-radius: 3px;
   overflow: hidden; flex: 0 0 auto; align-self: flex-start; height: auto; }
 /* The video sets the tile's height from its own aspect ratio; nothing else may. */
@@ -511,14 +522,19 @@ button.on { border-color: #7fd6c3; color: #7fd6c3; }
 .host-offer .row button { flex: 1; }
 
 /* ---- your character, inside your profile ------------------------------- */
-/* Your character across the card, as big as the editor draws it, and what
- * to do with it underneath. */
-.card-me { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
-.card-sprite-slot { height: 170px; display: grid; place-items: center;
+/* Their character beside who they are, at the top right, and what to do
+ * with it underneath. */
+.card-top .card-id { flex: 1 1 auto; min-width: 0; }
+.card-me { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+.card-me .b-edit { font-size: 11px; padding: 2px 8px; }
+.card-me .card-here { font-size: 11px; text-align: center; max-width: 116px; }
+/* EDIT PROFILE: small, under the bio, on the left. */
+.card-profile-btn { display: flex; justify-content: flex-start; }
+.card-profile-btn button { font-size: 11px; padding: 2px 8px; }
+.card-sprite-slot { width: 116px; height: 116px; display: grid; place-items: center;
   background: #0c0f16; border: 1px solid #2a3244; border-radius: 4px; }
 .card-sprite { image-rendering: pixelated; display: block; }
 .card-sprite.editable { cursor: pointer; }
-.card-me-text { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 
 /* ---- sending $NOCK ------------------------------------------------------ */
 .send-form { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; }
@@ -805,7 +821,29 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .overlay-off .app-panel:not(.staged) { display: none !important; }
 /* These are Glurff's controls, not the player's native play/pause/timeline. */
 .overlay-off #stage-media .media-tools, .overlay-off #stage-media .media-menu { display: none !important; }
+/* FULL SCREEN, the video's own buttons (2026-10-20): twice the size, in the
+   middle, above the player's own bar and the call bar -- not in the corner
+   over the chat button. A phone keeps its finger-sized tray, moved likewise. */
+#stage-media .media-tools { left: 50%; right: auto; bottom: calc(var(--rail-h, 70px) + 28px); transform: translateX(-50%);
+  min-height: 48px; gap: 6px; padding: 6px; border-radius: 6px; }
+#stage-media .media-tools button { padding: 2px 8px; font-size: 20px; white-space: nowrap; }
+.touch #stage-media .media-menu { left: 50%; right: auto; bottom: calc(var(--rail-h, 70px) + 28px); transform: translateX(-50%); }
+.touch #stage-media .media-tools { bottom: calc(var(--rail-h, 70px) + 80px); justify-content: center; }
+.touch #stage-media .media-tools button { padding: 5px 8px; font-size: 12px; }
 /* The tab: what is on the stage, Glurff's interface off and on, and close. */
+/* HIDDEN, STILL RUNNING: out of sight but alive (a frame keeps running, a
+   video keeps playing), and a chip at the bottom right to bring it back. */
+.stage-min .app-panel.staged, .stage-min #stage-media, .stage-min #stage-call-media { visibility: hidden !important; pointer-events: none !important; }
+.stage-dock { position: fixed; z-index: 45; right: 324px; bottom: calc(12px + var(--safe-b, 0px)); display: flex; gap: 4px;
+  align-items: center; padding: 4px; background: rgba(16,20,29,.92); border: 1px solid #3a4760; border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+.stage-dock[hidden] { display: none; }
+.stage-dock button { border-radius: 999px; padding: 3px 12px; font-size: 12px; white-space: nowrap; }
+.stage-dock .stage-restore { border-color: #7fd6c3; color: #7fd6c3; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.stage-dock .stage-dock-close { padding: 1px 9px; font-size: 15px; line-height: 1.2; }
+@media (max-width: 700px), (max-height: 500px) {
+  .stage-dock { right: 8px; bottom: calc(var(--rail-h, 56px) + 64px + var(--safe-b, 0px)); }
+}
 .stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 12px; right: 12px;
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
 .stage-wake { position: fixed; z-index: 0; left: 0; right: 0; top: 0; height: calc(96px + var(--safe-t)); pointer-events: none; }
@@ -853,6 +891,25 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 /* ---- the character editor, 2026-10-12 ------------------------------------ */
 /* Ready-made or our own; the preview at one size (world/paint paintStage);
    the picker with bigger pictures, names in two parts, and a way out. */
+/* THE CHARACTER EDITOR IN TWO COLUMNS (2026-10-20): the character on the
+   left in a box no bigger than it needs, what it wears on the right -- the
+   only part that scrolls, if anything does -- and Done always in reach. */
+.builder.editor { width: min(880px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; padding: 16px 18px; }
+.builder.editor .builder-head { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.builder.editor h3 { margin: 0; }
+.builder.editor .builder-body { display: grid; grid-template-columns: 252px 1fr; gap: 18px; min-height: 0; flex: 1 1 auto; margin-top: 12px; }
+.builder.editor .builder-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.builder.editor .preview-box { margin: 0; padding: 6px; width: 100%; box-sizing: border-box; justify-content: center; }
+.builder.editor .builder-main { overflow-y: auto; min-height: 0; padding-right: 6px; scrollbar-width: thin; }
+.builder.editor .builder-main .row:first-child { margin-top: 0; }
+.builder.editor .dirs { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.builder.editor .builder-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex: 0 0 auto; margin-top: 10px; }
+.builder.editor .builder-foot .builder-error { margin: 0 auto 0 0; }
+@media (max-width: 760px) {
+  .builder.editor { display: block; overflow: auto; }
+  .builder.editor .builder-body { display: block; }
+  .builder.editor .builder-main { overflow: visible; padding-right: 0; margin-top: 8px; }
+}
 .builder-modes { display: flex; gap: 8px; flex-wrap: wrap; }
 .builder-modes button { flex: 1 1 auto; padding: 10px 12px; border: 2px solid #7fd6c3; background: #233f3d; color: #ddfff6; font-weight: bold; }
 .builder .preview-slot { width: auto; height: auto; min-height: 0; background-size: 16px 16px; }
@@ -872,3 +929,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
    * card the height of a row. */
   .character-choice.build-own { grid-column: 1 / -1; min-height: 0; padding: 10px 6px; }
 }
+
+/* WHO IS TALKING (2026-10-20): a green ring on their tile while they speak. */
+.tile.speaking { outline: 2px solid #4aba8a; outline-offset: -2px; box-shadow: 0 0 10px 1px rgba(74,186,138,.75); }
+.tile { transition: box-shadow .15s ease; }
