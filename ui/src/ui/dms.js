@@ -54,7 +54,7 @@ export class Dms {
     this.searchTimer = null;
     this.open = null;        //  {noteId, ship, unsub}
     this.root.innerHTML = `
-      <button class="dm-btn" title="Messages" aria-label="Messages and search">${MESSAGES_ICON}<i class="dot" hidden></i></button>
+      <button class="dm-btn" data-tip="Messages" aria-label="Messages and search">${MESSAGES_ICON}<i class="dot" hidden></i></button>
       <div class="dm-panel" hidden></div>
       <div class="dm-window" hidden></div>`;
     this.btn = this.root.querySelector('.dm-btn');
@@ -108,6 +108,9 @@ export class Dms {
   paint() {
     this.root.querySelector('.dot').hidden = !anyUnreadDm();
     this.panel.hidden = !this.panelOpen;
+    /* Open or shut, said on the button: screen readers, and its hover label
+     * stands aside while the panel is under it. */
+    this.root.querySelector('.dm-btn').setAttribute('aria-expanded', String(this.panelOpen || this.open));
     if (this.panelOpen) this.paintPanel();
     this.win.hidden = !this.open;
     if (this.open) this.paintWindow();
@@ -146,7 +149,8 @@ export class Dms {
         <span class="who">${esc(displayName(d.ship))}</span>
         <span class="prev dim">${esc(d.note.lastPreview ?? '')}</span>
         ${d.unread ? '<i class="dot"></i>' : ''}
-      </div>`).join('') || '<div class="dim pad">no messages yet</div>';
+      </div>`).join('') || `<div class="empty-state"><b>No messages yet</b>
+        <span>Open someone's card and choose DM to start a conversation.</span></div>`;
   }
 
   results(q) {

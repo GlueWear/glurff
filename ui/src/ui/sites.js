@@ -25,7 +25,7 @@ export class Sites {
     this.open = false;
     root.className = 'sites';
     root.innerHTML = `
-      <button type="button" class="sites-btn" title="Search games, or open a website" aria-label="Search games, or open a website" aria-expanded="false" aria-haspopup="true">${LENS}</button>
+      <button type="button" class="sites-btn" data-tip="Games &amp; websites" aria-label="Search games, or open a website" aria-expanded="false" aria-haspopup="true">${LENS}</button>
       <div class="sites-panel" hidden>
         <form class="sites-form"><input class="sites-input" type="text" inputmode="url" enterkeyhint="go" autocomplete="off" spellcheck="false"
           placeholder="Search games, or paste a website"></form>

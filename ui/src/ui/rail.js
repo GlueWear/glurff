@@ -266,11 +266,27 @@ export class Rail {
       rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen,canModerate(),mayRecord(),rooms.recording?.by??null]);
     if(signature===this.signature)return;
     this.signature=signature;
+    /* ONE BAR, FOUR MOODS (2026-10-21). The same round buttons always; their
+     * colour says how the call is, and words appear only when something needs
+     * saying.
+     *   idle        nobody near: the buttons alone, grey.
+     *   connecting  "Connecting…", grey, the bar breathing.
+     *   live        in a call: its name and how many, the icons white -- a
+     *               teal ring round a live microphone, a red one when off.
+     *   problem     anything wrong is said in words: nothing silent. */
+    const idle = status === 'No nearby call' && !rooms.micTrouble;
+    const problem = !idle && (!!(rooms.mutedByAdmin || rooms.bootedByAdmin || rooms.error || rooms.callHealth?.failed || rooms.mediaError)
+      || /can't|isn't/i.test(status) || (room !== COMMONS && !!rooms.picker));
+    const live = !idle && !problem && rooms.voice === 'connected';
+    const mode = idle ? 'idle' : problem ? 'problem' : live ? 'live' : 'connecting';
+    for (const m of ['idle', 'connecting', 'live', 'problem']) this.root.classList.toggle(m, m === mode);
+    /* Text only, escaped: a room's name is whatever its map's maker called it. */
+    const head = idle ? '' : live
+      ? `${esc(r?.name ?? 'Room')} <span class="dim">· ${people.length > 1 ? people.length : 'just you'}</span>`
+      : `<span class="dim${problem ? ' warn' : ''}">${esc(problem ? CALL_ERRORS[status] ?? status : 'Connecting…')}</span>`;
     this.root.innerHTML = `
-      <div class="rail">
-        <div class="rail-head">${esc(r?.name ?? 'Room')}
-          <span class="dim ${status === 'connected' ? '' : 'warn'}">${esc(status)}</span>
-        </div>
+      <div class="rail ${mode}">
+        ${head ? `<div class="rail-head">${head}</div>` : ''}
         ${rooms.micTrouble ? `<div class="mic-trouble" role="alert"><span>${esc(MIC_TROUBLE[rooms.micTrouble] ?? MIC_TROUBLE.silent)}</span><button class="mic-retry">Try again</button></div>` : ''}
         <div class="rail-btns">
           ${rooms.voice==='blocked'||rooms.callHealth?.failed||['quota','rate-limited','participant-limit','service-unavailable'].includes(rooms.error)?'<button class="retry-call">Retry call</button>':''}
@@ -373,6 +389,10 @@ const mediaFailed = (kind) => `${{ mic: 'Microphone', cam: 'Camera', screen: 'Sc
 const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>' +
   '<circle cx="12" cy="12" r="3"/></svg>';
+
+/* A call service's refusal, in words: the bar used to show the code itself. */
+const CALL_ERRORS = { quota: 'Call limit reached', 'rate-limited': 'Too many tries, wait a moment',
+  'participant-limit': 'This call is full', 'service-unavailable': 'Call service unavailable' };
 
 function mediaButton(kind,label,on) {
  const paths={mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',cam:'<rect x="2" y="5" width="13" height="14" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',scr:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5M12 13V6m-4 4 4-4 4 4"/>'};

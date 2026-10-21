@@ -23,6 +23,7 @@ import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, ho
 import * as G from 'lib/glurff';
 import { Game, startZoom } from 'world/game';
 import { TouchControls, watchTouch, watchLayout, touching } from 'ui/touch-controls';
+import { welcomeOnce, showWelcome } from 'ui/welcome';
 import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
 import { Builder } from 'ui/builder';
 import { Hud } from 'ui/hud';
@@ -603,6 +604,7 @@ function receiveReward(who, e) {
   game.reward(e.to, e.amount);
 }
 const hud = new Hud(hudRoot, { events, secret, send: (ship, at) => sendFrom(ship, at) });
+window.__hud = hud;   // debug handle
 const railRoot = document.createElement('div');
 railRoot.id = 'rail';
 document.body.appendChild(railRoot);
@@ -1294,6 +1296,9 @@ function onWorldFact(name, p, fromPresence=false) {
   /* Our clocks, if our settings came in before the sky was there. */
   game.setClocks(clocks.get().clocks);
   milestone('world-ready');
+  /* The first visit: how Glurff is played, once (ui/welcome). */
+  welcomeOnce({ touch: touching() });
+  window.__welcome = () => showWelcome({ touch: touching() });   // debug handle
   /* Everyone presence found while the artwork loaded. */
   applyPresence();
   await social;

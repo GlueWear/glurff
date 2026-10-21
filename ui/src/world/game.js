@@ -14,6 +14,7 @@ import { nearestDir } from '../lib/bow.js';
 import { shortAmount, validAmount } from '../lib/nock-receipt.js';
 import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED, TOUCH_WALK } from '../lib/touch.js';
 import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
+import { fontsReady, PIXEL_FONT } from 'ui/fonts';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT, spellColour, companionReach } from 'world/parts';
 import { CharacterAnimation } from './animation.js';
@@ -79,6 +80,12 @@ const FRAME_MS = 200;       //  Minifantasy walk timing
 /* A companion following: how far behind its place it sets off walking, and
  * how near counts as there (in tiles). */
 const COMPANION_START = 0.2, COMPANION_SETTLE = 0.05;
+/* SHADOWS (2026-10-21): a small oval at the feet, drawn in the sprite's own
+ * pixels, so it belongs to the character rather than to any one map -- maps
+ * are pictures people will bring themselves. Widths of its rows, in art pixels;
+ * the middle row sits just under the feet. */
+const SHADOW_ROWS = [6, 10, 6], MOUNTED_SHADOW_ROWS = [10, 16, 10], COMPANION_SHADOW_ROWS = [4, 6];
+const SHADOW_ALPHA = 0.26, COMPANION_SHADOW_ALPHA = 0.22;
 /* How far the world moves for a drag of the mouse. Above one, so crossing the
  * building is one pull rather than several. */
 const PAN_SPEED = 2.5;
@@ -423,7 +430,9 @@ export class Game {
      * the background, and is normally in long before anybody finds the way
      * in; if not, the scene fills in as it arrives rather than blocking. */
     const maps = [MAP_IMAGE, OVER_IMAGE], later = [VATICAN_IMAGE, VATICAN_OVER_IMAGE];
-    await Assets.load([...maps.map(versioned), ...allTextures()]);
+    /* The names over heads are drawn in the pixel face; wait for it (briefly,
+     * see ui/fonts) so nobody's name is drawn once in a fallback and left so. */
+    await Promise.all([Assets.load([...maps.map(versioned), ...allTextures()]), fontsReady]);
     this.mapTextures = new Map(maps.map(url => [url, Texture.from(versioned(url))]));
     this.laterMaps = Assets.load(later.map(versioned)).then(() => {
       for (const url of later) if (!this.mapTextures.has(url)) this.mapTextures.set(url, Texture.from(versioned(url)));
@@ -515,17 +524,18 @@ export class Game {
     const node = new Container();
     node.visible = scene === this.scene;
     const layers = {}, body = new Container(), companion = new Sprite(Texture.EMPTY);
-    node.addChild(body);
+    const shadow = new Graphics(), companionShadow = new Graphics();
+    node.addChild(shadow, body);
     /* The name rides above the head, in the world rather than in the HUD, so
      * you can tell who is who at a glance. It is the Noltbook display name
      * where one is set -- the raw @p is only a fallback. */
     const nameplate = new Container(), labelBackground = new Graphics();
     const label = new Text(name ?? '', {
-      /* A compact fantasy-display face suits the painted world without turning
-       * the nameplate into UI chrome. The fallbacks retain its sturdy shape. */
-      fontFamily: 'Copperplate, "Copperplate Gothic Light", "Trebuchet MS", sans-serif',
-      fontWeight: 'bold',
-      letterSpacing: 0.3,
+      /* The game's own pixel face (ui/fonts), the same on every computer --
+       * Copperplate, before it, was a Mac font and something else elsewhere. */
+      fontFamily: `"${PIXEL_FONT}", "Trebuchet MS", sans-serif`,
+      fontWeight: '400',
+      letterSpacing: 0.5,
       fontSize: sceneNameSize(scene),
       fill: 0xfff6dc,
     });
@@ -534,10 +544,10 @@ export class Game {
     nameplate.addChild(labelBackground, label);
     node.addChild(nameplate);
 
-    const ch = { node, body, companion, layers, nameplate, labelBackground, label,
+    const ch = { node, body, companion, shadow, companionShadow, layers, nameplate, labelBackground, label,
       look: completeLook(look), dir: 'down', frame: 0,
       animation: new CharacterAnimation(), follow: null };
-    this.actors.addChild(companion);
+    this.actors.addChild(companionShadow, companion);
     this.scaleCharacter(ch, sceneCharacterScale(scene), sceneNameSize(scene));
     this.dressCharacter(ch, ch.look);
     return ch;
@@ -603,6 +613,7 @@ export class Game {
     if (key === ch.posedKey && ch.look === ch.posedLook) return;
     /* A weapon put away is not drawn. */
     const worn = ch.sheathed && ch.look?.weapon ? { ...ch.look, weapon: undefined } : ch.look;
+    this.paintShadow(ch.shadow, ch.scale, worn?.mount?.part ? MOUNTED_SHADOW_ROWS : SHADOW_ROWS, SHADOW_ALPHA);
     const frames = characterLayers(worn, dir, frame, animation, cycle);
     const order = frames.map((f) => f.key).join(',');
     /* Layers are re-stacked only when WHICH layers are drawn changes -- a new
@@ -638,6 +649,18 @@ export class Game {
     if (restack || plate !== ch.plateKey) { ch.plateKey = plate; this.positionNameplate(ch); }
   }
 
+  /* An oval of whole art pixels: `rows` wide, `unit` map pixels to the art
+   * pixel. Drawn again only when either changes. */
+  paintShadow(g, unit, rows, alpha) {
+    const key = `${unit}|${rows.join(',')}`;
+    if (g.shadowKey === key) return;
+    g.shadowKey = key;
+    g.clear();
+    g.beginFill(0x000000, alpha);
+    rows.forEach((w, i) => g.drawRect(-w * unit / 2, (i - rows.length) * unit, w * unit, unit));
+    g.endFill();
+  }
+
   animateCharacter(ch, dir, moving, time) {
     const pose = ch.animation.pose(time, moving, {
       walk: animationFrames(ch.look, 'walk'), idle: animationFrames(ch.look, 'idle'),
@@ -671,6 +694,7 @@ export class Game {
   followCharacter(ch, x, y, scene, time, dt) {
     const item = equipmentOf('companion', ch.look.companion?.part);
     ch.companion.visible = !!item && ch.node.visible;
+    ch.companionShadow.visible = ch.companion.visible;
     if (!ch.companion.visible) return;
     const tile = sceneTile(scene), scale = sceneCharacterScale(scene);
     const distance = companionReach(item)*scale/tile;
@@ -700,6 +724,11 @@ export class Game {
     ch.companion.scale.set(scale*(frame.flip?-1:1), scale);
     ch.companion.position.set(f.x*tile, f.y*tile);
     ch.companion.zIndex = Math.round(f.y*tile);
+    /* Its shadow, sized to it: a dragon's is bigger than a book's. */
+    const size = Math.max(1, Math.round(item.frame / 32));
+    this.paintShadow(ch.companionShadow, scale, COMPANION_SHADOW_ROWS.map((w) => w * size), COMPANION_SHADOW_ALPHA);
+    ch.companionShadow.position.set(f.x*tile, f.y*tile);
+    ch.companionShadow.zIndex = ch.companion.zIndex - 1;
   }
 
   drawArrows(shots, time) {
@@ -1013,8 +1042,8 @@ export class Game {
     const r = ch.reward, t = time - r.start;
     if (!ch.rewardNode) {
       const node = new Container(), sparks = new Graphics();
-      const words = new Text('', { fontFamily: 'Copperplate, "Copperplate Gothic Light", "Trebuchet MS", sans-serif',
-        fontWeight: 'bold', fontSize: 16, fill: 0xffd23f, stroke: 0x3b2400, strokeThickness: 4,
+      const words = new Text('', { fontFamily: `"${PIXEL_FONT}", "Trebuchet MS", sans-serif`,
+        fontWeight: '700', fontSize: 16, fill: 0xffd23f, stroke: 0x3b2400, strokeThickness: 4,
         dropShadow: true, dropShadowColor: 0x000000, dropShadowAlpha: 0.6, dropShadowDistance: 2 });
       words.anchor.set(0.5, 1); words.resolution = 2;
       node.addChild(sparks, words);
@@ -1059,8 +1088,8 @@ export class Game {
     if (!text) { if (ch.bubble) ch.bubble.visible = false; return; }
     if (!ch.bubble) {
       const bubble = new Container(), back = new Graphics();
-      const words = new Text('', { fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-        fontWeight: 'bold', fontSize: 11, fill: 0x17141f });
+      const words = new Text('', { fontFamily: `"${PIXEL_FONT}", ui-monospace, Menlo, monospace`,
+        fontWeight: '400', fontSize: 12, fill: 0x17141f });
       words.anchor.set(0.5, 1);
       words.resolution = 2;
       bubble.addChild(back, words);
@@ -1087,6 +1116,7 @@ export class Game {
     if (!p) return;
     p.ch.node.destroy({ children: true });
     p.ch.companion.destroy();
+    p.ch.companionShadow.destroy();
     this.peers.delete(ship);
   }
 

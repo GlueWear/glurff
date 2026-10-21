@@ -10,10 +10,20 @@
  * centre, so the only thing you could not see while editing was yourself.
  */
 import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf, choicesOf, ownAttack as ownAttackOf } from 'world/parts';
-import { paintStage } from 'world/paint';
+import { paintStage, paintItem } from 'world/paint';
 import { esc } from 'ui/html';
 
 const title = (s) => String(s).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+/* What the art calls a style, said the way a person would. */
+const STYLE_NAMES = { bold: 'Bald', cowboyhat: 'Cowboy hat', fedorahat: 'Fedora', longhat: 'Long hat',
+  pompombeanie: 'Pom-pom beanie', rangerhat: 'Ranger hat', trapperhat: 'Trapper hat', shoulderpads: 'Shoulder pads',
+  longbeard: 'Long beard', 'chin-curtain': 'Chin curtain', 'chin-strap': 'Chin strap' };
+const styleName = (g) => STYLE_NAMES[g] ?? title(g);
+/* A choice's picture (paintStage): the whole character, at four times or more
+ * -- a box any smaller rounds it down to three, too small for a hat. */
+const PICTURE = { scale: 6, width: 84, height: 84, pad: 2 };
+/* How often Random leaves an optional thing off. */
+const BARE = { gloves: 0.6, shoulders: 0.7, beard: 0.6, hat: 0.5 };
 
 export class Builder {
   constructor(root, { onChange, onDone } = {}) {
@@ -99,34 +109,53 @@ export class Builder {
     if (!this.open) { this.root.innerHTML = ''; return; }
     if (this.picking) { this.renderPicker(); return; }
     const premade = equipmentOf('premade',this.look.premade?.part);
-    const rows = (premade ? [] : SLOTS).map((slot) => {
-      const meta = CATALOG[slot];
-      if (!meta) return '';
-      const groups = groupsOf(slot);
-      const group = this.groupFor(slot);
-      const worn = this.look[slot]?.part ?? '';
-      /* "None" is one of the styles, where a slot allows it -- a cross beside
-       * the colours read as "clear", which is a different thing. */
-      const choices = [...(meta.optional ? [['', 'None']] : []), ...[...groups.keys()].map((g) => [g, title(g)])];
-      /* A slot with one style still gets the box, so every row is built the
-       * same width and the colours below them line up. */
-      const selected = worn === '' && meta.optional ? '' : group;
-      const styles = `<select data-style="${slot}"${choices.length > 1 ? '' : ' disabled'}>${choices.map(([value, name]) =>
-        `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select>`;
-      /* The colours of the style the row is showing, worn or not: clicking one
-       * puts that style on in that colour. */
-      const swatches = (groups.get(group) ?? []).map((v) =>
-        `<button class="sw${v.key === worn ? ' on' : ''}" data-slot="${slot}" data-part="${esc(v.key)}"
-           title="${esc(title(v.colour))}" style="background:${esc(v.swatch)}"></button>`).join('');
-      return `<div class="row">
-        <span class="label">${esc(meta.label)}</span>
-        ${styles}
-        <div class="swatches">${swatches}</div>
-      </div>`;
-    }).join('');
     /* A ready-made character with its own attack carries no other weapon. */
     const ownAttack = premade?.animations?.attack ? premade.attack : null;
     const extras = EXTRAS.filter((slot) => !(slot === 'weapon' && ownAttack));
+    /* PICTURES, NOT LISTS (2026-10-21): a tab for each thing worn -- the
+     * clothes, and with equipment unlocked, the weapon, mount and companion --
+     * and under it every choice as a picture of you wearing it, then its
+     * colours. A ready-made character has no clothes to change. */
+    const garments = premade ? [] : SLOTS.filter((slot) => CATALOG[slot]);
+    const tabs = [...garments, ...(this.equipmentReady ? extras : [])];
+    if (!tabs.includes(this.tab)) this.tab = tabs[0] ?? null;
+    const tab = this.tab, isGarment = garments.includes(tab);
+    /* Every picture's look, painted once the markup is in. */
+    this.pictures = [];
+    const picture = (look, alone = null) => { this.pictures.push({ look, alone }); return `<span class="item-pic"><canvas data-pic="${this.pictures.length - 1}"></canvas></span>`; };
+    let items = '', swatches = '';
+    if (isGarment) {
+      const meta = CATALOG[tab], groups = groupsOf(tab), group = this.groupFor(tab);
+      const worn = this.look[tab]?.part ?? '', wornVariant = variantOf(tab, worn);
+      const selected = worn === '' && meta.optional ? '' : group;
+      /* "None" is one of the choices, where a slot allows it. Each style is
+       * pictured in the colour being worn, where it comes in that colour. */
+      const choices = [...(meta.optional ? [['', 'None']] : []), ...[...groups.keys()].map((g) => [g, styleName(g)])];
+      items = choices.map(([g, name]) => {
+        const options = groups.get(g) ?? [];
+        const key = g === '' ? '' : ((wornVariant && options.find((v) => v.colour === wornVariant.colour)) ?? options[0])?.key ?? '';
+        return `<button class="item${g === selected ? ' on' : ''}" data-slot="${tab}" data-group="${esc(g)}" title="${esc(name)}"
+          aria-pressed="${g === selected}">${picture({ ...this.look, [tab]: { ...this.look[tab], part: key } })}<span class="item-name">${esc(name)}</span></button>`;
+      }).join('');
+      /* The colours of the style the tab is showing, worn or not: clicking one
+       * puts that style on in that colour. */
+      swatches = (groups.get(group) ?? []).map((v) =>
+        `<button class="sw${v.key === worn ? ' on' : ''}" data-slot="${tab}" data-part="${esc(v.key)}"
+           title="${esc(title(v.colour))}" aria-label="${esc(title(v.colour))}" style="background:${esc(v.swatch)}"></button>`).join('');
+    } else if (tab) {
+      const slot = tab, worn = this.look[slot]?.part ?? '';
+      items = [['', 'None'], ...choicesOf(slot).map((item) => [item.key, item.name])].map(([key, name]) =>
+        `<button class="item${key === worn ? ' on' : ''}" data-equipment="${slot}" data-key="${esc(key)}" title="${esc(name)}"
+          aria-pressed="${key === worn}">${picture({ ...this.look, [slot]: { ...this.look[slot], part: key } },
+            /* A companion or a mount pictured on its own; a weapon in hand. */
+            slot === 'weapon' ? null : equipmentOf(slot, key))}<span class="item-name">${esc(name)}</span></button>`).join('');
+    }
+    const label = (slot) => CATALOG[slot]?.label ?? title(slot);
+    const tabButton = (slot) => `<button class="slot-tab${slot === tab ? ' on' : ''}" data-tab="${slot}"${garments.includes(slot) ? ` data-style="${slot}"` : ''}
+      role="tab" aria-selected="${slot === tab}">${esc(label(slot))}</button>`;
+    const hint = tab === 'weapon' || (!isGarment && ownAttack)
+      ? (this.equipmentReady&&ownAttack?'<p class="bow-hint">'+weaponHint(ownAttackOf(this.look),true)+' Hits are just for fun—you get straight back up.</p>'
+        :this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':'') : '';
     /* TWO COLUMNS (2026-10-20): the character on the left, what it wears on
      * the right, Done always in reach -- it fits without scrolling on a
      * desktop, and on a phone it stacks. Rebuilt on every change, so where
@@ -144,37 +173,74 @@ export class Builder {
         <div class="preview-box"><div class="preview-slot"></div></div>
         <div class="dirs">${DIRS.map((d) =>
           `<button class="dir${d === this.dir ? ' on' : ''}" data-dir="${d}">${d}</button>`).join('')}</div>
+        ${premade ? '' : '<button class="random-look" title="Different clothes, colours and hair, at random">Random</button>'}
       </div>
       <div class="builder-main">
-      ${rows}
-      ${this.equipmentReady?`<div class="equipment">${extras.map(slot=>`<div class="row"><label class="label" for="equip-${slot}">${title(slot)}</label>
-        <select id="equip-${slot}" data-equipment="${slot}">
-        <option value="">None</option>${choicesOf(slot).map(item=>`<option value="${esc(item.key)}"${this.look[slot]?.part===item.key?' selected':''}>${esc(item.name)}</option>`).join('')}</select></div>`).join('')}</div>`:''}
-      ${this.equipmentReady&&ownAttack?'<p class="bow-hint">'+weaponHint(ownAttackOf(this.look),true)+' Hits are just for fun—you get straight back up.</p>'
-        :this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':''}
+      ${tabs.length ? `<div class="slot-tabs" role="tablist">${garments.map(tabButton).join('')}${garments.length && this.equipmentReady
+        ? '<span class="slot-divider" aria-hidden="true"></span>' : ''}${(this.equipmentReady ? extras : []).map(tabButton).join('')}</div>
+      <div class="slot-panel" role="tabpanel">
+        <div class="items">${items}</div>
+        ${swatches ? `<div class="colours"><span class="colours-label">Colour</span><div class="swatches">${swatches}</div></div>` : ''}
+        ${hint}
+      </div>` : ''}
       </div>
       </div>
-      <div class="builder-foot"><p class="builder-error" role="status"></p><button class="done">Done</button></div>
+      <div class="builder-foot"><p class="builder-error" role="status"></p><button class="done primary">Done</button></div>
     </div>`;
     this.root.querySelector('.preview-slot').appendChild(this.canvas);
     this.paint();
+    this.paintPictures();
     this.root.querySelector('.builder').scrollTop = kept[0];
     this.root.querySelector('.builder-main').scrollTop = kept[1];
 
     this.root.querySelectorAll('button[data-dir]').forEach((b) =>
       b.onclick = () => this.face(b.dataset.dir));
+    this.root.querySelectorAll('button[data-tab]').forEach((b) =>
+      b.onclick = () => { this.tab = b.dataset.tab; this.render(); });
     this.root.querySelectorAll('button[data-part]').forEach((b) =>
       b.onclick = () => this.wear(b.dataset.slot, b.dataset.part));
-    this.root.querySelectorAll('select[data-style]').forEach((s) =>
-      s.onchange = () => this.showGroup(s.dataset.style, s.value));
-    this.root.querySelectorAll('select[data-equipment]').forEach(s =>
-      s.onchange = () => this.wear(s.dataset.equipment,s.value));
+    this.root.querySelectorAll('button[data-group]').forEach((b) =>
+      b.onclick = () => this.showGroup(b.dataset.slot, b.dataset.group));
+    this.root.querySelectorAll('button[data-equipment]').forEach(b =>
+      b.onclick = () => this.wear(b.dataset.equipment,b.dataset.key));
+    const random=this.root.querySelector('.random-look');
+    if(random)random.onclick = () => this.randomise();
     const browse=this.root.querySelector('.browse-characters');
     if(browse)browse.onclick = () => {this.picking=true;this.render();};
     /* Back to a character of our own: the ready-made one comes off. */
     const own=this.root.querySelector('.build-own-btn');
     if(own)own.onclick = () => this.wear('premade','');
     this.root.querySelector('.done').onclick = (e) => this.finish(e.currentTarget);
+  }
+
+  /* Each choice, as us wearing it, at one size: small enough for a grid,
+   * big enough to tell a fedora from a ranger's hat. */
+  paintPictures() {
+    this.root.querySelectorAll('canvas[data-pic]').forEach((canvas) => {
+      const { look, alone } = this.pictures[Number(canvas.dataset.pic)];
+      const draw = () => {
+        if (!canvas.isConnected) return;
+        if (alone) paintItem(canvas, alone, PICTURE, draw); else paintStage(canvas, look, 'down', 0, PICTURE, draw);
+      };
+      draw();
+    });
+  }
+
+  /* RANDOM: different clothes, colours and hair; equipment stays as it is. */
+  randomise(random = Math.random) {
+    const look = { ...this.look };
+    for (const slot of SLOTS) {
+      const meta = CATALOG[slot];
+      if (!meta) continue;
+      const groups = [...groupsOf(slot).values()];
+      if (!groups.length) continue;
+      if (meta.optional && random() < (BARE[slot] ?? 0.5)) { look[slot] = { ...look[slot], part: '' }; continue; }
+      const options = groups[Math.floor(random() * groups.length)];
+      look[slot] = { ...look[slot], part: options[Math.floor(random() * options.length)].key };
+    }
+    this.look = completeLook(look);
+    this.onChange(this.look);
+    this.render();
   }
 
   /* DONE: saved, and the editor closes -- from the editor or the picker. */

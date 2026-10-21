@@ -38,6 +38,17 @@ export default defineConfig({
    * link carries its own content version instead: an unchanged stylesheet
    * keeps its URL and stays cached, a changed one gets a new URL. */
   plugins: [{
+    /* `?inline` on a font means it, whatever assetsInlineLimit says: the two
+     * pixel-face weights (ui/fonts) ride inside the bundle as data URLs. As
+     * files they would need a type the packager and the ship do not serve. */
+    name: 'glurff-inline-fonts',
+    enforce: 'pre',
+    load(id) {
+      const [file, query] = id.split('?');
+      if (query !== 'inline' || !file.endsWith('.woff2')) return null;
+      return `export default ${JSON.stringify('data:font/woff2;base64,' + fs.readFileSync(file).toString('base64'))};`;
+    },
+  }, {
     name: 'glurff-style-version',
     transformIndexHtml(html) {
       const v = crypto.createHash('sha256').update(fs.readFileSync('public/style.css')).digest('hex').slice(0, 12);

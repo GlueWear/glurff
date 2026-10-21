@@ -247,7 +247,8 @@ export class Members {
     if (signature === this.signature) return;
     this.signature = signature;
 
-    this.btn.textContent = `${name} · ${people.length} ▾`;
+    /* How many are here, said as that: "· 1" alone read as a page number. */
+    this.btn.textContent = `${name} · ${people.length} here ▾`;
     this.panel.hidden = !this.open;
     if (this.open) {
       this.panel.innerHTML = this.leaseRow(place) + people.map((ship) => `

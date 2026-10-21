@@ -7,9 +7,9 @@
   ^-  (list [@t asset])
   :~
     ['/apps/glurff/' /lib/glurff/site/index/html 727 'text/html; charset=utf-8']
-    ['/apps/glurff/assets/index-4528bb51.js' /lib/glurff/site/assets/index-4528bb51/js 63.423 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/index-9acba702.js' /lib/glurff/site/assets/index-9acba702/js 1.176.769 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/search-ef0de421.js' /lib/glurff/site/assets/search-ef0de421/js 1.634 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-44fc3fcd.js' /lib/glurff/site/assets/index-44fc3fcd/js 1.205.373 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-9d655419.js' /lib/glurff/site/assets/index-9d655419/js 63.423 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/search-ac72bb23.js' /lib/glurff/site/assets/search-ac72bb23/js 1.634 'application/javascript; charset=utf-8']
     ['/apps/glurff/characters/beard.png' /lib/glurff/site/characters/beard/png 15.745 'image/png']
     ['/apps/glurff/characters/body.png' /lib/glurff/site/characters/body/png 7.111 'image/png']
     ['/apps/glurff/characters/bottom.png' /lib/glurff/site/characters/bottom/png 4.948 'image/png']
@@ -673,10 +673,11 @@
     ['/apps/glurff/index.html' /lib/glurff/site/index/html 727 'text/html; charset=utf-8']
     ['/apps/glurff/licenses/jitsi-license.html' /lib/glurff/site/licenses/jitsi-license/html 12.599 'text/html; charset=utf-8']
     ['/apps/glurff/licenses/rnnoise-license.html' /lib/glurff/site/licenses/rnnoise-license/html 1.623 'text/html; charset=utf-8']
+    ['/apps/glurff/licenses/silkscreen-license.html' /lib/glurff/site/licenses/silkscreen-license/html 4.578 'text/html; charset=utf-8']
     ['/apps/glurff/map/over.png' /lib/glurff/site/map/over/png 53.223 'image/png']
     ['/apps/glurff/map/vatican-over.png' /lib/glurff/site/map/vatican-over/png 11.062 'image/png']
     ['/apps/glurff/map/vatican.jpg' /lib/glurff/site/map/vatican/jpg 308.256 'image/jpeg']
     ['/apps/glurff/map/world.jpg' /lib/glurff/site/map/world/jpg 478.785 'image/jpeg']
-    ['/apps/glurff/style.css' /lib/glurff/site/style/css 66.524 'text/css; charset=utf-8']
+    ['/apps/glurff/style.css' /lib/glurff/site/style/css 79.635 'text/css; charset=utf-8']
   ==
 --

@@ -29,7 +29,7 @@ export class Contacts {
     this.busy = new Map();
     root.className = 'contacts';
     root.innerHTML = `
-      <button class="contacts-btn" title="Contacts" aria-label="Contacts" aria-expanded="false" aria-haspopup="true">${CONTACTS_ICON}<i class="dot" hidden></i></button>
+      <button class="contacts-btn" data-tip="Contacts" aria-label="Contacts" aria-expanded="false" aria-haspopup="true">${CONTACTS_ICON}<i class="dot" hidden></i></button>
       <div class="contacts-panel" hidden></div>`;
     this.btn = root.querySelector('.contacts-btn');
     this.panel = root.querySelector('.contacts-panel');
@@ -90,7 +90,10 @@ export class Contacts {
     if (asks.length) html += section('Pal requests', asks.map((row) => this.requestRow(row)).join(''));
     html += section('Contacts', others.length
       ? others.map((row) => this.contactRow(row)).join('')
-      : `<div class="dim pad">${normalizeSearch(this.query) ? 'nobody matches' : 'no other contacts yet'}</div>`);
+      : normalizeSearch(this.query) ? '<div class="dim pad">nobody matches</div>'
+      /* Empty is where everybody starts: say how a contact is made. */
+      : `<div class="empty-state"><b>No contacts yet</b>
+          <span>Click someone in the world to see their card, then add them as a pal or send them a message.</span></div>`);
     this.panel.querySelector('.contacts-list').innerHTML = html;
   }
 

@@ -49,7 +49,24 @@ function inkOf(img, f) {
  * its companion with it -- sits in the MIDDLE of the box, which can then be
  * small: the feet pinned left of centre, for a companion that was not there,
  * left a big box with the character off to one side. */
-export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, height = 300, pad = 8 } = {}, onLoad = null) {
+export function paintStage(canvas, look, dir, frame, size = {}, onLoad = null) {
+  const worn = completeLook(look);
+  const layers = characterLayers(worn, dir, frame);
+  const companion = equipmentOf('companion', worn.companion?.part);
+  /* Beside us, as far as it keeps in the world (world/parts companionReach). */
+  if (companion) layers.push({ ...wholeFrame(companion, dir, 0), dx: companionReach(companion) + 2, dy: 2 });
+  drawLayers(canvas, layers, size, onLoad);
+}
+
+/* ONE THING ON ITS OWN -- a companion, a mount -- the same way: the editor's
+ * pictures of what can be chosen (ui/builder), where you beside it would only
+ * make it smaller. */
+export function paintItem(canvas, item, size = {}, onLoad = null) {
+  drawLayers(canvas, item ? [wholeFrame(item, 'down', 0)] : [], size, onLoad);
+}
+
+/* Whatever is drawn, in the middle of the box at one whole-pixel scale. */
+function drawLayers(canvas, layers, { scale = 9, width = 380, height = 300, pad = 8 } = {}, onLoad = null) {
   const dpr = Math.max(1, Math.round(globalThis.devicePixelRatio || 1));
   if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
     canvas.width = width * dpr; canvas.height = height * dpr;
@@ -59,11 +76,6 @@ export function paintStage(canvas, look, dir, frame, { scale = 9, width = 380, h
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const worn = completeLook(look);
-  const layers = characterLayers(worn, dir, frame);
-  const companion = equipmentOf('companion', worn.companion?.part);
-  /* Beside us, as far as it keeps in the world (world/parts companionReach). */
-  if (companion) layers.push({ ...wholeFrame(companion, dir, 0), dx: companionReach(companion) + 2, dy: 2 });
   /* Everything drawn, in art pixels around the feet. */
   let left = -1, right = 1, top = -1, bottom = 1;
   const ready = [];
