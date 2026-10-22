@@ -673,7 +673,9 @@ const me = new Me(topRight, { onOpen: (ship) => card.open(ship), look: () => sta
 /* Who is here with you -- the room you are in, or the commons -- and who hosts
  * it. The same people the world draws. */
 const membersRoot = document.createElement('div');
-topLeft.appendChild(membersRoot);
+/* First in the row (2026-10-22): where you are and how many are here, then
+ * contacts, messages and the magnifying glass. */
+topLeft.prepend(membersRoot);
 const members = new Members(membersRoot, {
   here: () => state.room,
   /* IN A ROOM, the list is the call's list: you are on it if you are in the

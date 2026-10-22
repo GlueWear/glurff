@@ -18,7 +18,8 @@ import {
   requestProfile, retryProfile, searchMessages, noteUrl, editMessage, deleteMessage,
 } from 'lib/noltbook';
 import { chatLines, thread } from 'lib/timeline';
-import { messageActions, openMenu, closeMenu, paintText, aboutLine } from 'ui/messages';
+import { createPending, deliveryState, canRetry, SLOW_MS } from 'lib/pending';
+import { messageActions, openMenu, closeMenu, paintText, aboutLine, paintSendState } from 'ui/messages';
 import { ask } from 'ui/ask';
 /* Search -- and urbit-ob with its big-number library behind it -- loads the
  * first time somebody searches, not with the app. */
@@ -53,6 +54,12 @@ export class Dms {
     this.searchReq = 0;      //  the message search whose answer we will show
     this.searchTimer = null;
     this.open = null;        //  {noteId, ship, unsub}
+    /* SENDING (2026-10-22): a DM shows at once, grey until the other ship has
+     * it -- Noltbook's dm-delivery receipt for its msgId -- amber when that is
+     * overdue, red if refused (see lib/pending). Only this visit's sends:
+     * msgId -> when it was stored here. */
+    this.pending = createPending();
+    this.sentDms = new Map();
     this.root.innerHTML = `
       <button class="dm-btn" data-tip="Messages" aria-label="Messages and search">${MESSAGES_ICON}<i class="dot" hidden></i></button>
       <div class="dm-panel" hidden></div>
@@ -86,7 +93,7 @@ export class Dms {
     onChange(() => {
       if (this.frame != null) return;
       this.frame = requestAnimationFrame(() => { this.frame = null; this.paint(); });
-    }, c => c.field === 'messages' ? c.noteId === this.open?.noteId :
+    }, c => c.field === 'messages' || c.field === 'delivery' ? !c.noteId || c.noteId === this.open?.noteId :
       (this.panelOpen && this.query.trim() !== '' &&
         ['search', 'lookups', 'notes', 'profiles', 'pals', 'contacts'].includes(c.field)) ||
       (['notes', 'profiles', 'pals', 'contacts', 'reads', 'unreadAt', 'activity'].includes(c.field) &&
@@ -292,6 +299,9 @@ export class Dms {
       /* A click on a message opens what may be done with it -- Noltbook's
        * own menu but pinning; see ui/messages. */
       this.body.addEventListener('click', (e) => {
+        /* A DM that did not go: again, or away. */
+        const again = e.target.closest('.send-retry'), away = e.target.closest('.send-drop');
+        if (again || away) { const id = e.target.closest('.line')?.dataset.eid; if (id) again ? this.retryDm(noteId, id) : this.dropDm(id); return; }
         const el = e.target.closest('.line'); if (!el || !aboutLine(e)) return;
         const line = this.lines?.get(el.dataset.eid);
         const actions = messageActions(line, { our, note: nb.notes[noteId] ?? null });
@@ -319,7 +329,7 @@ export class Dms {
           if (text !== editing.text) editMessage(noteId, editing.replyId, text).catch((e2) => console.error('dm edit', e2));
           return;
         }
-        postMessage(noteId, text, replyTo?.replyId ?? null).catch((e2) => console.error('dm send', e2));
+        this.sendDm(noteId, text, replyTo?.replyId ?? null);
       };
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && (this.editing || this.replyTo)) {
@@ -338,28 +348,66 @@ export class Dms {
       this.body.scrollHeight - this.body.scrollTop - this.body.clientHeight < 40;
     /* THE SAME LINES AS THE ROOM CHATS: who, when, what -- threaded under
      * what they answer, the way Noltbook threads a DM. */
-    const lines = thread(chatLines(messagesFor(noteId), displayName));
+    const messages = messagesFor(noteId);
+    const lines = thread([...chatLines(messages, displayName), ...this.pending.lines(noteId, messages, { who: displayName(our) })]);
+    /* How each of ours is going: a send not yet stored here, or a stored one
+     * the other ship has not answered for. */
+    const now = Date.now();
+    for (const m of lines) if (!m.state && m.author === our && m.msgIdRaw && this.sentDms.has(m.msgIdRaw)) {
+      m.state = deliveryState(this.sentDms.get(m.msgIdRaw), nb.dmDelivery.get(m.msgIdRaw), now);
+      m.awaiting = true; m.pending = m.state === 'sending' || m.state === 'slow';
+    }
     const note = nb.notes[noteId] ?? null;
     this.lines = new Map(lines.map((m) => [m.eid, m]));
     this.body.innerHTML = lines.length
-      ? lines.map((m) => `<article class="line${m.depth ? ' reply-line' : ''}${m.author === our ? ' mine' : ''}${messageActions(m, { our, note }).length ? ' actionable' : ''}" data-eid="${esc(m.eid)}" style="--depth:${m.depth}">
-           <header><span class="who">${esc(m.who ?? '')}</span><time>${Number.isFinite(m.at) && m.at ? esc(timeFormat.format(new Date(m.at))) : ''}</time>${m.replies ? `<span class="replies">${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}</span>` : ''}</header>
+      ? lines.map((m) => `<article class="line${m.depth ? ' reply-line' : ''}${m.author === our ? ' mine' : ''}${m.pending ? ' pending' : ''}${messageActions(m, { our, note }).length ? ' actionable' : ''}" data-eid="${esc(m.eid)}" style="--depth:${m.depth}">
+           <header><span class="who">${esc(m.who ?? '')}</span><time>${Number.isFinite(m.at) && m.at ? esc(timeFormat.format(new Date(m.at))) : ''}</time>${m.replies ? `<span class="replies">${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}</span>` : ''}<span class="send-state"></span></header>
            <div class="post-text"></div></article>`).join('')
       : '<div class="dim pad">nothing yet</div>';
     /* A picture is built as nodes, never as a string of somebody else's
      * text; see ui/media. A payment message reads as one (ui/messages). */
     if (lines.length) {
       const said = this.body.querySelectorAll('.line .post-text');
+      const rows = this.body.querySelectorAll('.line');
       lines.forEach((m, i) => {
+        if (rows[i] && m.state) paintSendState(rows[i], m.state, m.awaiting);
         if (!said[i]) return;
         paintText(said[i], m.text, { our, name: displayName });
         if (m.edited) { const ed = document.createElement('span'); ed.className = 'edited'; ed.textContent = '(edited)'; said[i].append(' ', ed); }
       });
     }
 
+    this.wakeLater(now);
     /* Reading it is what marks it read; the dot has no other way to clear. */
     if (unread(noteId)) markRead(noteId);
     if (atBottom) this.scrollDown();
+  }
+
+  /* A DM: on screen at once; see the constructor. */
+  sendDm(noteId, text, parent) {
+    const shown = this.pending.add(noteId, text, parent, messagesFor(noteId), { author: our, untilArrival: true });
+    this.paint();
+    postMessage(noteId, text, parent).then((r) => {
+      this.pending.sent(shown, r);
+      if (typeof r?.msgId === 'string') this.sentDms.set(r.msgId, Date.now());
+      this.paint();
+    }, (error) => { if (error?.result) this.pending.refused(shown); else this.pending.unconfirmed(shown); this.paint(); });
+  }
+  /* Only one our ship refused, or that was never heard of again: see lib/pending. */
+  retryDm(noteId, id) {
+    const p = this.pending.get(id);
+    if (!p || !canRetry(this.pending.lines(noteId, messagesFor(noteId)).find((l) => l.eid === id)?.state)) return;
+    this.pending.drop(id);
+    this.sendDm(noteId, p.text, p.parent);
+  }
+  dropDm(id) { this.pending.drop(id); this.paint(); }
+  /* Paint again when a line next changes by itself: grey to amber. */
+  wakeLater(now = Date.now()) {
+    clearTimeout(this.sendTimer);
+    let ms = this.pending.wakeIn(now);
+    for (const [msgId, at] of this.sentDms) if (!nb.dmDelivery.has(msgId) && at + SLOW_MS > now)
+      ms = Math.min(ms ?? Infinity, at + SLOW_MS - now);
+    if (ms != null && ms !== Infinity) this.sendTimer = setTimeout(() => { this.pending.tick(); this.paint(); }, ms + 30);
   }
 
   /* What the menu does, in the open conversation. */

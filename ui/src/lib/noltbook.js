@@ -50,6 +50,10 @@ export const nb = {
   /* Pal requests we dismissed: Noltbook's list (2026-10-20). They still ask;
    * we just do not show it. */
   palDeclined: new Set(),
+  /* DMs of ours the other ship has answered for (2026-10-22): msgId ->
+   * {ok, noteId}. ok: they took it; false: their agent failed on it. No entry:
+   * not delivered yet. Noltbook's dm-delivery fact. */
+  dmDelivery: new Map(),
   profiles: {},   //  ship -> profile
   contacts: {},   //  ship -> true
   callMods: {},   //  noteId -> {noteId, rev, mod}  moderation of that note's call
@@ -367,6 +371,10 @@ export function applyFact(name, p) {
     /* DISMISSED REQUESTS, as Noltbook keeps them: its own page hides these,
      * and so do we -- the Dismiss that "did nothing" was this, unread. */
     case 'pal-declined-list': nb.palDeclined = new Set(Array.isArray(p) ? p : []); field = 'pals'; break;
+    case 'dm-delivery':
+      if (typeof p?.msgId !== 'string') return;
+      nb.dmDelivery.set(p.msgId, { ok: p.ok !== false, noteId: p.noteId ?? null });
+      field = 'delivery'; noteId = p.noteId ?? null; break;
     case 'pal-declined-updated':
       if (p?.declined) nb.palDeclined.add(p.ship); else nb.palDeclined.delete(p?.ship);
       field = 'pals'; break;

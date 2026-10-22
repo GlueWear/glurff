@@ -1,11 +1,11 @@
 import { chatLines, thread, recentLines, messageKey, isCallControl } from 'lib/timeline';
-import { createPending } from 'lib/pending';
+import { createPending, canRetry } from 'lib/pending';
 import { createChatUnread } from 'lib/chat-unread';
 import { our } from 'lib/api';
 import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   displayName, noteName, noteUrl, watchNotes, setChatHistory, chatHistoryCount,
   hasEarlierMessages, loadEarlierMessages, onChange, editMessage, deleteMessage } from 'lib/noltbook';
-import { messageActions, openMenu, closeMenu, paintText, aboutLine } from 'ui/messages';
+import { messageActions, openMenu, closeMenu, paintText, aboutLine, paintSendState } from 'ui/messages';
 import { ask } from 'ui/ask';
 import { roomById, GAME_ROOM } from 'world/places';
 import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
@@ -214,6 +214,9 @@ export class Hud {
     /* A click on a line opens what may be done with it, where it was
      * clicked (ui/messages); nothing for Rumors, which is nobody's. */
     this.stream.addEventListener('click', e => {
+      /* A post that did not go: again, or away. */
+      const again = e.target.closest('.send-retry'), away = e.target.closest('.send-drop');
+      if (again || away) { const id = e.target.closest('.line')?.dataset.eid; if (id) again ? this.retrySend(id) : this.dropSend(id); return; }
       const el = e.target.closest('.line'); if (!el || !aboutLine(e)) return;
       const line = this.models.get(el.dataset.eid);
       const actions = messageActions(line, this.context());
@@ -276,15 +279,9 @@ export class Hud {
       const note = this.noteFor(this.room);
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
       this.replyTo = null;
-      /* In the Commons and Rumors the post shows at once, grey until our ship
-       * confirms it was sent. Rumors carry no eid, so they match by text. */
-      const shown = note === COMMONS_NOTE || note === RUMORS_NOTE
-        ? this.pending.add(note, v, parent, messagesFor(note), { byText: note === RUMORS_NOTE, author: our }) : null;
-      if (shown) this.invalidate();
-      const action = note ? postMessage(note,v,parent) : this.events.chat(v,parent);
       this.root.querySelector('.error').textContent='';
-      action.then(result => { if (shown) { this.pending.sent(shown, result); this.invalidate(); } }, () => {
-        if (shown) { this.pending.failed(shown); this.invalidate(); }
+      if (note) { this.sendToNote(note, v, parent); return; }
+      this.events.chat(v,parent).catch(() => {
         if(!input.value)input.value = v; this.root.querySelector('.error').textContent = 'Message could not be sent. Try again.';
       });
     };
@@ -338,14 +335,15 @@ export class Hud {
       let el = this.rows.get(m.eid);
       if (!el) {
         el = document.createElement('article'); el.className = 'line'; el.dataset.eid = m.eid;
-        el.innerHTML = '<header><span class="who"></span><time></time><span class="replies"></span></header><div class="post-text"></div>';
+        el.innerHTML = '<header><span class="who"></span><time></time><span class="replies"></span><span class="send-state"></span></header><div class="post-text"></div>';
         this.rows.set(m.eid, el);
       }
-      const value = [m.who, m.text, m.at, m.depth, m.replies, m.sendEid, recent.has(m.eid), m.pending, m.edited, m.author, this.profileRevision];
+      const value = [m.who, m.text, m.at, m.depth, m.replies, m.sendEid, recent.has(m.eid), m.pending, m.edited, m.author, this.profileRevision, m.state, m.awaiting];
       if (!el.chatValue || value.some((v, i) => v !== el.chatValue[i])) {
         el.classList.toggle('reply-line', Boolean(m.depth));
         el.classList.toggle('recent', recent.has(m.eid)); el.style.setProperty('--depth', m.depth);
         el.classList.toggle('pending', Boolean(m.pending));
+        paintSendState(el, m.state, m.awaiting);
         const setText = (selector, text) => { const node = el.querySelector(selector); if (node.textContent !== text) node.textContent = text; };
         setText('.who', String(m.who ?? 'Anonymous'));
         /* Rumors is anonymous, so it stays letters for letters; see ui/media. */
@@ -378,6 +376,32 @@ export class Hud {
         banner.append(' ', cancel);
       }
     }
+  }
+
+  /* A POST TO A NOTE (2026-10-22): on screen at once, and kept there however
+   * it goes -- grey, amber if our ship is slow to confirm it (or, in a note
+   * another ship hosts, slow to come back), red with Retry if it was refused.
+   * See lib/pending. Room chats with no note go over the relay as before. */
+  sendToNote(note, text, parent) {
+    const shown = this.pending.add(note, text, parent, messagesFor(note), { byText: note === RUMORS_NOTE, author: our });
+    this.changedSends();
+    postMessage(note, text, parent).then((result) => { this.pending.sent(shown, result); this.changedSends(); },
+      (error) => { if (error?.result) this.pending.refused(shown); else this.pending.unconfirmed(shown); this.changedSends(); });
+  }
+  /* Only a post that was not stored is offered again: see lib/pending. */
+  retrySend(id) {
+    const p = this.pending.get(id);
+    if (!p || !canRetry(this.pending.lines(p.note, messagesFor(p.note)).find((l) => l.eid === id)?.state)) return;
+    this.pending.drop(id);
+    this.sendToNote(p.note, p.text, p.parent);
+  }
+  dropSend(id) { this.pending.drop(id); this.changedSends(); }
+  /* Repaint now, and again when a line's state next moves on by itself. */
+  changedSends() {
+    this.invalidate();
+    clearTimeout(this.sendTimer);
+    const ms = this.pending.wakeIn();
+    if (ms != null) this.sendTimer = setTimeout(() => { this.pending.tick(); this.changedSends(); }, ms + 30);
   }
 
   /* The glance: see PEEK_MS. Rebuilt only when the newest line changes. */

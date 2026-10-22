@@ -13,7 +13,7 @@ import { projectileTexture, shotKind, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
 import { shortAmount, validAmount } from '../lib/nock-receipt.js';
 import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED, TOUCH_WALK } from '../lib/touch.js';
-import { Application, Container, Graphics, Sprite, Text, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, TextMetrics, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { fontsReady, PIXEL_FONT } from 'ui/fonts';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT, spellColour, companionReach } from 'world/parts';
@@ -80,6 +80,15 @@ const FRAME_MS = 200;       //  Minifantasy walk timing
 /* A companion following: how far behind its place it sets off walking, and
  * how near counts as there (in tiles). */
 const COMPANION_START = 0.2, COMPANION_SETTLE = 0.05;
+/* How far a line of text's letters actually reach above and below its
+ * baseline -- measured, since a font's own line leaves room it may not use. */
+let inkContext = null;
+function inkHeight(text, font) {
+  inkContext ??= document.createElement('canvas').getContext('2d');
+  inkContext.font = font;
+  const m = inkContext.measureText(text || 'M');
+  return { up: m.actualBoundingBoxAscent || 0, down: m.actualBoundingBoxDescent || 0 };
+}
 /* SHADOWS (2026-10-21): a small oval at the feet, drawn in the sprite's own
  * pixels, so it belongs to the character rather than to any one map -- maps
  * are pictures people will bring themselves. Widths of its rows, in art pixels;
@@ -582,11 +591,17 @@ export class Game {
     const visible = Boolean(ch.label.text);
     ch.nameplate.visible = visible;
     if (!visible) return;
-    const padX = 4, padY = 1;
+    /* AROUND THE LETTERS, not the font's line (2026-10-22): the line keeps room
+     * for accents above capitals Silkscreen never draws, which sat every name
+     * low in its plate. The text's bottom is at 0 (anchor .5, 1) and its
+     * baseline the font's descent above that. */
+    const padX = 4, padY = 2;
+    const font = ch.label.style.toFontString(), { descent } = TextMetrics.measureFont(font);
+    const ink = inkHeight(ch.label.text, font);
+    const top = -descent - ink.up - padY, bottom = -descent + ink.down + padY;
     ch.labelBackground.clear()
       .beginFill(0x17141f, 0.82)
-      .drawRoundedRect(-ch.label.width / 2 - padX, -ch.label.height - padY,
-        ch.label.width + padX * 2, ch.label.height + padY * 2, 2)
+      .drawRoundedRect(-ch.label.width / 2 - padX, top, ch.label.width + padX * 2, bottom - top, 2)
       .endFill();
   }
 

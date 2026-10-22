@@ -455,6 +455,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .stream .line.reply-line, .dm-body .line.reply-line {margin-left:calc(var(--depth)*1.5rem);}
 /* Our own post, shown before our ship has confirmed it. */
 .stream .line.pending, .dm-body .line.pending {opacity:.6;border-style:dashed;}
+/* HOW A SEND IS GOING (2026-10-22; lib/pending): grey while sending, amber
+   when it is overdue, red when it did not go -- with Retry where that is safe. */
+.line .send-state {margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;}
+.line .send-state:empty {display:none;}
+.stream .line.slow, .dm-body .line.slow {opacity:.85;border-color:rgba(224,164,74,.55);}
+.line.slow .send-state {color:var(--warm);}
+.stream .line.failed, .dm-body .line.failed {opacity:1;border-style:solid;border-color:rgba(238,98,98,.6);}
+.line.failed .send-state {color:#ee6262;}
+.line .send-state button {padding:0 .45rem;font:600 11px/1.6 var(--font-ui);letter-spacing:0;text-transform:none;}
 .line header {display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:11px;}
 .stream .line .who, .dm-body .line .who {color:var(--accent);font-weight:700;}
 .stream .line.mine .who, .dm-body .line.mine .who {color:#a8e9db;}
@@ -791,9 +800,12 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .builder .preview-slot { width: 136px; height: 136px; }
   .app-panel { max-width: calc(100vw - 8px); max-height: calc(100% - 8px); }
   .ask { width: calc(100vw - 24px); }
-  .contacts-panel { width: min(320px, calc(100vw - 16px)); }
-  .dm-panel { width: min(280px, calc(100vw - 60px)); }
-  .dm-window { width: min(320px, calc(100vw - 60px)); height: min(360px, 55vh); }
+  /* Under the top bar, the width of the screen, as the magnifying glass's is:
+     with the room first (2026-10-22) these buttons sit far enough right that a
+     menu hung from one ran off the side. */
+  .contacts-panel, .dm-panel, .dm-window { position: fixed; left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r));
+    width: auto; top: calc(52px + var(--safe-t)); }
+  .dm-window { height: min(360px, 55vh); }
   .members-panel { width: min(260px, calc(100vw - 100px)); }
   .me-btn { padding: 0 5px; }
   .me-btn .who { display: none; }

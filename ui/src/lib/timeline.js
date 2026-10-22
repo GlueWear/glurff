@@ -74,7 +74,9 @@ export function chatLines(messages, name, anonymous = false) {
     parent: m.meta?.replyToEid ?? (m.replyTo != null ? byId.get(String(m.replyTo)) : null),
     who: anonymous ? null : name(m.author), author: anonymous ? null : m.author ?? null,
     edited: !!m.edited, imported: !!m.import,
-    text: m.text ?? '', at: m.timestamp ?? m.id, via: m.via}));
+    text: m.text ?? '', at: m.timestamp ?? m.id, via: m.via,
+    /* The message's exact id: what a DM's delivery receipt names. */
+    msgIdRaw: m.msgIdRaw ?? null}));
 }
 
 /* Break only cyclic parent edges, then aggregate the forest once, bottom up.

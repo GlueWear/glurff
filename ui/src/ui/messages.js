@@ -8,6 +8,7 @@
  */
 import { render as renderText } from 'ui/media';
 import { parseReceipt } from 'lib/nock-receipt';
+import { sendLabel, canRetry } from 'lib/pending';
 
 export { messageActions } from 'lib/message-actions';
 export const ACTION_LABEL = { reply: 'Reply', edit: 'Edit', send: 'Send $NOCK', delete: 'Delete' };
@@ -57,3 +58,24 @@ if (typeof document !== 'undefined') {
 /* A click on a line that is about the line, not something in it: a link, a
  * picture, a button keep their own. */
 export const aboutLine = (e) => !e.target.closest('a, button, input, video, audio, iframe, img, .nock-recip');
+
+/* How a post of ours is going, on its line: a word, and for one that did not
+ * go, Retry and remove. Shared by the room chats (ui/hud) and the DMs (ui/dms). */
+export function paintSendState(el, state, awaiting) {
+  el.classList.toggle('slow', state === 'slow');
+  el.classList.toggle('failed', state === 'failed' || state === 'undelivered');
+  const slot = el.querySelector('.send-state');
+  if (!slot) return;
+  const label = sendLabel(state, awaiting), retry = canRetry(state);
+  const key = `${label}|${retry}|${state === 'failed'}`;
+  if (slot.dataset.key === key) return;
+  slot.dataset.key = key;
+  slot.textContent = label;
+  if (retry) slot.append(sendButton('send-retry', 'Retry', 'Send it again'));
+  if (state === 'failed') slot.append(sendButton('send-drop', '×', 'Remove'));
+}
+function sendButton(className, text, title) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = className; b.textContent = text; b.title = title; b.setAttribute('aria-label', title);
+  return b;
+}
