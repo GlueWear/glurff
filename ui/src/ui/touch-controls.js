@@ -53,7 +53,18 @@ export class TouchControls {
     this.knob = root.querySelector('.stick-knob');
     this.weapon = root.querySelector('.weapon-btn');
     this.held = null;
-    this.weapon.onclick = () => { this.onUse(); this.paint(); };
+    /* PRESSED, NOT CLICKED (2026-10-22): a browser makes a click only from
+     * the first finger on the screen, and with a thumb on the stick the sword
+     * is the second -- so walking and attacking at once did nothing. Any
+     * finger, or the mouse, uses it the moment it touches; a keyboard's Enter
+     * or Space still arrives as a click, with no pointer behind it (detail 0). */
+    const use = () => { this.onUse(); this.paint(); };
+    this.weapon.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      use();
+    });
+    this.weapon.addEventListener('click', (e) => { if (e.detail === 0) use(); });
     this.wireStick();
     this.paint();
   }

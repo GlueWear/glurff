@@ -732,6 +732,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   width: 56px; height: 56px; border-radius: 50%; padding: 0; display: grid; place-items: center;
   background: rgba(10,12,18,.72); border: 2px solid rgba(201,212,228,.4); color: var(--text); }
 .weapon-btn svg { width: 26px; height: 26px; }
+/* A press, at once, from any finger (ui/touch-controls): never a pan or a zoom. */
+.weapon-btn { touch-action: none; }
 .weapon-btn.on { border-color: var(--warm); color: #ffd28a; background: rgba(224,164,74,.22); }
 .chat-open .weapon-btn { display: none; }
 /* The call panel moves over for the joystick. */

@@ -520,7 +520,7 @@ function toggleArmed() {
   diagnostic('weapon', { reason: game.armed ? 'armed' : 'put-away' });
   if (presenceStarted) presence.publish();
   touchControls?.paint();
-  if (game.armed && touching() && !armedHint) { armedHint = true; showNotice('Weapon out: tap where you want to attack'); }
+  if (game.armed && touching() && !armedHint) { armedHint = true; showNotice('Weapon out: tap the sword button to attack'); }
 }
 /* A phone does not have an armed interaction mode. Its one weapon button uses
  * the weapon once, in the last joystick direction, while taps stay taps. A

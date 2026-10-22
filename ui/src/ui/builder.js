@@ -284,6 +284,6 @@ function weaponHint(part, own = false) {
   const verb = part === 'spell' ? 'cast' : ['bow', 'slingshot'].includes(part) ? 'shoot' : 'strike';
   const lead = own ? `Fights with its own ${{ cast: 'spell', shoot: 'shot' }[verb] ?? 'attack'}. ` : 'In your hands as soon as you’re done. ';
   return lead + (document.documentElement.classList.contains('touch')
-    ? `Tap where to ${verb}; the sword button puts it away and back.`
+    ? `Tap the sword button to ${verb} the way you last walked.`
     : `Click where to ${verb} (Space ${verb}s the way you face); 1 puts it away and back.`);
 }
