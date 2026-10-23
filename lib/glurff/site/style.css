@@ -98,11 +98,12 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
    bar at the bottom -- every tile its width, scrolling when there are too many.
    (A phone keeps the strip across the top: see the phone rules below.) */
 @media (min-width: 701px) and (min-height: 501px) {
-  #strip { right: auto; top: 56px; bottom: calc(var(--rail-h, 84px) + 24px); width: var(--strip-w, 180px);
+  #strip { right: auto; top: 56px; bottom: calc(var(--rail-h, 84px) + 24px); width: max-content; max-width: calc(100vw - 24px);
     flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow-y: auto; overflow-x: hidden;
     scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; padding-right: 2px; }
   #strip:empty { display: none; }
-  #strip > .tile, #strip > .media-tile { width: auto !important; align-self: stretch; flex: 0 0 auto; }
+  /* Each its own size (2026-10-22), lined up on the left. */
+  #strip > .tile, #strip > .media-tile { align-self: flex-start; flex: 0 0 auto; }
 }
 .tile { position: relative; background: #000; border: 1px solid var(--line); border-radius: var(--r-sm);
   overflow: hidden; flex: 0 0 auto; align-self: flex-start; height: auto; }
@@ -1123,5 +1124,38 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   html:not(.chat-open) .chat-toggle svg { width: 20px; height: 20px; }
   html:not(.chat-open) .chat-toggle-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   html:not(.chat-open) .chat-unread { position: absolute; top: -4px; right: -4px; }
+}
+/* A FEED, SIZED BY HAND (2026-10-22; ui/rail): press anywhere and drag
+   sideways; a swipe up or down still scrolls the column. Full screen from the
+   button in its bottom-left corner, or a double-click. */
+#strip > .tile { touch-action: pan-y; cursor: ew-resize; -webkit-user-select: none; user-select: none; }
+#strip > .tile img, #strip > .tile video { -webkit-user-drag: none; }
+.tile .tile-full { position: absolute; left: 0; bottom: 0; z-index: 2; width: 18px; height: 16px; padding: 0;
+  display: grid; place-items: center; border: 0; border-radius: 0 var(--r-sm) 0 0; background: rgba(0,0,0,.6);
+  color: var(--bright); cursor: pointer; opacity: .75; }
+.tile .tile-full:hover { opacity: 1; color: var(--accent); background: rgba(0,0,0,.8); }
+.tile .tile-full svg { width: 11px; height: 11px; }
+.tile > span { padding-left: 21px; }
+.tile.staged-call-tile .tile-full { display: none; }
+.touch .tile .tile-full { width: 24px; height: 22px; }
+.touch .tile .tile-full svg { width: 14px; height: 14px; }
+.touch .tile > span { padding-left: 27px; }
+/* HIDDEN, STILL RUNNING (2026-10-22; ui/stage): beside the call bar on its own
+   line, moving with it, so it can never cover it -- its icon and name, and a
+   cross, shaped like the buttons of the top row. */
+.stage-dock { left: calc(12px + var(--rail-w, 160px) + 8px); right: auto;
+  bottom: calc(12px + var(--safe-b, 0px) + (var(--rail-h, 40px) - 36px) / 2);
+  padding: 0; gap: 4px; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.stage-dock button { height: 36px; border-radius: var(--r-sm); font-size: 13px; background-color: var(--panel); box-shadow: var(--shadow); }
+.stage-dock .stage-restore { display: flex; align-items: center; gap: 8px; max-width: 240px; padding: 0 12px 0 8px;
+  color: var(--bright); border-color: var(--line); }
+.stage-dock .stage-restore:hover { border-color: var(--accent); }
+.stage-icon { flex: none; width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; overflow: hidden;
+  background: var(--well) center / cover no-repeat; color: var(--soft); font: 700 12px var(--font-ui); }
+.stage-icon svg { width: 14px; height: 14px; }
+.stage-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-dock .stage-dock-close { width: 36px; padding: 0; font-size: 18px; line-height: 1; }
+@media (max-width: 700px), (max-height: 500px) {
+  .stage-dock { left: auto; right: calc(8px + var(--safe-r, 0px)); bottom: calc(var(--rail-h, 56px) + 64px + var(--safe-b, 0px)); }
 }
 

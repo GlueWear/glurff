@@ -13,9 +13,10 @@ import { roomById, COMMONS } from 'world/places';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
 import { pictureFor } from 'ui/avatar';
-import { columnMode, columnWidth, setColumnWidth, applyColumnWidth, onColumnMode } from 'ui/strip-column';
+import { columnMode, onColumnMode, defaultTileWidth, dragToSize, resetTileSizes, onTileReset, maxColumnTile } from 'ui/strip-column';
 
-const maxTileWidth=()=>Math.max(720,(globalThis.innerWidth??744)-24);
+/* As wide as a tile may be dragged: nearly the whole window. */
+const maxTileWidth=()=>columnMode()?maxColumnTile():Math.max(720,(globalThis.innerWidth??744)-24);
 const screenPublication=label=>String(label??'').startsWith('screen');
 
 export class Rail {
@@ -23,16 +24,14 @@ export class Rail {
     this.root = root;
     this.strip = strip;
     this.stage = stage;
-    this.expanded = null;
     this.staged = null;
     this.stageRoot=document.createElement('div');this.stageRoot.id='stage-call-media';document.body.appendChild(this.stageRoot);
     /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
      * resized every screen in the strip rather than the one under the hand. */
     this.sizes = new Map();
-    /* What a feed starts at: smaller on a phone, where the world is small too.
-     * On a desktop every feed is the column's width instead (ui/strip-column). */
-    this.size = smallScreen() ? 96 : 132;
-    applyColumnWidth(strip);
+    /* What a feed starts at, and goes back to: ui/strip-column defaultTileWidth.
+     * A double-click on any corner square puts every feed back. */
+    onTileReset(() => { this.sizes.clear(); this.paintStrip(); });
     /* The settings panel lives OUTSIDE the repainted markup.
      *
      * The rail redraws on every presence tick -- several times a second -- and
@@ -123,7 +122,6 @@ export class Rail {
       if(this.staged===key){this.staged=null;this.stage?.leave(`call-media-${key}`);}
       const video=el.querySelector('video');video.pause();video.srcObject=null;el.remove();this.tiles.delete(key);
       this.sizes.delete(key);
-      if(this.expanded===key)this.expanded=null;
     }
     /* Shared-media windows own the leading strip slots. Camera and screen
      * tiles start immediately after them instead of repainting over their
@@ -131,57 +129,40 @@ export class Rail {
     const mediaCount=[...this.strip.children]
       .filter(el=>el.classList.contains('media-tile')&&!el.hidden&&el.dataset.mode==='popup').length;
     for (const [i,v] of vids.entries()) {
-      /* The one you have opened up gets a floor of 320 and twice the width;
-       * everything else keeps whatever it was last dragged to. */
-      const own = this.sizes.get(v.key) ?? this.size;
-      const column = columnMode();
-      const w = Math.min(maxTileWidth(),this.expanded === v.key && !column ? Math.max(own, 320) * 2 : own);
+      /* Each at whatever it was last dragged to, or the normal size. */
+      const w = Math.min(maxTileWidth(), this.sizes.get(v.key) ?? defaultTileWidth());
       let el=this.tiles.get(v.key);
       if(!el) {
         el=document.createElement('div');el.className='tile';
         el.innerHTML='<video autoplay playsinline muted></video><img class="face" alt="" data-own="1"><b class="initials"></b>'+
-          '<span><em class="who"></em><small class="tags"></small></span><i class="grip" title="Drag to resize; double-click for full screen"></i>';
+          '<span><em class="who"></em><small class="tags"></small></span>'+
+          `<button type="button" class="tile-full" title="Full screen" aria-label="Full screen">${FULL_ICON}</button>`+
+          '<i class="grip" title="Drag to resize; double-click to put every one back to its normal size"></i>';
+        el.querySelector('.face').draggable=false;
         this.tiles.set(v.key,el);
         /* A picture that will not load: the next one (ui/avatar). */
         el.querySelector('.face').addEventListener('error',()=>this.paintStrip());
-        /* Opened up: twice the size in the strip; in the column, which has
-         * one width, the whole screen instead. */
-        el.ondblclick=e=>{if(e.target.closest('.grip'))return;
-          if(columnMode()){this.stageTile(v.key,v.label);return;}
-          this.expanded=this.expanded===v.key?null:v.key;this.paintStrip();};
-        /* Pointer events with capture: the drag follows the pointer even when
-         * it leaves the little square, and it ends with the pointer wherever
-         * that happens -- including a touch or pen. */
-        const grip=el.querySelector('.grip');
-        grip.addEventListener('pointerdown',e=>{
-          if(e.button!==undefined && e.button!==0)return;
-          e.preventDefault();e.stopPropagation();
-          /* Drag sets THIS feed's own size. An opened-up feed is drawn at twice
-           * that, so the drag is measured against the size, not the drawing. */
-          const startX=e.clientX,scale=this.expanded===v.key?2:1,startW=el.offsetWidth/scale;
-          try{grip.setPointerCapture?.(e.pointerId);}catch{}
-          /* In the column, any corner drags the whole column's width. */
-          const column=columnMode(),startColumn=columnWidth();
-          const move=ev=>{if(column){setColumnWidth(startColumn+(ev.clientX-startX),this.strip);return;}
-            this.sizes.set(v.key,Math.max(96,Math.min(maxTileWidth()/scale,startW+(ev.clientX-startX)/scale)));this.paintStrip();};
-          const up=()=>{
-            grip.removeEventListener('pointermove',move);
-            grip.removeEventListener('pointerup',up);
-            grip.removeEventListener('pointercancel',up);
-            try{grip.releasePointerCapture?.(e.pointerId);}catch{}
-          };
-          grip.addEventListener('pointermove',move);
-          grip.addEventListener('pointerup',up);
-          grip.addEventListener('pointercancel',up);
+        /* SIZED BY HAND, ONE AT A TIME (2026-10-22): press anywhere on it and
+         * drag sideways -- or its corner square -- and just this one changes
+         * (ui/strip-column dragToSize). Full screen: the button in its other
+         * corner, or a double-click anywhere. A double-click on the corner
+         * square puts every one back to its normal size. */
+        el.addEventListener('pointerdown',e=>{
+          if((e.button!==undefined&&e.button!==0)||this.staged===v.key||e.target.closest('.tile-full'))return;
+          e.preventDefault();
+          dragToSize(e,{width:el.offsetWidth,max:maxTileWidth,set:w=>{this.sizes.set(v.key,w);el.style.width=`${w}px`;}});
         });
-        grip.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();this.stageTile(v.key,v.label);});
+        el.ondblclick=e=>{if(e.target.closest('.grip, .tile-full'))return;this.stageTile(v.key,v.label);};
+        const full=el.querySelector('.tile-full');
+        full.onclick=e=>{e.stopPropagation();this.stageTile(v.key,v.label);};
+        const grip=el.querySelector('.grip');
+        grip.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();resetTileSizes();});
       }
       el.dataset.ship=v.screen?'':v.ship;
       el.classList.toggle('speaking',!v.screen&&rooms.speaking.has(v.ship));
       const staged=this.staged===v.key;
-      el.classList.toggle('big',this.expanded===v.key&&!staged&&!column);
       el.classList.toggle('staged-call-tile',staged);
-      el.style.width=staged||column?'':`${w}px`;
+      el.style.width=staged?'':`${w}px`;
       /* Text only, never markup: a name is whatever its owner typed. */
       const who=el.querySelector('.who'),tags=el.querySelector('.tags'),tag=this.tags(v.screen?null:v.ship);
       if(who.textContent!==v.label)who.textContent=v.label;
@@ -221,7 +202,7 @@ export class Rail {
     const el=this.tiles?.get(key);if(!el||!this.stage)return;
     if(this.staged===key){this.unstageTile(key);return;}
     if(this.staged)this.unstageTile(this.staged);
-    this.staged=key;this.expanded=null;this.stageRoot.appendChild(el);
+    this.staged=key;this.stageRoot.appendChild(el);
     this.stage.enter({id:`call-media-${key}`,kind:'media',title:title??'Call video',hideable:false,close:()=>this.unstageTile(key)});
     this.paintStrip();
   }
@@ -366,7 +347,6 @@ export class Rail {
 
 /* Phones cannot share their screen from a browser: no button that cannot work. */
 const canShareScreen = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
-const smallScreen = () => typeof matchMedia === 'function' && matchMedia('(max-width: 700px), (max-height: 500px)').matches;
 
 /* Somebody we can see in the call's room, who repair could not bring into it. */
 /* Status text is PLAIN text: the one place it becomes HTML escapes it. */
@@ -393,6 +373,9 @@ const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 /* A call service's refusal, in words: the bar used to show the code itself. */
 const CALL_ERRORS = { quota: 'Call limit reached', 'rate-limited': 'Too many tries, wait a moment',
   'participant-limit': 'This call is full', 'service-unavailable': 'Call service unavailable' };
+
+/* Full screen: four corners pointing out. */
+const FULL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 
 function mediaButton(kind,label,on) {
  const paths={mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',cam:'<rect x="2" y="5" width="13" height="14" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',scr:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5M12 13V6m-4 4 4-4 4 4"/>'};

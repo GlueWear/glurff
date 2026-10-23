@@ -30,7 +30,9 @@ export const touching = (doc = document) => doc.documentElement.classList.contai
 export function watchLayout(rail, doc = document, win = window) {
   const root = doc.documentElement.style;
   if (rail && win.ResizeObserver) {
-    new win.ResizeObserver(() => root.setProperty('--rail-h', `${Math.round(rail.offsetHeight)}px`)).observe(rail);
+    /* Its width too (2026-10-22): a hidden app's chip stands just past it. */
+    new win.ResizeObserver(() => { root.setProperty('--rail-h', `${Math.round(rail.offsetHeight)}px`);
+      root.setProperty('--rail-w', `${Math.round(rail.offsetWidth)}px`); }).observe(rail);
   }
   /* iOS scrolls the whole page to show a field being typed in, and leaves it
    * scrolled when the keyboard goes: put it back. */

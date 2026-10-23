@@ -153,7 +153,9 @@ export class AppPanel {
     this.setBig(false);
     this.maxBtn.hidden = false;
     this.body.appendChild(frame);
-    if (this.wantStage) this.toStage({ kind: 'app', title: app.title || app.desk });
+    if (this.wantStage) this.toStage({ kind: 'app', title: app.title || app.desk,
+      /* Its own icon, for when it is hidden away (ui/stage). */
+      icon: { image: typeof charge?.image === 'string' ? charge.image : null, color: colorHex(charge?.color) || null } });
     this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${!manifest ? 'installed' : media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
 
@@ -184,11 +186,11 @@ export class AppPanel {
   }
 
   /* Onto the stage, and off it. */
-  toStage({ kind, title, host = null, url = null }) {
+  toStage({ kind, title, host = null, url = null, icon = null }) {
     this.staged = true;
     this.root.classList.add('staged');
     this.maxBtn.hidden = true;
-    this.stage.enter({ id: 'app-panel', kind, title, host, url, frame: this.frame, close: () => this.close() });
+    this.stage.enter({ id: 'app-panel', kind, title, host, url, icon, frame: this.frame, close: () => this.close() });
   }
   unstage() {
     this.staged = false;

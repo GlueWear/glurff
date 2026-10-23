@@ -22,6 +22,21 @@ import { esc } from 'ui/html';
 import { activityText } from 'lib/sites';
 
 const HINT_MS = 7000;
+/* What is hidden, at a glance (2026-10-22): an app's own icon -- its docket
+ * picture on its colour -- or, without one, its first letter; a website, a
+ * globe; a video, a screen. */
+const GLOBE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>';
+const SCREEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="m10 9 4 2-4 2z" fill="currentColor"/></svg>';
+function paintIcon(el, source) {
+  const icon = source.icon ?? {};
+  el.textContent = ''; el.style.backgroundImage = ''; el.style.backgroundColor = '';
+  if (source.kind === 'web') { el.innerHTML = GLOBE; return; }
+  if (source.kind === 'media') { el.innerHTML = SCREEN; return; }
+  if (icon.color) el.style.backgroundColor = icon.color;
+  /* Only an address of our own kind: a picture's URL goes into CSS. */
+  if (typeof icon.image === 'string' && /^(https?:\/\/|\/)[^"'()\\\s]+$/.test(icon.image)) el.style.backgroundImage = `url("${icon.image}")`;
+  else el.textContent = (source.title || '?').trim().charAt(0).toUpperCase();
+}
 const HIDE_TAB_MS = 5000;
 const SHORTCUT = (e) => e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyG';
 
@@ -47,7 +62,7 @@ export class Stage {
     this.dock = document.createElement('div');
     this.dock.className = 'stage-dock';
     this.dock.hidden = true;
-    this.dock.innerHTML = `<button type="button" class="stage-restore"></button>
+    this.dock.innerHTML = `<button type="button" class="stage-restore"><span class="stage-icon" aria-hidden="true"></span><span class="stage-name"></span></button>
       <button type="button" class="stage-dock-close" title="Close" aria-label="Close">&times;</button>`;
     document.body.appendChild(this.dock);
     this.dock.querySelector('.stage-restore').onclick = () => this.restore();
@@ -112,7 +127,8 @@ export class Stage {
     if (source.minimize) { source.minimize(); return; }
     this.minimized = true;
     const restore = this.dock.querySelector('.stage-restore');
-    restore.textContent = `▸ ${source.title || 'App'}`;
+    restore.querySelector('.stage-name').textContent = source.title || 'App';
+    paintIcon(restore.querySelector('.stage-icon'), source);
     restore.title = `Back to ${source.title || 'it'}`;
     this.dock.hidden = false;
     this.shrink(this.stagedElements(), true).then(() => {

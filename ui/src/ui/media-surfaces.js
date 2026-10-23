@@ -4,7 +4,7 @@ import { SCREEN_RECTS } from 'world/hotspots';
 import { roomBySlug } from 'world/places';
 import { rooms, onRooms, callPeers, startScreen, screenShare } from 'lib/rooms';
 import { esc } from 'ui/html';
-import { columnMode, columnWidth, setColumnWidth } from 'ui/strip-column';
+import { columnMode, defaultTileWidth, dragToSize, resetTileSizes, onTileReset, maxColumnTile } from 'ui/strip-column';
 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
 
@@ -72,7 +72,7 @@ class SurfaceView {
       <button type="button" class="media-stop" title="Stop this stream for everyone">Stop all</button>
       <button type="button" class="media-close" title="Leave this stream locally">×</button>
     </div><button type="button" class="media-menu" title="Media controls" aria-label="Media controls" aria-expanded="false">•••</button>
-      <i class="grip" title="Drag to resize; double-click for full screen"></i>`;
+      <i class="grip" title="Drag to resize; double-click to put every one back to its normal size"></i>`;
     this.frame = this.root.querySelector('.media-frame');
     const used=(e,action)=>{e.stopPropagation();this.setControls(false);action();};
     this.root.querySelector('.media-mute').onclick = e => used(e,()=>owner.toggleMute(surface));
@@ -118,28 +118,24 @@ class SurfaceView {
     this.root.style.setProperty('--media-control-inset',`${4*n}px`);
   }
 
+  /* Sized by hand, on its own, from its corner square -- the player fills the
+   * rest of it and keeps the mouse for itself. A double-click on the square
+   * puts every tile and window back to its normal size (ui/strip-column). */
   makeResizable() {
-    this.width = 132;
+    this.width = defaultTileWidth();
     this.root.style.width = `${this.width}px`;
     const grip = this.root.querySelector('.grip');
+    const max = () => columnMode() && this.root.parentElement === this.owner.strip ? maxColumnTile() : maxPopupWidth();
     grip.addEventListener('pointerdown', e => {
-      if (e.button !== 0) return;
-      if (this.mode !== 'popup') return;
+      if (e.button !== 0 || this.mode !== 'popup') return;
       e.preventDefault(); e.stopPropagation();
-      const start = e.clientX, width = this.root.offsetWidth;
-      try { grip.setPointerCapture(e.pointerId); } catch {}
-      /* In the call column (ui/strip-column) its width is the column's. */
-      const column = columnMode() && this.root.parentElement === this.owner.strip, startColumn = columnWidth();
-      const move = p => {
-        if (column) { setColumnWidth(startColumn + p.clientX - start, this.owner.strip); return; }
-        this.width = Math.max(96, Math.min(maxPopupWidth(), width + p.clientX - start)); this.root.style.width=`${this.width}px`; };
-      const up = () => { grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',up); };
-      grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);grip.addEventListener('pointercancel',up);
+      dragToSize(e, { width: this.root.offsetWidth, max, set: (w) => { this.width = w; this.root.style.width = `${w}px`; } });
     });
-    grip.addEventListener('dblclick',e=>{
-      if(this.mode!=='popup')return;
-      e.preventDefault();e.stopPropagation();this.owner.toggleStage(this.surface);
+    grip.addEventListener('dblclick', e => {
+      if (this.mode !== 'popup') return;
+      e.preventDefault(); e.stopPropagation(); resetTileSizes();
     });
+    onTileReset(() => { this.width = defaultTileWidth(); if (this.mode === 'popup') this.root.style.width = `${this.width}px`; });
   }
 
   destroyAdapter() {
