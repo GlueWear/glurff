@@ -13,6 +13,7 @@ import { projectileTexture, shotKind, TIP } from './projectiles.js';
 import { nearestDir } from '../lib/bow.js';
 import { shortAmount, validAmount } from '../lib/nock-receipt.js';
 import { pinchZoom, spreadOf, isTap, TAP_SLOP_PX, TOUCH_PAN_SPEED, TOUCH_WALK } from '../lib/touch.js';
+import { createWheel, nearestZoom } from '../lib/wheel.js';
 import { Application, Container, Graphics, Sprite, Text, TextMetrics, Texture, Rectangle, BaseTexture, SCALE_MODES, Assets } from 'pixi.js';
 import { fontsReady, PIXEL_FONT } from 'ui/fonts';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
@@ -333,12 +334,35 @@ export class Game {
     this.mount.addEventListener('pointercancel', lift);
     /* A finger held still is not asking for the browser's menu. */
     this.mount.addEventListener('contextmenu', (e) => { if (this.touches.size || this.touchedRecently()) e.preventDefault(); });
-    /* Wheel to zoom, which is what everyone reaches for first. */
+    /* THE WHEEL AND THE TRACKPAD (2026-10-26; lib/wheel): a pinch zooms by
+     * how far it goes, two fingers move the map, a mouse wheel zooms a level
+     * per notch. Every event used to be a whole level, so a trackpad's stream
+     * of tiny ones flew through them all. */
+    this.wheel = createWheel({
+      zooms: ZOOMS, zoom: () => this.zoom, setZoom: (z) => this.setZoom(z),
+      startPan: () => this.anchorPanToCamera(),
+      pan: (dx, dy) => { this.pan.x += dx / this.zoom; this.pan.y += dy / this.zoom; this.panned = true; this.centreCamera(); },
+    });
     this.mount.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const i = ZOOMS.indexOf(this.zoom);
-      this.setZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + (e.deltaY < 0 ? 1 : -1)))]);
+      if (this.safariPinch != null) return;   // Safari's own pinch, below, has it
+      this.wheel.handle(e);
     }, { passive: false });
+    /* SAFARI reports a trackpad pinch as gesture events, not a Ctrl-wheel:
+     * the scale since the pinch began. A phone's pinch is the touch handlers'
+     * (above), so these are left alone while fingers are on the screen. */
+    this.safariPinch = null;
+    this.mount.addEventListener('gesturestart', (e) => {
+      e.preventDefault();
+      if (!this.touches.size) this.safariPinch = this.zoom;
+    });
+    this.mount.addEventListener('gesturechange', (e) => {
+      e.preventDefault();
+      if (this.safariPinch == null || this.touches.size) return;
+      const z = nearestZoom(this.safariPinch * e.scale, ZOOMS);
+      if (z !== this.zoom) this.setZoom(z);
+    });
+    this.mount.addEventListener('gestureend', (e) => { e.preventDefault(); this.safariPinch = null; });
     this.app.ticker.add(() => this.tick());
   }
 
