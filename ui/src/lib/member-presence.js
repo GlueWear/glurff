@@ -16,6 +16,24 @@ export const OFF_RELAY_MS = 120000;
  * left the world -- well before their presence lease would say so. */
 export const RELAY_GONE_MS = 20000;
 const RETRIES = [5000, 15000, 30000, 60000, 180000];
+/* THE WORLD'S ROOM IS THE DIRECTORY (2026-10-27). Everybody in the world asks
+ * its host for the movement room, and the room lists who is in it -- arrivals
+ * and departures pushed to everyone as they happen. So who is here is who is
+ * in the room, and only they are asked, over the room itself.
+ *
+ * It used to be every member of the world note, over Ames: 86 ships at once
+ * when a tab opened, before the room was even joined, and anybody who did not
+ * answer -- the offline, the breached -- again after 5 s, 15 s, 30 s, 60 s and
+ * every 3 minutes after that, for the whole visit.
+ *
+ * Ames is the FALLBACK, for when the world's room cannot be reached: after
+ * FALLBACK_AFTER_MS without it, ask only who Noltbook says is in Glurff now,
+ * FALLBACK_TRIES times each, and then stop. Somebody arriving later asks us
+ * themselves. Consent is unchanged: each ship still answers only who may see
+ * it. */
+export const FALLBACK_AFTER_MS = 15000;
+export const FALLBACK_TRIES = 3;
+const RECHECK_MS = 5000;
 const RESTART_MS = 30000;
 const ship = s => typeof s === 'string' && /^~[a-z-]{3,70}$/.test(s);
 const id = s => typeof s === 'string' && s.length > 0 && s.length <= 100;
@@ -62,6 +80,9 @@ export function createMemberPresence({our, session, members, blocked = () => fal
    * Discovery over Ames only asks these: asking every member meant queueing
    * messages to ships that were not even running. */
   likelyLive = () => null,
+  /* Are we in the world's room right now: our relay live, on the world
+   * host's session? While we are, it is the directory (see above). */
+  directory = () => false,
   /* This session's generation, issued by our agent (see `live` in
    * sur/glurff.hoon). 0 until it arrives. */
   sessionGen = () => 0}) {
@@ -72,12 +93,28 @@ export function createMemberPresence({our, session, members, blocked = () => fal
   const contacts = new Map(), queued = new Set();
   const eligible = who => who !== our && allowed.has(who) && !blocked(who);
   const cadence = who => onRelay(who) ? (rows.has(who) ? Infinity : MEMBER_HEARTBEAT_MS) : OFF_RELAY_MS;
-  /* Worth asking at all: on our relay, already known, or -- off it -- somebody
-   * Noltbook says is here (or anyone, when it cannot say). */
-  const interesting = who => {
-    if (onRelay(who) || rows.has(who) || routes.has(who)) return true;
+  /* Worth asking: whoever is in the room with us. Without the room for a
+   * while, the people we already know; and -- a few times each -- those we
+   * have heard from this visit (one just unblocked, say) and those Noltbook
+   * says are in Glurff. Nobody else, ever. */
+  let roomSeen = -Infinity, activeSince = -Infinity;
+  /* 'room': in it; 'away': out of it for a while; 'waiting': out of it, but
+   * not for long -- the room is usually seconds off. */
+  const roomState = () => {
+    if (directory()) { roomSeen = now(); return 'room'; }
+    return now() - Math.max(roomSeen, activeSince) >= FALLBACK_AFTER_MS ? 'away' : 'waiting';
+  };
+  const interesting = (who, state) => {
+    if (onRelay(who)) return true;
+    if (state === 'room') return false;
+    const tried = contact(who).tries >= FALLBACK_TRIES;
+    /* Out of the room, somebody already heard from this visit is not a
+     * stranger to look for: asked at once, a few times. */
+    if (latest.has(who) && !rows.has(who) && !routes.has(who)) return !tried;
+    if (state !== 'away') return false;
+    if (rows.has(who) || routes.has(who)) return true;
     const likely = likelyLive();
-    return !likely || likely.has(who);
+    return !tried && !!likely && likely.has(who);
   };
   const relayGone = new Map();          //  who -> ms they left our relay
   const live = row => now() - row.at < MEMBER_LEASE_MS;
@@ -110,9 +147,13 @@ export function createMemberPresence({our, session, members, blocked = () => fal
   }
   function drain() {
     let sent = 0;
+    const state = roomState();
     for (const who of queued) {
       queued.delete(who);
-      if (!eligible(who) || !interesting(who)) continue;
+      if (!eligible(who)) continue;
+      /* Not now: looked at again in a while, in case the room or Noltbook's
+       * list changes its mind. */
+      if (!interesting(who, state)) { contact(who).next = now() + RECHECK_MS; continue; }
       query(who);
       if (++sent >= MEMBER_BATCH_SIZE) break;
     }
@@ -285,6 +326,7 @@ export function createMemberPresence({our, session, members, blocked = () => fal
   function start(force = false) {
     if (active && !force && now() - restarted < RESTART_MS) return;
     const first = !active;
+    if (first) activeSince = now();
     active = true; generation++; restarted = now();
     for (const c of contacts.values()) c.requests.clear();
     if (first) {
@@ -312,8 +354,8 @@ export function createMemberPresence({our, session, members, blocked = () => fal
     for (const who of ships) {
       relayGone.delete(who);
       if (!eligible(who) || rows.has(who)) continue;
-      const c = contact(who);
-      if (now() >= c.next || c.tries === 0) { queued.add(who); asked = true; }
+      /* In the room and not yet known: asked now, whatever was planned. */
+      contact(who).next = now(); queued.add(who); asked = true;
     }
     if (asked) drain();
   }

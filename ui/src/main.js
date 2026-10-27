@@ -3,6 +3,7 @@ import { createMemberPresence } from 'lib/member-presence';
 import { WORLD_ID, WORLD_HOST } from 'lib/world-config';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
+import { WORLD_TERM } from 'lib/movement-session';
 import { createBow } from 'lib/bow';
 import { createPlayerState } from 'lib/player-state';
 import { palStatus } from 'lib/noltbook';
@@ -835,6 +836,8 @@ const presence = createMemberPresence({
   /* A query expects an answer; see lib/reachability. */
   send:(to,p)=>{if(p?.kind==='query')reach.asked(to);return G.sendPresence(to,p);},
   onRelay:(ship)=>movement?.onRelay(ship)??false,
+  /* In the world's room: then it is who is here (lib/member-presence). */
+  directory:()=>{const c=movement?.current?.();return !!movement?.relayLive?.() && (!WORLD_HOST || (c?.host===WORLD_HOST && c?.term===WORLD_TERM));},
   /* Noltbook's own record of who is in Glurff right now, kept by the world
    * note's host. Discovery over Ames asks only these. */
   likelyLive:()=>{const rows=nb.active?.[COMMONS_NOTE];if(!Array.isArray(rows)||!rows.length)return null;
