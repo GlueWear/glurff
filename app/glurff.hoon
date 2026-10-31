@@ -855,6 +855,11 @@
 ::  What became of a request about the world room. Failing because the room is
 ::  not there starts the clock towards opening it afresh; anybody let in shows
 ::  it is working, and stops it.
+::
+::  A lapsed lease (%expired, 2026-10-30) is a room that is not there too. A
+::  ~nolset outage longer than the lease left the room dead, and every visitor
+::  knocking since renewed the dead room: each knock moved +asked on, so the
+::  nobody-has-asked reopen in +world-knock never came either.
 ++  world-heard
   |=  res=call-result:gc
   ^-  state-9
@@ -866,7 +871,7 @@
   ::
       %failed
     ?.  (world-context context.res)  state
-    ?.  ?=(?(%room-unavailable %room-ended) err.res)  state
+    ?.  ?=(?(%room-unavailable %room-ended %expired) err.res)  state
     ?^  failing.u.world  state
     state(world `u.world(failing `now.bowl))
   ==
