@@ -139,6 +139,19 @@
 ::  room takes to come up, so a room still being created is never recreated:
 ::  opening afresh throws out everybody inside.
 ++  world-reopen  ~s30
+::  How long one request id lasts for the world room (2026-10-31). The call
+::  service keeps a row for every new request id, counts each one for about
+::  32 days, and refuses a host past 20,000 of them (command-cap). A fresh id
+::  on every ask spent ~nolset's whole allowance in a month. Asks inside one
+::  window reuse the id, and the service answers a reused id from its record
+::  of the first, with no new row.
+::
+::  Under half the shortest grant a renewal can return. A grant lasts until
+::  the room's lease ends -- at least ten minutes while browsers ask every two
+::  and the lease is extended once a window -- and browsers ask again at half
+::  its life. A repeated grant past that point would have every browser
+::  asking again at once, over and over, until the window turned.
+++  world-window  ~m3
 ::
 ::  OUR SETTINGS. Owner-local JSON the agent keeps and never reads: which
 ::  clocks we have in the sky and where, and our time zone. Capped, since a

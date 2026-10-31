@@ -819,6 +819,16 @@
 ::  takes to come up. Anything else is an ordinary admission, and the ask
 ::  extends the lease. A room that may still be working is never opened
 ::  afresh: that would throw out everybody inside.
+::
+::  ONE ID PER WINDOW (2026-10-31). Every browser asks at least every two
+::  minutes, and each ask used to send two new request ids; the call service
+::  counts every new id for a month, and ~nolset ran out (see world-window in
+::  /sur). Now an opening's and an admission's id are per person per window
+::  and the lease's per window, so a repeated ask is answered from the
+::  service's record of the first. Failures are not recorded there, so a
+::  failing ask is still really tried each time, under the same id. A success
+::  can be repeated after the room has gone, until the window turns: a gone
+::  room is noticed within world-window, not at once.
 ++  world-knock
   |=  who=@p
   ^-  (quip card state-9)
@@ -833,7 +843,7 @@
     :_  state(hosting held, world `[now.bowl ~])
     :~  %-  calls-poke
         :*  %ensure-access
-            (call-req place `@ud`(shas %glurff-world now.bowl) %ensure who)
+            (call-req place `@ud`(div now.bowl world-window:g) %ensure who)
             (room-key place)  movement-ttl:g  who  %glurff
             (call-ctx place who 0)
         ==
@@ -841,13 +851,13 @@
   :_  state(hosting held, world `[now.bowl ?~(world ~ failing.u.world)])
   :~  %-  calls-poke
       :*  %renew-access
-          (call-req place `@ud`(shas %glurff-admit now.bowl) %access who)
+          (call-req place `@ud`(div now.bowl world-window:g) %access who)
           (room-key place)  who  %glurff
           (call-ctx place who 0)
       ==
       %-  calls-poke
       :*  %renew
-          (call-req place `@ud`(div now.bowl ~m1) %renew our.bowl)
+          (call-req place `@ud`(div now.bowl world-window:g) %renew our.bowl)
           (room-key place)
           movement-ttl:g
       ==

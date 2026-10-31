@@ -296,10 +296,16 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
      * that WORKS is not abandoned for one we have only heard about. It is
      * proposed, and we move when its host grants us access; see onCandidate. A
      * session of our own needs no such proof, and neither does leaving a relay
-     * that is already down: that is ordinary failover, unchanged. */
+     * that is already down: that is ordinary failover, unchanged.
+     *
+     * The WORLD is never a session of our own, even on its host (2026-10-31):
+     * the host's agent keeps it, and the host's browser is let in like anyone
+     * else's. Taking it on trust moved ~nolset's own page off a working
+     * fallback, every time the wait ran out, into a world room that was
+     * refusing everybody. */
     const best = candidates()[0];
     if (best && key(best) !== key(current)) {
-      if (onCandidate && best.host !== our && healthy()) { propose(best); return; }
+      if (onCandidate && (best.host !== our || isWorld(best)) && healthy()) { propose(best); return; }
       adopt(best, 'converged'); return;
     }
     /* Nothing better any more: stop asking. */
