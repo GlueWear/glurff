@@ -100,10 +100,15 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 @media (min-width: 701px) and (min-height: 501px) {
   #strip { right: auto; top: 56px; bottom: calc(var(--rail-h, 84px) + 24px); width: max-content; max-width: calc(100vw - 24px);
     flex-direction: column; flex-wrap: nowrap; align-items: stretch; overflow-y: auto; overflow-x: hidden;
-    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; padding-right: 2px; }
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; padding-left: 2px; direction: rtl; }
   #strip:empty { display: none; }
-  /* Each its own size (2026-10-22), lined up on the left. */
-  #strip > .tile, #strip > .media-tile { align-self: flex-start; flex: 0 0 auto; }
+  /* ITS SCROLLBAR ON THE LEFT (2026-11-01), at the window's edge rather than
+     in the middle of the world. The column runs right to left for that alone;
+     what is in it runs as everything else does. */
+  #strip > * { direction: ltr; }
+  /* Each its own size (2026-10-22), lined up on the left -- which, across a
+     right-to-left column, is the far end. */
+  #strip > .tile, #strip > .media-tile { align-self: flex-end; flex: 0 0 auto; }
 }
 .tile { position: relative; background: #000; border: 1px solid var(--line); border-radius: var(--r-sm);
   overflow: hidden; flex: 0 0 auto; align-self: flex-start; height: auto; }
@@ -1116,11 +1121,18 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .rail .rail-btns button { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .rail .rail-btns svg, .rail-btns .set svg { width: 16px; height: 16px; }
 .rail .rail-btns .retry-call, .rail .mod-btns button { width: auto; border-radius: var(--r-sm); padding: 0 .7rem; font-size: 12px; }
-.rail .media-icon.on, .rail .media-icon.off, .rail .set { color: var(--soft); }
+.rail .media-icon.on, .rail .media-icon.off, .rail .set, .rail .vids { color: var(--soft); }
+/* HIDE VIDEOS (2026-11-01; ui/rail): the call column out of sight, the call
+   going on; how many are hidden on the button's corner. */
+.videos-off #strip { display: none !important; }
+.rail .rail-btns .vids { position: relative; }
+.rail .vids-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px;
+  box-sizing: border-box; border-radius: 8px; background: var(--accent); color: #0b1016;
+  font: 600 11px/16px var(--font-ui); text-align: center; pointer-events: none; }
 .rail.idle .mod-btns, .rail.connecting .mod-btns { display: none; }
 .rail .mic-trouble { flex: 1 1 100%; order: -1; margin: 0; }
 /* In a call: white, and the microphone says plainly whether it is heard. */
-.rail.live .media-icon.on, .rail.live .media-icon.off, .rail.live .set { color: var(--bright); }
+.rail.live .media-icon.on, .rail.live .media-icon.off, .rail.live .set, .rail.live .vids { color: var(--bright); }
 .rail.live .media-icon.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .rail.live .media-icon.mic.on { color: var(--accent); }
 .rail.live .media-icon.mic.off { color: #ee6262; border-color: rgba(238,98,98,.6); }

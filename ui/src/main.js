@@ -621,7 +621,7 @@ document.body.appendChild(railRoot);
 const stripRoot = document.createElement('div');
 stripRoot.id = 'strip';
 document.body.appendChild(stripRoot);
-const rail = new Rail(railRoot, stripRoot, { stage });
+const rail = new Rail(railRoot, stripRoot, { stage, notify: (text) => showNotice(text) });
 window.__rail = rail;   // debug handle
 /* The phone layout stacks things on the call bar, and lifts the chat above
  * the on-screen keyboard: both measured here (ui/touch-controls). */

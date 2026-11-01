@@ -23,11 +23,22 @@ const screenPublication=label=>String(label??'').startsWith('screen');
 const REFUSED = { booted: 'Removed from this call', 'not-a-member': "You aren't in this Glurff" };
 
 export class Rail {
-  constructor(root, strip, {stage=null} = {}) {
+  constructor(root, strip, {stage=null, notify=()=>{}} = {}) {
     this.root = root;
     this.strip = strip;
     this.stage = stage;
+    this.notify = notify;
     this.staged = null;
+    /* HIDE VIDEOS (2026-11-01): the column -- everybody's tiles, screens and
+     * popped-out players -- out of sight, from the button beside the screen
+     * share, and back. Only out of sight: our camera still sends, everybody is
+     * still heard. Popped-out players come and go without the rail hearing of
+     * it, so it counts what the column holds whenever that changes. */
+    this.videosHidden = false;
+    this.counted = 0;
+    this.screensSeen = new Set();
+    new MutationObserver(() => { if (this.videoCount() !== this.counted) this.paint(); })
+      .observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-mode'] });
     this.stageRoot=document.createElement('div');this.stageRoot.id='stage-call-media';document.body.appendChild(this.stageRoot);
     /* EACH FEED HAS ITS OWN SIZE. One shared width meant dragging a corner
      * resized every screen in the strip rather than the one under the hand. */
@@ -122,6 +133,13 @@ export class Rail {
     const vids = this.participants();
     this.tiles ??= new Map();
     const wanted = new Set(vids.map(v=>v.key));
+    /* A screen somebody starts sharing while the videos are hidden is said,
+     * not shown. */
+    for (const v of vids) if (v.screen && !v.mine && !this.screensSeen.has(v.key)) {
+      this.screensSeen.add(v.key);
+      if (this.videosHidden) this.notify(`${displayName(v.ship)} is sharing a screen. Show videos to see it.`);
+    }
+    for (const key of this.screensSeen) if (!wanted.has(key)) this.screensSeen.delete(key);
     for (const [key,el] of this.tiles) if(!wanted.has(key)) {
       if(this.staged===key){this.staged=null;this.stage?.leave(`call-media-${key}`);}
       const video=el.querySelector('video');video.pause();video.srcObject=null;el.remove();this.tiles.delete(key);
@@ -248,8 +266,9 @@ export class Rail {
       rooms.voice !== 'connected' && holder && hostReach() === 'unreachable' ? `Can't reach ${displayName(holder)}'s ship` :
       waitingOn[rooms.stage] ?? rooms.voice);
 
+    const videos = this.counted = this.videoCount();
     const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s),roleFor(s),mutedShip(s)]),status,rooms.micTrouble,rooms.voice,
-      rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen,canModerate(),mayRecord(),rooms.recording?.by??null]);
+      rooms.micOn,rooms.camOn,rooms.screenOn,this.settingsOpen,canModerate(),mayRecord(),rooms.recording?.by??null,this.videosHidden,videos]);
     if(signature===this.signature)return;
     this.signature=signature;
     /* ONE BAR, FOUR MOODS (2026-10-21). The same round buttons always; their
@@ -279,6 +298,7 @@ export class Rail {
           ${mediaButton('mic','Microphone',rooms.micOn)}
           ${mediaButton('cam','Camera',rooms.camOn)}
           ${canShareScreen() ? mediaButton('scr','Screen sharing',rooms.screenOn) : ''}
+          ${videos || this.videosHidden ? videosButton(this.videosHidden, videos) : ''}
           <button class="set${this.settingsOpen ? ' on' : ''}" aria-label="Call settings" aria-expanded="${this.settingsOpen}" title="Call settings">${GEAR}</button>
         </div>
         <div class="rail-btns mod-btns">
@@ -295,12 +315,26 @@ export class Rail {
     q('.cam').onclick = () => toggleCam().catch((e) => console.error('cam', e));
     if (q('.scr')) q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
     q('.set').onclick = () => this.toggleSettings();
+    if (q('.vids')) q('.vids').onclick = () => this.toggleVideos();
     /* ADMIN and REC sit with the other call controls, but their PANELS are
      * built once and live outside this markup -- the rail replaces all of it
      * several times a second. The panels listen for these. */
     const open=(which)=>window.dispatchEvent(new CustomEvent('glurff-call-panel',{detail:which}));
     if(q('.admin-call'))q('.admin-call').onclick=()=>open('admin');
     if(q('.rec-call'))q('.rec-call').onclick=()=>open('rec');
+  }
+
+  /* What the column holds: a tile for each of us in the call and each screen
+   * shared, and each player popped out of the world. */
+  videoCount() {
+    return [...this.strip.children].filter((el) => !el.hidden && (el.classList.contains('tile') ||
+      (el.classList.contains('media-tile') && el.dataset.mode === 'popup'))).length;
+  }
+
+  toggleVideos(hide = !this.videosHidden) {
+    this.videosHidden = hide;
+    document.documentElement.classList.toggle('videos-off', hide);
+    this.paint();
   }
 
   toggleSettings() {
@@ -381,6 +415,13 @@ const CALL_ERRORS = { quota: 'Call limit reached', 'rate-limited': 'Too many tri
 
 /* Full screen: four corners pointing out. */
 const FULL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+
+/* The call's videos, as a picture in a picture: struck through while they
+ * are hidden, with how many are. Its name says what pressing it does. */
+function videosButton(hidden,count) {
+ const label=hidden?`Show videos${count?` (${count} hidden)`:''}`:'Hide videos';
+ return `<button class="vids${hidden?' hidden-vids':''}" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/>${hidden?'<path d="M2 2 22 22"/>':''}</svg>${hidden&&count?`<b class="vids-count" aria-hidden="true">${count}</b>`:''}</button>`;
+}
 
 function mediaButton(kind,label,on) {
  const paths={mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',cam:'<rect x="2" y="5" width="13" height="14" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',scr:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5M12 13V6m-4 4 4-4 4 4"/>'};
