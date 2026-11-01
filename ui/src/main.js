@@ -1155,9 +1155,12 @@ function onWorldFact(name, p, fromPresence=false) {
   if (p?.who && !visiblePeers().includes(p.who)) return;
   switch (name) {
     case 'room-event':
-      /* Somebody muted in the Glurff says nothing in its rooms. */
+      /* Somebody muted in the Glurff says nothing in its rooms -- nor, in a
+       * room whose chat is its own, somebody its call has muted or removed,
+       * though they may still take back what they said (R.chatBar). */
       if (glurffMuted(p.who)) break;
-      try { const event=JSON.parse(p.body);if(event.world===WORLD_ID)events.receive(p.who,p.place,event); } catch {}
+      try { const event=JSON.parse(p.body);
+        if(event.world===WORLD_ID && (event.kind==='chat-delete' || !R.chatBar(p.who,p.place)))events.receive(p.who,p.place,event); } catch {}
       break;
     case 'peer-here': {
       const reported = { place: p.spot.place, x: p.spot.x / G.SUB, y: p.spot.y / G.SUB,

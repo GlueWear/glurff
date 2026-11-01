@@ -116,8 +116,7 @@ export class CallPanels {
         </span>` : '<span class="dim">—</span>'}
       </div>`;
     }).join('');
-    const html = `<h4>Call moderation</h4>${rows || '<div class="dim pad">nobody else is in this call</div>'}
-      <small class="dim">The Glurff's host and its moderators can act on any admin of a call; a call's admins can act on everybody else. Nobody can act on themselves.</small>`;
+    const html = `<h4>Call moderation</h4>${rows || '<div class="dim pad">nobody else is in this call</div>'}`;
     if (this.admin.dataset.html !== html) { this.admin.innerHTML = html; this.admin.dataset.html = html; }
   }
 

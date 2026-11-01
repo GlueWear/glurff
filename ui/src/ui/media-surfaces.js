@@ -1,10 +1,11 @@
 import { createMediaAdapter, parseMediaRef, youtubeRef } from 'lib/player-providers';
-import { playbackPosition } from 'lib/player-state';
+import { playbackPosition, CONTROLLED_SURFACES } from 'lib/player-state';
 import { SCREEN_RECTS } from 'world/hotspots';
 import { roomBySlug } from 'world/places';
 import { rooms, onRooms, callPeers, startScreen, screenShare } from 'lib/rooms';
 import { esc } from 'ui/html';
 import { ask } from 'ui/ask';
+import { avatarHtml } from 'ui/avatar';
 import { columnMode, defaultTileWidth, dragToSize, resetTileSizes, onTileReset, maxColumnTile } from 'ui/strip-column';
 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
@@ -172,6 +173,20 @@ class SurfaceView {
     const gagged = !o.mayShare();
     const b = (act, tip, body) => `<button type="button" data-act="${act}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</button>`;
     const acts = [];
+    /* WHOSE IT IS (2026-11-01). On the theater screens whoever started it
+     * keeps the room's place in it: named, with their picture, for everybody
+     * else, and "Your video" with our own for them. The jukebox is anybody's. */
+    const owner = playing && CONTROLLED_SURFACES.includes(surface) ? state.startedBy ?? null : null;
+    const mine = !!owner && owner === o.our, thing = state?.provider === 'screen' ? 'screen' : 'video';
+    const whose = owner ? (mine ? `Your ${thing}` : `${o.name(owner)}’s ${thing}`) : '';
+    if (owner) {
+      const tip = thing === 'screen'
+        ? (mine ? 'You are sharing this with the room.' : `${o.name(owner)} is sharing this with the room.`)
+        : mine ? 'You started this. Your play, pause and skips move it for everybody here.'
+        : `${o.name(owner)} started this and keeps the room’s place in it. Your pause and skips are just for you.`;
+      acts.push(`<span class="mp-whose${mine ? ' mine' : ''}" tabindex="0" role="note" aria-label="${esc(`${whose}. ${tip}`)}" data-tip="${esc(tip)}">
+        <span class="av">${avatarHtml(owner)}</span><span class="mp-whose-name">${esc(whose)}</span></span>`);
+    }
     if (playing) {
       if (state.provider !== 'screen') {
         acts.push(o.isMuted(surface) ? b('sound', 'Listen', ICONS.muted) : b('sound', 'Mute', ICONS.sound));
@@ -179,7 +194,7 @@ class SurfaceView {
       }
       if (v.independent) acts.push('<button type="button" data-act="sync" class="mp-text" data-tip="Back in step with the room">Sync</button>');
       acts.push(staged ? b('full', 'Exit full screen', ICONS.unfull) : b('full', 'Full screen', ICONS.full));
-      acts.push(b('stop', 'Stop video', ICONS.stop));
+      acts.push(b('stop', !owner ? 'Stop video' : mine ? 'Stop for everyone' : 'Stop watching', ICONS.stop));
       acts.push(gagged
         ? '<button type="button" class="mp-text" aria-disabled="true" data-tip="You are muted in this Glurff">Change video</button>'
         : '<button type="button" data-act="choose" class="mp-text">Change video</button>');
@@ -188,6 +203,10 @@ class SurfaceView {
     if (this.panel.dataset.html !== html) { this.panel.innerHTML = html; this.panel.dataset.html = html; }
     const who = playing ? (state.startedBy === o.our ? 'you are' : `${o.name(state.startedBy)} is`) : '';
     this.panel.setAttribute('aria-label', playing ? `${TITLES[surface]}: ${who} playing this for the room` : TITLES[surface]);
+    /* Hovering the painted screen names it too, without opening anything. */
+    const shield = this.root.querySelector('.media-shield');
+    const named = owner ? `${whose} — click for controls` : `${TITLES[surface]} controls`;
+    if (shield && shield.title !== named) { shield.title = named; shield.setAttribute('aria-label', named); }
     this.panel.classList.toggle('staged-bar', staged);
     const appearing = show && this.panel.hidden;
     this.panel.hidden = !show;

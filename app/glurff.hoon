@@ -1432,9 +1432,12 @@
         [%evict (call-req place at %evict target) (room-key place) target]
     ==
   =^  enforce  done  (call-reconcile place done note)
+  ::  Whoever was removed or let back in is told too: they are not in the
+  ::  call, so the record would not reach them otherwise, and being let back
+  ::  in is what puts them back in it (2026-11-01).
   :_  state(calls (~(put by calls) place done))
   ;:  weld  out  enforce
-    (call-publish place done note ?:(=(%boot op) ~[target] ~))
+    (call-publish place done note ?:(|(=(%boot op) =(%unboot op)) ~[target] ~))
   ==
 ::  A HUDDLE'S ROSTER, from the member it elected -- the one ship whose name
 ::  its place is made from. Only those on it may be in its call; anybody in

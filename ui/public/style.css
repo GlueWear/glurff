@@ -1208,6 +1208,27 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .media-panel [data-tip]::after { top: auto; bottom: calc(100% + 7px); left: 50%; transform: translate(-50%, 2px); }
 .media-panel [data-tip]:hover::after, .media-panel [data-tip]:focus-visible::after { transform: translate(-50%, 0); }
 .overlay-off .media-panel, .stage-min .media-panel.staged-bar { display: none !important; }
+/* WHOSE IT IS (2026-11-01): the starter's picture and name at the start of the
+   bar; our own picture, in the accent, when it is ours. Just the picture where
+   the bar is narrow. Its explanation wraps, from its own left edge. */
+.media-panel .mp-whose { display: flex; align-items: center; gap: 6px; height: 34px; max-width: 190px;
+  padding: 0 10px 0 5px; margin-right: 2px; border-radius: 999px; background: rgba(255,255,255,.06);
+  font-size: 13px; white-space: nowrap; cursor: default; }
+.media-panel .mp-whose .av { flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 50%; overflow: hidden; background: #26303f; font-size: 11px; }
+.media-panel .mp-whose .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-panel .mp-whose-name { overflow: hidden; text-overflow: ellipsis; }
+.media-panel .mp-whose.mine { background: var(--accent-deep); color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(127,214,195,.45); }
+.media-panel .mp-whose.mine .av { box-shadow: 0 0 0 2px var(--accent); }
+.touch .media-panel .mp-whose { height: 44px; }
+.media-panel .mp-whose[data-tip]::after { left: 0; transform: translateY(2px); white-space: normal;
+  width: max-content; max-width: 260px; }
+.media-panel .mp-whose[data-tip]:hover::after, .media-panel .mp-whose[data-tip]:focus-visible::after { transform: none; }
+@media (max-width: 480px) {
+  .media-panel .mp-whose { padding: 0 5px; }
+  .media-panel .mp-whose-name { display: none; }
+}
 
 /* ON THE STAGE, BLACK ALL ROUND (2026-10-31): the strips above and below what
    is on it hide the world, and Glurff's bars sit on the black. */

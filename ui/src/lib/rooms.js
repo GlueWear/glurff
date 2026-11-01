@@ -837,6 +837,16 @@ export function initRooms() {
     changed:(phase,error)=>{
       mark('phase',`${phase}${error?':'+error:''}`);
       rooms.voice=phase;rooms.error=error;watchAlone();
+      /* Turned away at the door as removed -- walked back in after a boot. Keep
+       * listening for this call's record: the host sends it to whoever it lets
+       * back in, and that is what puts them back in (2026-11-01). */
+      if(phase==='blocked' && error==='booted'){
+        const c=controller?.current;
+        if(c){
+          if(!barred(c.place,c.host))booted={place:c.place,host:c.host,inc:null};
+          moderation?.enter({place:c.place,host:c.host});
+        }
+      }
       if(phase==='connected'){
         /* The call's record is the host's, and arrives as a snapshot; which
          * run of the call it is about is in the snapshot, not in anything we
@@ -1901,9 +1911,17 @@ function applyModeration(record,call){
       diagnostic('call-mod-applied',{place:call.place,reason:'booted'});
       releaseMedia();controller?.select(null);
     }
-  } else if(booted && call && booted.place===call.place && booted.host===call.host && booted.inc===run){
-    /* Allowed back in, without having to walk out and in again. */
+  } else if(booted && record && call && booted.place===call.place && booted.host===call.host && (booted.inc===null || booted.inc===run)){
+    /* Allowed back in, without having to walk out and in again: listening,
+     * with the microphone, camera and screen share off until they are turned
+     * on again (2026-11-01). A refusal at the door is an answer the
+     * controller holds on to, so it is let go first -- while still removed,
+     * so the record is kept. */
+    if(controller?.current?.place===call.place)controller.select(null);
     booted=null;
+    intent.mic=intent.cam=intent.screen=false;
+    stopPreview();stopDisplay();
+    rooms.micOn=rooms.camOn=rooms.screenOn=false;
     diagnostic('call-mod-applied',{place:call.place,reason:'unbooted'});
     selectCall(call.place,rooms.host??call.host);
   }
@@ -1911,6 +1929,21 @@ function applyModeration(record,call){
   applyPlayable(record,call);
 }
 const barred=(place,host)=>!!booted && booted.place===place && booted.host===host;
+/* SAYING ANYTHING IN A ROOM'S OWN CHAT (2026-11-01). Somebody this room's call
+ * has muted or removed may read its session chat but not post, edit or roll in
+ * it, and everybody else's page drops what they send. Only a room whose chat
+ * is its own: the commons' and the War Room's are notes, and so is a leased
+ * room's, whose note's admins decide who may post there (Noltbook refuses a
+ * member the note has muted itself). 'muted', 'removed' or null; muted in the
+ * whole Glurff is said separately. */
+export function chatBar(ship,place=rooms.here){
+  if(place===COMMONS || place!==rooms.here || leaseNote(place))return null;
+  if(ship===our && booted?.place===place)return 'removed';
+  const call=moderation?.call()??null,record=moderation?.record()??null;
+  if(!call || call.place!==place)return null;
+  if(isBooted(record,call,ship))return 'removed';
+  return isCallMuted(record,call,ship)?'muted':null;
+}
 
 /* Stop playing and showing anyone the record mutes. */
 function applyPlayable(record,call){

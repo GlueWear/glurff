@@ -8,9 +8,11 @@ import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
 import { messageActions, openMenu, closeMenu, paintText, aboutLine, paintSendState } from 'ui/messages';
 import { ask } from 'ui/ask';
 import { roomById, GAME_ROOM } from 'world/places';
-import { leaseNote, onRooms, onRoommates } from 'lib/rooms';
+import { leaseNote, onRooms, onRoommates, chatBar } from 'lib/rooms';
 import { esc } from 'ui/html';
 
+/* Why this room's chat will not take what we say (lib/rooms chatBar). */
+const CALL_BAR = { muted: 'You are muted in this room’s call,', removed: 'You were removed from this room’s call,' };
 
 export class Hud {
   constructor(root, { events, secret, send } = {}) {
@@ -264,6 +266,15 @@ export class Hud {
       this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot send messages.';
       return true;
     };
+    /* MUTED OR REMOVED IN THIS ROOM'S CALL (2026-11-01): the same, in a room
+     * whose chat is its own (lib/rooms chatBar). */
+    const hushed = (v) => {
+      const bar = chatBar(our, this.room);
+      if (!bar) return false;
+      if (!input.value) input.value = v;
+      this.root.querySelector('.error').textContent = CALL_BAR[bar] + ' so you cannot post in its chat.';
+      return true;
+    };
     form.onsubmit = (e) => {
       e.preventDefault();
       if (!this.chatSticky) input.blur();
@@ -274,7 +285,7 @@ export class Hud {
       if (this.editing) {
         const target = this.editing, note = this.noteFor(this.room);
         this.editing = null; this.paint();
-        if (v === target.text || gagged(v)) return;
+        if (v === target.text || gagged(v) || (!note && hushed(v))) return;
         (note ? editMessage(note, target.replyId, v) : this.events.edit(target.eid, v)).catch(() => {
           this.root.querySelector('.error').textContent = 'That could not be edited. Try again.';
         });
@@ -283,6 +294,7 @@ export class Hud {
       if (this.secret(v, this.room)) return;
       if (gagged(v)) return;
       const note = this.noteFor(this.room);
+      if (!note && hushed(v)) return;
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
       this.replyTo = null;
       this.root.querySelector('.error').textContent='';
@@ -293,6 +305,8 @@ export class Hud {
     };
     this.root.querySelector('.game-controls button').onclick = async (e) => {
       if (glurffMuted(our)) { this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot roll for the room.'; return; }
+      const bar = chatBar(our, this.room);
+      if (bar) { this.root.querySelector('.error').textContent = CALL_BAR[bar] + ' so you cannot roll for the room.'; return; }
       e.target.disabled = true;
       try { await this.events.roll(); } catch { this.root.querySelector('.error').textContent = 'Roll could not be shared. Try again.'; }
       finally { e.target.disabled = false; }
