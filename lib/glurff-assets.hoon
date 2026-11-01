@@ -7,9 +7,9 @@
   ^-  (list [@t asset])
   :~
     ['/apps/glurff/' /lib/glurff/site/index/html 727 'text/html; charset=utf-8']
-    ['/apps/glurff/assets/index-33133aad.js' /lib/glurff/site/assets/index-33133aad/js 1.224.911 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/index-a1a535c8.js' /lib/glurff/site/assets/index-a1a535c8/js 63.423 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/search-146f8c3d.js' /lib/glurff/site/assets/search-146f8c3d/js 1.634 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-6b209a69.js' /lib/glurff/site/assets/index-6b209a69/js 1.225.001 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/index-ad673ab6.js' /lib/glurff/site/assets/index-ad673ab6/js 63.423 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/search-2672d126.js' /lib/glurff/site/assets/search-2672d126/js 1.634 'application/javascript; charset=utf-8']
     ['/apps/glurff/characters/beard.png' /lib/glurff/site/characters/beard/png 15.745 'image/png']
     ['/apps/glurff/characters/body.png' /lib/glurff/site/characters/body/png 7.111 'image/png']
     ['/apps/glurff/characters/bottom.png' /lib/glurff/site/characters/bottom/png 4.948 'image/png']

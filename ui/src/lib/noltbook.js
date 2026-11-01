@@ -434,6 +434,12 @@ export const avatarUrl = (ship) => {
   if (!avatar) return null;
   if (avatar.type === 'urbit') {
     const base = `/apps/noltbook/user-avatar/${encodeURIComponent(ship)}`;
+    /* THE PICTURE'S OWN VERSION (2026-11-01): written at upload, so the address
+     * changes exactly when the picture does, and Noltbook lets the browser keep
+     * a versioned picture for a week. Built character for character as
+     * Noltbook builds it, so both apps share the one cached copy. The revision
+     * below is only for pictures uploaded before there were versions. */
+    if (avatar.url) return `${base}?v=${encodeURIComponent(avatar.url)}`;
     const revision = avatarRevisions.get(ship);
     return revision ? `${base}?v=${revision}` : base;
   }
@@ -630,7 +636,11 @@ export async function uploadOwnAvatar(blob, profile = {}) {
       : 'Noltbook rejected the profile picture.';
     throw new Error(message);
   }
-  return updateOwnProfile({ ...profile, avatar: { type: 'urbit', url: '' } });
+  /* A fresh version for each upload, as Noltbook writes one: the reply above
+   * comes only once the new picture is stored, so its address can be given
+   * out now (see avatarUrl). */
+  const version = Date.now().toString(36);
+  return updateOwnProfile({ ...profile, avatar: { type: 'urbit', url: version } });
 }
 
 /* Someone we have never seen. The profile itself comes back as an ordinary
