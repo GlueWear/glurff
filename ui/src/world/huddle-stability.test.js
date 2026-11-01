@@ -15,8 +15,9 @@ test('huddle timing filters passers-by and gives established calls a leave grace
 test('a preserved call is not closed before the replacement grant arrives', () => {
   const sent=[];
   const sfu={closed:0,connected:[],close(){this.closed++;},connect(g){this.connected.push(g);}};
-  const controller=new CallController({our:'~zod',sfu,accepts:()=>true,changed:()=>{},
-    transport:{send:(who,event)=>sent.push({who,event}),operation:()=>{}},fresh:(()=>{let n=10;return()=>++n;})()});
+  /* Every request is a knock to the call's host's ship; leaving is said there too. */
+  const controller=new CallController({our:'~zod',sfu,changed:()=>{},
+    transport:{knock:()=>{},leave:(who,place,attempt)=>sent.push({who,event:{kind:'call-leave',place,attempt}})},fresh:(()=>{let n=10;return()=>++n;})()});
   controller.select({place:1001,host:'~nec'});
   controller.phase='connected';
   const closed=sfu.closed;
@@ -35,8 +36,8 @@ test('a preserved call is not closed before the replacement grant arrives', () =
 
 test('a refused replacement falls back to the still-live call', () => {
   const sfu={close(){},connect(){}};
-  const controller=new CallController({our:'~zod',sfu,accepts:()=>true,changed:()=>{},
-    transport:{send:()=>{},operation:()=>{}},fresh:(()=>{let n=20;return()=>++n;})()});
+  const controller=new CallController({our:'~zod',sfu,changed:()=>{},
+    transport:{knock:()=>{},leave:()=>{}},fresh:(()=>{let n=20;return()=>++n;})()});
   controller.select({place:1001,host:'~nec'});
   controller.phase='connected';
   controller.select({place:1002,host:'~bud'},{preserve:true});

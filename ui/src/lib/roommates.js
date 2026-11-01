@@ -3,10 +3,13 @@
  * "Room" here covers commons huddles too: a huddle is a room without walls,
  * with the same list, the same sharing and the same introductions.
  *
- * A ROOM INSTANCE is a host and a guest list. The host keeps the list: asking
- * the host for the room's call is asking to be on it, walking out takes you off
- * it, and a guest who crashes drops off when they leave the call or stop
- * renewing. The host sends the list to everyone on it whenever it changes.
+ * A ROOM INSTANCE is a host and a guest list. The host keeps the list -- it is
+ * the room's KEEPER, and hosts nothing else: every room's call is held on the
+ * Glurff's host (2026-10-31). Asking the keeper for the list is asking to be on
+ * it, being in the room's call with the keeper keeps you on it, walking out
+ * takes you off it, and a guest who crashes drops off when they leave the call
+ * or stop asking. The keeper sends the list to everyone on it whenever it
+ * changes.
  *
  * Room lists coordinate calls and leases. They never grant world membership:
  * every sender, recipient and listed participant is checked against the
@@ -35,7 +38,7 @@
  */
 export const MAX_GUESTS = 32;
 export const MAX_VIEWERS = 64;
-/* A guest renews by asking for the call again, at least once a minute. */
+/* A guest renews by asking for the list again, or by being in the call. */
 export const GUEST_LEASE_MS = 150000;
 /* A guest who was in the call and is not any more is gone after this long. */
 export const CALL_GONE_MS = 20000;
@@ -56,7 +59,6 @@ export const LIST_RESYNC_MS = 60000;
 export const LIST_ASK_MS = [3000, 8000, 20000, 60000];
 /* Three missed resyncs and the list is not believed any more. */
 export const LIST_EXPIRE_MS = 200000;
-const MODES = new Set(['open', 'ask', 'locked']);
 const MAX_INTRODUCED = 512, MAX_HELD = 64;
 
 const isShip = (s) => typeof s === 'string' && /^~[a-z-]{3,70}$/.test(s);
@@ -93,7 +95,9 @@ function readList(m) {
   const guests = new Set(m.guests);
   if (!guests.has(m.host)) return null;          //  the host is always on its own list
   return { place: m.place, host: m.host, rev: m.rev,
-           mode: MODES.has(m.mode) ? m.mode : 'open', share: m.share !== false, guests,
+           /* Rooms have no locks (2026-10-31); a list from before may still
+            * say what mode it was in, and is read as open. */
+           mode: 'open', share: m.share !== false, guests,
            /* The note this room is leased to, and how open it is. A secret
             * note sends its visibility and nothing else. */
            note: isNote(m.note) ? m.note : null,
@@ -105,6 +109,8 @@ function readList(m) {
 
 export function createRoommates({ our, send, now = Date.now, trace = () => {}, changed = () => {},
   blocked = () => false, member = () => true, here = () => null,
+  /* Would the room have this ship? Asked when somebody asks for its list. */
+  accepts = () => true,
   /* The room we are standing in. A list for anywhere else is not ours to take. */
   standing = () => null,
   /* Who already sees us through presence. They get nothing from a room that
@@ -271,11 +277,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
   }
 
   /* We host this room. We are the first guest on our own list. */
-  function host(place, { mode = 'open', share = true, note = null } = {}) {
+  function host(place, { share = true, note = null } = {}) {
     if (!eligible(our) || !isRoom(place) || hosted?.place === place) return;
     leave();
     lastSent = '';
-    hosted = { place, rev: 1, mode: MODES.has(mode) ? mode : 'open', share,
+    hosted = { place, rev: 1, mode: 'open', share,
                note: isNote(note) ? note : null, vis: null,
                guests: new Map([[our, { at: now(), seen: true, missing: null }]]) };
     following = { place, host: our };
@@ -285,13 +291,11 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     notify('hosting');
   }
 
-  /* Somebody asked us for this room's call. That is asking to be on the list,
-   * and the answer follows the room's mode. Asking again renews. */
+  /* Somebody asked us for this room's list. That is asking to be on it, and
+   * asking again renews. */
   function admit(who, place) {
     if (!hosted || hosted.place !== place || !eligible(who)) return false;
     if (who === our) return true;
-    const ok = hosted.mode === 'open';
-    if (!ok) return false;
     const g = hosted.guests.get(who);
     if (g) { g.at = now(); return true; }
     if (hosted.guests.size >= MAX_GUESTS) return false;
@@ -310,13 +314,14 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
     publishList();
   }
 
-  /* Who the call server says is connected, for noticing a guest who crashed. */
+  /* Who the call server says is connected, for noticing a guest who crashed.
+   * Being in the call with us is also being in the room, so it renews them. */
   function inCall(ships) {
     if (!hosted) return;
     const t = now();
     for (const [who, g] of hosted.guests) {
       if (who === our) continue;
-      if (ships.has(who)) { g.seen = true; g.missing = null; }
+      if (ships.has(who)) { g.seen = true; g.missing = null; g.at = t; }
       else if (g.seen && g.missing === null) g.missing = t;
     }
   }
@@ -460,11 +465,15 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         if (r.guests.has(our)) publish(new Set([...r.guests].filter((s) => !before.has(s))));
         return;
       }
-      /* Somebody on the list has walked in and wants it. Only somebody on it:
-       * this answers no questions about a room you do not belong to. */
+      /* Somebody has walked in and wants the list. On it already: they are
+       * still here, and get it again. Not on it: asking is asking to join, and
+       * the room decides -- joining sends the new list to everybody on it,
+       * them included. Anybody the room would not have learns nothing. */
       case 'room-hello': {
-        if (!hosted || hosted.place !== m.place || !hosted.guests.has(from)) return;
-        emit(from, listMessage(hostedList()));
+        if (!hosted || hosted.place !== m.place) return;
+        const g = hosted.guests.get(from);
+        if (g) { g.at = now(); emit(from, listMessage(hostedList())); return; }
+        if (accepts(from, m.place)) admit(from, m.place);
         return;
       }
       case 'room-intro': {
@@ -494,6 +503,8 @@ export function createRoommates({ our, send, now = Date.now, trace = () => {}, c
         return;
       }
       case 'room-cut': {
+        /* A guest walking out of the room we keep is off its list. */
+        if (hosted && hosted.place === m.place && m.host === our) left(from, m.place);
         held.delete('state/' + from);
         const st = states.get(from);
         if (st && st.place === m.place && st.host === m.host) { states.delete(from); notify('visibility'); }

@@ -1,14 +1,21 @@
 /* Calls progress independently of avatar movement. Retrying delivery keeps
- * the same operation ID; a new ID means a genuinely new join/renewal attempt. */
+ * the same operation ID; a new ID means a genuinely new join/renewal attempt.
+ *
+ * EVERY CALL IS ON THE GLURFF'S HOST (2026-10-31). This only ever ASKS: a
+ * knock to the host's ship -- our own agent, when we are that host -- which
+ * lets us in or says why not, and a leave when we go. It never opens, renews
+ * or admits anything itself; the host's agent does all of that. */
 /* How long each side gets before the readout names it. Our own ship taking a
  * poke is usually instant; a host that has heard us answers within a beat. */
 const OWN_SHIP_MS = 5000, HOST_SILENT_MS = 9000;
+/* Refusals that asking again will not change while this call lasts. */
+const FINAL = new Set(['booted', 'not-a-member']);
 export class CallController {
-  constructor({our, transport, sfu, accepts, changed, known=()=>true, trace=()=>{}, now=Date.now,
+  constructor({our, transport, sfu, changed, trace=()=>{}, now=Date.now,
     later=(fn,ms)=>setTimeout(fn,ms), cancel=id=>clearTimeout(id), fresh=()=>Date.now()*1000+Math.floor(Math.random()*1000)}) {
-    Object.assign(this,{our,transport,sfu,accepts,changed,known,trace,now,later,cancel,fresh});
-    this.current=null;this.phase='idle';this.admissions=new Map();this.hosted=new Map();this.closed=false;
-    this.pendingOperations=new Map();this.pendingSends=new Map();this.refusals=new Map();
+    Object.assign(this,{our,transport,sfu,changed,trace,now,later,cancel,fresh});
+    this.current=null;this.phase='idle';this.closed=false;
+    this.pendingSends=new Map();
   }
   emit(phase,reason=null) {
     this.phase=phase;
@@ -26,7 +33,7 @@ export class CallController {
      * (its socket dying clears it), so it is the one to keep. */
     const live=!old?null:this.phase==='connected'?old:(old.previous??null);
     const keeping=!!(preserve && target && live);
-    const leave=r=>{if(r && r.host!==this.our)this.send(r.host,{kind:'call-leave',place:r.place,attempt:r.attempt});};
+    const leave=r=>this.leave(r);
     this.clearTimers();this.current=null;
     if(!keeping){leave(old);if(old?.previous)leave(old.previous);this.sfu.close(null);}
     else if(live!==old){
@@ -39,7 +46,6 @@ export class CallController {
       }
     }
     if(!target){this.emit('idle');return;}
-    for(const [place,r] of this.hosted)if(r.until<this.now())this.hosted.delete(place);
     this.current={...target,attempt:this.fresh(),mode:'renew-access',tries:0,failures:0,capacityFailures:0,grant:null,
                   began:this.now(),acceptedHere:false,heardHost:false,previous:keeping?live:null};
     this.emit(keeping?'transitioning':'requesting');this.request();
@@ -73,26 +79,14 @@ export class CallController {
     catch{done();return false;}
     return true;
   }
-  send(who,event) {
-    const c=this.current;
-    const sent=this.bounded(this.pendingSends,`${who}/${event.kind}/${event.place}`,()=>{
-      const p=this.transport.send(who,event);
-      /* Our own ship taking the poke is a separate thing from the host
-       * answering it, and telling them apart is the difference between
-       * "waiting on your ship" and "the host isn't answering". */
-      if(c && event.kind==='call-request')Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
-      return p;
-    });
-    return sent;
+  /* We have left this call: the host hears it from our ship, ours included. */
+  leave(r) {
+    if(!r)return;
+    try{Promise.resolve(this.transport.leave?.(r.host,r.place,r.attempt)).catch(()=>{});}catch{}
   }
-  /* ASK THE HOST'S SHIP. With a `knock` transport the request goes agent to
-   * agent over Ames -- the way the credential comes back -- and the host's
-   * agent answers it alone for anybody the host already let in: a renewal or
-   * a reconnect never waits on the host's browser. Without one, the request
-   * goes to the host's browser as before. Same attempt, same retries. */
+  /* ASK THE HOST'S SHIP, agent to agent over Ames -- the way the credential
+   * comes back. Same attempt, same retries. */
   ask(c,mode) {
-    const event={kind:'call-request',place:c.place,attempt:c.attempt,mode};
-    if(!this.transport.knock)return this.send(c.host,event);
     return this.bounded(this.pendingSends,`${c.host}/call-request/${c.place}`,()=>{
       const p=this.transport.knock(c.host,c.place,c.attempt,mode);
       Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
@@ -115,105 +109,43 @@ export class CallController {
     const c=this.current;if(!c || this.closed || this.phase==='connected' || this.phase==='connecting' || this.phase==='blocked')return;
     this.cancel(c.retry);c.tries++;
     this.trace('call-request',{place:c.place,host:c.host,attempt:c.attempt,count:c.tries});
-    if(c.host===this.our) {
-      let room=this.hosted.get(c.place);
-      if(!room) {
-        room={ready:false,openAttempt:c.attempt,until:this.now()+180000};
-        this.hosted.set(c.place,room);
-      }
-      const op=room.ready?'renew-access':'open';
-      this.operation(op,c.place,this.our,c.attempt);
-    } else this.ask(c,c.mode);
+    this.ask(c,c.mode);
     c.retry=this.later(()=>{if(this.current===c)this.request();},Math.min(30000,4000*2**Math.min(c.tries-1,3)));
   }
-  operation(op,place,who,attempt) {
-    const c=this.current;
-    // The slot survives call transitions: a slow local ACK must not let every
-    // new join attempt add another operation for the same participant/room.
-    return this.bounded(this.pendingOperations,`${place}/${who}`,()=>{
-      const p=this.transport.operation(op,place,who,attempt);
-      if(c && who===this.our)Promise.resolve(p).then(()=>{if(this.current===c)c.acceptedHere=true;},()=>{});
-      return p;
-    });
-  }
+  /* The host's answer to us, when it is not a credential: a refusal, with
+   * why. Anything at all from it means it is there and has heard us. */
   receive(who,event) {
     const c=this.current;
     if(!Number.isSafeInteger(event.place) || !Number.isSafeInteger(event.attempt) || event.attempt<=0)return;
-    if(event.kind==='call-request') {
-      const reason=!c?'not-hosting':c.host!==this.our?'not-host':c.place!==event.place?'place-mismatch':!this.accepts(who,event.place)?'not-present':null;
-      if(reason) {
-        this.trace('call-request-dropped',{who,place:event.place,attempt:event.attempt,reason});
-        /* Answer rather than go silent. A guest whose request vanishes cannot
-         * tell "the host sees you somewhere else" from "the host is slow", so it
-         * backs off towards thirty seconds; told why, it retries as soon as the
-         * two views of the world agree. Only people we can see get an answer,
-         * and at most one every two seconds per guest and place. */
-        if(!this.known(who))return;
-        const key=`${who}/${event.place}`,last=this.refusals.get(key)??-Infinity;
-        if(this.now()-last<2000)return;
-        this.refusals.set(key,this.now());
-        if(this.refusals.size>128)this.refusals.delete(this.refusals.keys().next().value);
-        this.send(who,{kind:'call-refused',place:event.place,attempt:event.attempt,reason});
-        return;
-      }
-      const key=event.place+'/'+who;
-      let a=this.admissions.get(key);
-      if(a && event.attempt<a.attempt)return;
-      if(!a || a.attempt!==event.attempt) {
-        if(a && this.now()-a.started<2000)return;
-        a={who,place:event.place,attempt:event.attempt,mode:'renew-access',started:this.now(),sent:-Infinity,tries:0};
-        this.admissions.set(key,a);
-        if(this.admissions.size>128)this.admissions.delete(this.admissions.keys().next().value);
-      }
-      this.send(who,{kind:'call-wait',place:a.place,attempt:a.attempt});
-      if(this.phase==='blocked') {
-        this.send(who,{kind:'call-error',place:a.place,attempt:a.attempt,error:c.error});return;
-      }
-      this.admit(a);return;
-    }
-    if(event.kind==='call-leave') {
-      const key=event.place+'/'+who,a=this.admissions.get(key);
-      if(a?.attempt===event.attempt)this.admissions.delete(key);
-      return;
-    }
     if(!c || who!==c.host || event.place!==c.place || event.attempt!==c.attempt)return;
-    //  Anything at all from the host means it is there and has heard us.
     c.heardHost=true;
     if(event.kind==='call-refused' && typeof event.reason==='string'){this.refusedBy(event.reason);return;}
     if(event.kind==='call-error' && typeof event.error==='string')this.fail(event.error);
-    // Acknowledgement means the elected host is alive. Never elect another
-    // host merely because ticket delivery or the SFU connection is slow.
   }
-  /* The host saw our request and turned it away because its view of where we
-   * are disagrees with ours. That settles within a second or two once positions
-   * agree, so retry soon -- a few times -- instead of backing off. */
+  /* The host turned us away. Removed from this call, or not in the Glurff:
+   * that is the answer until something changes, and we stop asking. Anything
+   * else -- a huddle's members not registered yet, or not including us yet --
+   * settles within a second or two, so retry soon, a few times, instead of
+   * backing off. */
   refusedBy(reason) {
     const c=this.current;
     if(!c || this.phase==='connected' || this.phase==='connecting' || this.phase==='blocked')return;
+    if(FINAL.has(reason)){
+      this.trace('call-refused',{place:c.place,attempt:c.attempt,reason,count:0});
+      this.clearTimers();c.error=reason;this.emit('blocked',reason);return;
+    }
     c.refusals=(c.refusals??0)+1;
     this.trace('call-refused',{place:c.place,attempt:c.attempt,reason,count:c.refusals});
     if(c.refusals>5)return;            //  back to the ordinary backoff
     this.cancel(c.retry);
     c.retry=this.later(()=>{if(this.current===c){c.tries=Math.max(0,c.tries-1);this.request();}},2000);
   }
-  admit(a) {
-    if(!this.hosted.get(a.place)?.ready || !this.accepts(a.who,a.place))return;
-    if(this.now()-a.sent<Math.min(30000,4000*2**Math.min(a.tries,3)))return;
-    if(a.error){this.send(a.who,{kind:'call-error',place:a.place,attempt:a.attempt,error:a.error});return;}
-    if(this.operation(a.mode,a.place,a.who,a.attempt)){a.sent=this.now();a.tries++;}
-  }
   result(name,p) {
     const [rawPlace,who,rawAttempt]=String(p.context??'').split('/');
     const place=Number(rawPlace?.replace(/\./g,'')),attempt=Number(rawAttempt?.replace(/\./g,''));
     if(!Number.isSafeInteger(place)||!Number.isSafeInteger(attempt)||!attempt)return;
     const participant=name==='call-granted'?p.participant:(p.who||who);
-    if(participant!==this.our) {
-      const a=this.admissions.get(place+'/'+participant);
-      if(a?.attempt===attempt && name==='call-failed') {
-        a.error=p.err;this.send(participant,{kind:'call-error',place,attempt,error:p.err});
-      }
-      return;
-    }
+    if(participant!==this.our)return;
     const c=this.current;
     if(!c || c.place!==place || c.attempt!==attempt || who!==this.our)return;
     if(name==='call-failed'){this.fail(p.err);return;}
@@ -224,11 +156,6 @@ export class CallController {
     const hadError=!!c.error;
     c.capacityFailures=0;c.error=null;c.lastFailure=null;
     c.grant=p;
-    if(c.host===this.our) {
-      const room=this.hosted.get(c.place);
-      if(room){room.ready=true;room.until=this.now()+180000;}
-      for(const a of this.admissions.values())if(a.place===c.place)this.admit(a);
-    }
     if(Number.isFinite(p.expires) && p.expires<=this.now()+5000){this.reconnect('expired');return;}
     if(this.phase==='connected') {
       if(this.sfu.refreshGrant?.(p)===false){this.reconnect('room-changed');return;}
@@ -244,8 +171,7 @@ export class CallController {
      * nothing to overlap and the old host is told now. */
     this.emit('connecting');
     this.sfu.connect(p,{overlap:!!c.previous});
-    if(c.previous && !this.sfu.switching?.()){const old=c.previous;c.previous=null;
-      if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
+    if(c.previous && !this.sfu.switching?.()){const old=c.previous;c.previous=null;this.leave(old);}
     if(this.phase==='connecting')c.joining=this.later(()=>{if(this.current===c && this.phase==='connecting')this.reconnect('join-timeout');},45000);
   }
   status(phase,reason) {
@@ -255,8 +181,7 @@ export class CallController {
       /* The replacement joined: this is the commit point. Only now is the old
        * host told we have gone. */
       if(c.previous){const old=c.previous;c.previous=null;
-        if(old.host!==this.our && !(old.host===c.host && old.place===c.place))
-          this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});
+        if(!(old.host===c.host && old.place===c.place))this.leave(old);
         this.trace('call-transition-committed',{place:c.place,host:c.host,reason:`${old.place}/${old.host}`});}
       this.cancel(c.joining);c.joining=null;c.failures=0;
       this.emit('connected');this.scheduleRenew();return;
@@ -265,7 +190,7 @@ export class CallController {
       /* The new room would not have us. The old call is still up -- go back
        * to it, and tell the new host we are not coming after all. */
       this.trace('call-handoff-failed',{place:c.place,host:c.host,reason:reason??''});
-      if(c.host!==this.our)this.send(c.host,{kind:'call-leave',place:c.place,attempt:c.attempt});
+      this.leave(c);
       if(this.revertTransition(reason||'handoff-failed'))return;
       this.reconnect(reason||'handoff-failed');
       return;
@@ -274,8 +199,7 @@ export class CallController {
       /* While authorising a replacement, SFU status still belongs to the old
        * socket. If that socket dies there is nothing left to preserve -- but a
        * replacement already joining beside it is left to finish. */
-      if(c.previous){const old=c.previous;c.previous=null;
-        if(old.host!==this.our)this.send(old.host,{kind:'call-leave',place:old.place,attempt:old.attempt});}
+      if(c.previous){const old=c.previous;c.previous=null;this.leave(old);}
       if(this.sfu.switching?.())return;
       this.reconnect(reason||'disconnected');
     }
@@ -289,15 +213,12 @@ export class CallController {
     const expiry=Number.isFinite(c.grant?.expires)?(c.grant.expires-this.now())/2:60000;
     c.renew=this.later(()=>{
       if(this.current!==c || this.phase!=='connected')return;
-      // Lease and access use independent slots but are sent in this order.
-      // Local ACKs do not prove broker completion; gen-only replies are safe.
-      if(c.host===this.our)this.bounded(this.pendingOperations,`lease/${c.place}`,()=>this.transport.operation('renew-room',c.place,this.our,this.fresh()));
+      // The host renews the room's lease itself when it renews our access.
       c.attempt=this.fresh();c.mode='renew-access';c.tries=0;
       // Keep the live SFU connection while refreshing credentials.
       const refresh=()=>{
         if(this.current!==c || this.phase!=='connected')return;
-        if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
-        else this.ask(c,'renew-access');
+        this.ask(c,'renew-access');
         c.retry=this.later(refresh,30000);
       };
       refresh();
@@ -321,8 +242,7 @@ export class CallController {
         if(this.current!==c)return;
         c.retry=null;c.attempt=this.fresh();c.mode='renew-access';c.tries=0;c.reconnecting=false;
         if(live){
-          if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
-          else this.ask(c,c.mode);
+          this.ask(c,c.mode);
           // A lost response consumes a bounded probe too. Do not schedule from
           // an already-expired grant and accidentally renew every second.
           c.retry=this.later(()=>{if(this.current===c)this.fail(error);},30000);
@@ -334,7 +254,6 @@ export class CallController {
       if(this.revertTransition(error))return;
       this.clearTimers();c.error=error;this.emit('blocked',error);return;
     }
-    if(['room-unavailable','room-ended','expired'].includes(error) && c.host===this.our)this.hosted.delete(c.place);
     this.reconnect(error);
   }
   reconnect(reason) {
@@ -368,8 +287,7 @@ export class CallController {
     this.cancel(c.retry);
     c.attempt=this.fresh();c.mode='renew-access';c.tries=0;
     this.trace('call-refresh',{place:c.place,host:c.host,attempt:c.attempt});
-    if(c.host===this.our)this.operation('renew-access',c.place,this.our,c.attempt);
-    else this.ask(c,'renew-access');
+    this.ask(c,'renew-access');
     return true;
   }
   restored() {if(this.current && this.phase!=='connected' && this.phase!=='connecting' && this.phase!=='blocked')this.request();}
@@ -380,5 +298,5 @@ export class CallController {
   }
   diagnostics(){const c=this.current;return c?{place:c.place,host:c.host,phase:this.phase,
     attempt:c.attempt,preserving:!!c.previous,previous:c.previous?`${c.previous.place}/${c.previous.host}`:null}:null;}
-  close() {this.select(null);this.closed=true;this.admissions.clear();this.hosted.clear();}
+  close() {this.select(null);this.closed=true;}
 }

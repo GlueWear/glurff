@@ -119,15 +119,6 @@
           ['gen' (numb gen.upd)]
       ==
     ::
-        %call-knocked
-      %+  frond  'call-knocked'
-      %-  pairs
-      :~  ['who' s+(scot %p who.upd)]
-          ['place' (numb place.upd)]
-          ['attempt' (numb attempt.upd)]
-          ['mode' s+mode.upd]
-      ==
-    ::
         %call-refused
       %+  frond  'call-refused'
       %-  pairs
@@ -137,12 +128,30 @@
           ['why' s+why.upd]
       ==
     ::
-        %admitted
-      %+  frond  'admitted'
+    ::  A call's record, from the Glurff's host. `since` is Unix milliseconds.
+        %call-mod-snap
+      =/  ships
+        |=  s=(set @p)
+        ^-  ^json
+        a+(turn (sort ~(tap in s) lth) |=(w=@p s+(scot %p w)))
+      %+  frond  'call-mod-snap'
       %-  pairs
-      :~  ['who' s+(scot %p who.upd)]
+      :~  ['host' s+(scot %p host.upd)]
           ['place' (numb place.upd)]
-          ['attempt' (numb attempt.upd)]
+          ['inc' (numb inc.snap.upd)]
+          ['rev' (numb rev.snap.upd)]
+          ['admins' (ships admins.snap.upd)]
+          ['mods' (ships mods.snap.upd)]
+          ['muted' (ships muted.snap.upd)]
+          ['gmuted' (ships gmuted.snap.upd)]
+          ['booted' (ships booted.snap.upd)]
+          :-  'recording'
+          ?~  recording.snap.upd  ~
+          %-  pairs
+          :~  ['by' s+(scot %p by.u.recording.snap.upd)]
+              :-  'since'
+              (numb (div (sub since.u.recording.snap.upd ~1970.1.1) (div ~s1 1.000)))
+          ==
       ==
     ::
         %lease-info

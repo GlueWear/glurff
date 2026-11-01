@@ -84,19 +84,36 @@ export const fetchLook = (who) => act('fetch-look', { who });
 export const unlockEquipment = () => act('unlock-equipment');
 export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });
-export const lockRoom = (place, mode) => act('lock', { place, mode });
 /* THE LEASE. One room, held for one of our own Noltbook notes, until we give
  * it back. It lives in the agent so it outlives the tab. */
 export const takeLease = (place, note) => act('lease', { place, note });
-/* HOST-SHIP ADMISSION. Who we have let into our call at `place`, so our agent
- * can let them back in -- renewals, reconnects -- without this browser. */
-export const admits = (place, ships) =>
-  tracked('call-operation', poke('glurff', 'glurff-action', { op: 'admits', place, ships, peers: [] }));
-/* Ask a host's SHIP for credentials to its call: agent to agent, over Ames,
- * which is where the credential comes back from anyway. */
+/* EVERY CALL ON THE GLURFF'S HOST (2026-10-31). Every room's call and every
+ * huddle's is held on the ship that created the Glurff's note, and its agent
+ * decides everything about them. These reach it through our own agent -- or
+ * are answered by our own agent, when we are that host.
+ *
+ * Ask for credentials to the call at `place`: agent to agent, over Ames, which
+ * is where the credential comes back from anyway. */
 export const callKnock = (host, place, attempt, mode) =>
   tracked('call-control', poke('glurff', 'glurff-action', { op: 'call-knock', host, place, attempt, mode, peers: [] },
     { ackTimeout: CONTROL_ACK_MS }));
+/* We have left that call. */
+export const callLeave = (host, place) =>
+  tracked('call-control', poke('glurff', 'glurff-action', { op: 'call-leave', host, place, peers: [] }));
+/* Moderate that call -- `mod` is promote, demote, mute, unmute, boot, unboot,
+ * record-start or record-stop -- or, with 'sync', ask for its record. `inc` is
+ * the run of the call our record is about, so a request about a call that has
+ * since started over does nothing. */
+export const callMod = (host, place, inc, target, mod) =>
+  tracked('call-operation', poke('glurff', 'glurff-action', { op: 'call-mod', host, place, inc, target, mod, peers: [] }));
+/* As the member a huddle elected: who is in it, so the host lets them -- and
+ * nobody else -- into its call. */
+export const callRoster = (host, place, ships) =>
+  tracked('call-operation', poke('glurff', 'glurff-action', { op: 'call-roster', host, place, ships, peers: [] }));
+/* Somebody's standing in the Glurff changed in its note -- muted, unmuted,
+ * blocked: ask the host to put it into effect in every call now (2026-10-31). */
+export const callRecheck = (host, who) =>
+  tracked('call-operation', poke('glurff', 'glurff-action', { op: 'call-recheck', host, who, peers: [] }));
 /* THE DOOR of the room we lease: the note's members and how open it is. Our
  * agent tells the members which note it is; a secret note's id never goes on
  * the relay. */
@@ -120,35 +137,6 @@ export const splash = (target) => act('splash', { target });
 export const savePrefs = (text) =>
   tracked('settings', poke('glurff', 'glurff-action', { op: 'prefs', text, peers: [] }));
 export const roll = (place, stage) => act('roll', { place, ...stage });
-
-/* Open a room's call. The room key is derived agent-side from the place id
- * alone, so this cannot be steered into another agent's namespace. */
-/* Open a room: ensure it exists and mint for everyone named. Called once, by
- * whoever is hosting it. */
-export const openRoom = (place, who, session, ttl = 3600) =>
-  tracked('call-operation', poke('glurff', 'glurff-room', { op: 'open', place, ttl, session, who }));
-
-/* Admit somebody to a room we already hold. Deliberately NOT the same as
- * opening: re-ensuring an existing room bumps its generation and invalidates
- * the tokens of everyone already inside. */
-export const admitToRoom = (place, who, session) =>
-  tracked('call-operation', poke('glurff', 'glurff-room', { op: 'admit', place, ttl: 3600, session, who }));
-
-export const callOperation=(op,place,who,session)=>tracked('call-operation',poke('glurff','glurff-room',{op,place,who:[who],session,ttl:180},{ackTimeout:CONTROL_ACK_MS}));
-
-/* Moderation the CALL SERVER enforces, not just our own browser.
- *
- * A mute that only the muted person's app honours is a request; these make it
- * true for every client. %noltbook-calls already publishes all three -- mute
- * and unmute reissue that participant's credentials after changing what they
- * may publish, and evict removes them from the room. Only the host of the call
- * can ask: the agent mints against the room key it derives from the place, and
- * the broker answers to the room's authority alone. */
-const modOperation=(op,place,who)=>tracked('call-operation',
-  poke('glurff','glurff-room',{op,place,who:[who],session:Date.now()*1000+Math.floor(Math.random()*1000),ttl:180}));
-export const muteInCall=(place,who)=>modOperation('mute-access',place,who);
-export const unmuteInCall=(place,who)=>modOperation('unmute-access',place,who);
-export const evictFromCall=(place,who)=>modOperation('evict',place,who);
 
 /* Movement sessions. `peers` is empty on purpose: a movement room is found
  * through presence announcements, so the agent broadcasts nothing. A knock on a

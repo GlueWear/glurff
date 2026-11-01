@@ -23,7 +23,7 @@ import { buildWorld, regionAt, SPAWN, COMMONS, GAME_ROOM, MAIN_SCENE, VATICAN_SC
   VATICAN_SPAWN, MAP_IMAGE, OVER_IMAGE, VATICAN_IMAGE, VATICAN_OVER_IMAGE,
   ROOMS, normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
   vaticanExitAt, sceneInfo } from 'world/places';
-import { SecretRoomQuest, MAIN_RETURN } from 'world/secret-room';
+import { MAIN_RETURN } from 'world/secret-room';
 import { hotspotAt as findHotspot } from 'world/hotspots';
 
 BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
@@ -153,7 +153,6 @@ export class Game {
     this.settling = null; this.settled = 0;
     this.self = { x: SPAWN.x, y: SPAWN.y, dir: 'down', moving: false, frame: 0,
                   look: null, scene: MAIN_SCENE };
-    this.secretRoom = new SecretRoomQuest(GAME_ROOM);
     this.exitWasInside = false;
     this.lastFrame = 0;
     /* Double-tapping a direction runs, the way it does in every game that has
@@ -512,6 +511,14 @@ export class Game {
     return wd;
   }
 
+  /* Into Vatican City from the Game Room: what saying "vatican city" in its
+   * chat does (world/secret-room). Only from there, and only ourselves. */
+  enterVatican() {
+    if (this.scene !== MAIN_SCENE || regionAt(this.self.x, this.self.y, this.scene, this.room) !== GAME_ROOM) return false;
+    this.setScene(VATICAN_SCENE, VATICAN_SPAWN);
+    return true;
+  }
+
   /* Swap the painted scene. The callback also moves the player between the
    * Game Room and Vatican City's social rooms. */
   setScene(scene, destination) {
@@ -538,7 +545,6 @@ export class Game {
     this.settled = 0;
     this.room = regionAt(this.self.x, this.self.y, next, this.room);
     this.exitWasInside = next === VATICAN_SCENE && vaticanExitAt(this.self.x, this.self.y);
-    this.secretRoom.reset();
     this.showHotspot(null);
     this.scaleCharacter(this.selfSprite, this.characterScale, sceneNameSize(next));
     this.placeCharacter(this.selfSprite, this.self.x, this.self.y, next);
@@ -1363,12 +1369,6 @@ export class Game {
     if (moving || wasMoving) this.onMove({ ...this.self });
 
     const rawRoom = regionAt(this.self.x, this.self.y, this.scene, this.room);
-    if (this.scene === MAIN_SCENE && this.secretRoom.update({
-      scene: this.scene, room: rawRoom, x: this.self.x, y: this.self.y,
-    }, time)) {
-      this.setScene(VATICAN_SCENE, VATICAN_SPAWN);
-      return;
-    }
     const inExit = this.scene === VATICAN_SCENE && vaticanExitAt(this.self.x, this.self.y);
     if (inExit && !this.exitWasInside) {
       this.setScene(MAIN_SCENE, MAIN_RETURN);

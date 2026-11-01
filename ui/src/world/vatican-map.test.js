@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import main from './map-data.js';
 import vatican from './vatican-data.js';
-import { POOL_CHECKPOINTS, PLANT, MAIN_RETURN } from './secret-room.js';
+import { MAIN_RETURN } from './secret-room.js';
 
 const bytes = encoded => Buffer.from(encoded, 'base64');
 const marked = (encoded, index) => {
@@ -22,8 +22,8 @@ const solid = (map, x, y) => {
 const solidPixel = (map, x, y) => solid(map, x / map.tile, y / map.tile);
 const centre = b => ({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 });
 
-test('all game-room checkpoints, plant and return point are reachable floor', () => {
-  for (const point of [...POOL_CHECKPOINTS.map(centre), centre(PLANT), MAIN_RETURN]) {
+test('the Game Room point you return to from Vatican City is reachable floor', () => {
+  for (const point of [MAIN_RETURN]) {
     assert.equal(solid(main, point.x, point.y), false, `${point.x},${point.y}`);
   }
 });

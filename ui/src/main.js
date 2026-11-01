@@ -20,7 +20,7 @@ import { createSessionLease, newerMotion } from 'lib/session-lease';
 import { createReachability } from 'lib/reachability';
 import { createInsideLease } from 'lib/inside-lease';
 import { createReliable } from 'lib/reliable';
-import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts } from 'lib/noltbook';
+import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts, glurffMuted, loadGlurffMembers, glurffRoster, glurffNoteRevision, nbApi } from 'lib/noltbook';
 import * as G from 'lib/glurff';
 import { Game, startZoom } from 'world/game';
 import { TouchControls, watchTouch, watchLayout, touching } from 'ui/touch-controls';
@@ -35,6 +35,8 @@ import { Dms } from 'ui/dms';
 import { Contacts } from 'ui/contacts';
 import { Me } from 'ui/me';
 import { Members } from 'ui/members';
+import { GlurffMembers } from 'ui/glurff-members';
+import { soonButton } from 'ui/soon';
 import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
 import { Stage } from 'ui/stage';
@@ -46,6 +48,7 @@ import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs, bodyBox } from 'world/parts';
 import { unlocks } from 'lib/unlock';
+import { opensVatican } from 'world/secret-room';
 import { sendBox } from 'ui/send-box';
 import { sendBlocked } from 'lib/wallet';
 import { shipLike, validAmount } from 'lib/nock-receipt';
@@ -573,6 +576,12 @@ const hudRoot = document.getElementById('hud');
  * unlocks choosing weapons, mounts, companions and ready-made characters, for
  * good (lib/unlock). */
 function secret(text, room) {
+  /* "vatican city", said in the Game Room, takes us -- and only us -- there
+   * (world/secret-room). Not sent either. */
+  if (opensVatican(text, roomById(room)?.slug)) {
+    if (!game.enterVatican()) showNotice('Say it standing in the Game Room.');
+    return true;
+  }
   if (!unlocks(text, roomById(room)?.slug)) return false;
   if (builder.equipmentReady) { showNotice('Already yours: choose weapons, mounts and companions in your character.'); return true; }
   G.unlockEquipment().then(
@@ -613,6 +622,7 @@ const stripRoot = document.createElement('div');
 stripRoot.id = 'strip';
 document.body.appendChild(stripRoot);
 const rail = new Rail(railRoot, stripRoot, { stage });
+window.__rail = rail;   // debug handle
 /* The phone layout stacks things on the call bar, and lifts the chat above
  * the on-screen keyboard: both measured here (ui/touch-controls). */
 watchLayout(railRoot);
@@ -688,7 +698,32 @@ const members = new Members(membersRoot, {
         R.roomOf(ship, p.spot, p.chatPlace) === COMMONS).map(([ship]) => ship)]
     : [our, ...R.callPeers()]),
   onShowProfile: (ship) => card.open(ship),
+  onGlurffMembers: () => glurffMembers.show(),
 });
+/* EVERYBODY IN THE GLURFF, from the room menu (ui/glurff-members). */
+const glurffMembers = new GlurffMembers({
+  our, host: WORLD_HOST,
+  load: () => loadGlurffMembers(),
+  rows: () => glurffRoster(),
+  request: (action, ship) => nbApi(action, { noteId: COMMONS_NOTE, ship }, { timeout: 15000 }),
+  recheck: (ship) => G.callRecheck(WORLD_HOST, ship).catch(() => {}),
+  name: (ship) => displayName(ship),
+  present: (ship) => visiblePeers().includes(ship),
+  onShowProfile: (ship) => card.open(ship),
+  onBack: () => members.toggle(true),
+  /* Read again when Noltbook says the note changed -- never because our own
+   * reading of it did. */
+  onChange: (fn) => { let seen = glurffNoteRevision();
+    return onChange(() => { const now = glurffNoteRevision(); if (now !== seen) { seen = now; fn(); } },
+      (c) => ['noteMuted', 'noteAdmins', 'notes'].includes(c.field) && c.noteId === COMMONS_NOTE); },
+});
+onChange(() => glurffMembers.paint(), (c) => c.field === 'glurffMembers' || c.field === 'profiles' ||
+  (['notes', 'noteAdmins', 'noteMuted'].includes(c.field) && c.noteId === COMMONS_NOTE));
+/* THE RINGED PLANET, straight after the room button and before contacts: a
+ * placeholder for now (ui/soon). */
+const soonRoot = document.createElement('div');
+membersRoot.after(soonRoot);
+soonButton(soonRoot);
 /* THE MAGNIFYING GLASS, after the room button: this world's games, or any
  * website, on our stage (ui/sites). */
 const sitesRoot = document.createElement('div');
@@ -856,12 +891,19 @@ const presence = createMemberPresence({
     movement?.presence(allPeers(peers));
   },
 });
+/* WHO MAY CHANGE SHARED MEDIA (2026-10-31): nobody blocked -- by us, or out
+ * of the Glurff -- and nobody muted in it, ourselves included. */
+const mayShareMedia = (ship) => ship === our ? !glurffMuted(our)
+  : worldMember(ship) && palStatus(ship) !== 'blocked' && !glurffMuted(ship);
 playerStore = createPlayerState({
-  our,
+  our, allowed: mayShareMedia,
   send: async event => { await sendWorldAction(event); presence.publish(); },
   changed: (surface,player,local) => { mediaUI?.stateChanged(surface,player); if(!local)presence.publish(); },
 });
-mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our, stage });
+mediaUI = new MediaSurfaces({ game, strip:stripRoot, store:playerStore, our, stage,
+  name: (ship) => displayName(ship), mayShare: () => mayShareMedia(our), notify: (text) => showNotice(text) });
+/* Being muted, or unmuted, in the Glurff changes what our screens' panels offer. */
+onChange(() => { for (const view of mediaUI.views.values()) view.paintPanel?.(); }, (c) => c.field === 'noteMuted');
 /* A spot either plays shared media (the jukebox, the screens) or opens an app
  * the player runs on their own ship (see ui/app-panel). */
 const appRoot = document.createElement('div');
@@ -1113,6 +1155,8 @@ function onWorldFact(name, p, fromPresence=false) {
   if (p?.who && !visiblePeers().includes(p.who)) return;
   switch (name) {
     case 'room-event':
+      /* Somebody muted in the Glurff says nothing in its rooms. */
+      if (glurffMuted(p.who)) break;
       try { const event=JSON.parse(p.body);if(event.world===WORLD_ID)events.receive(p.who,p.place,event); } catch {}
       break;
     case 'peer-here': {
@@ -1204,16 +1248,13 @@ function onWorldFact(name, p, fromPresence=false) {
       R.leaseGone(p?.who ?? null, p?.place ?? 0, p?.gen ?? 0);
       hud.setRoom(state.room);
       break;
-    /* HOST-SHIP ADMISSION: our agent could not decide a knock alone, turned
-     * one of ours away on a host's behalf, or let somebody back in by itself. */
-    case 'call-knocked':
-      R.receiveKnocked(p?.who, p?.place, p?.attempt, p?.mode);
-      break;
+    /* EVERY CALL ON THE GLURFF'S HOST: it turned our knock away, with why, or
+     * told us the record of a call we are in. */
     case 'call-refused':
       R.receiveShipRefusal(p?.who, p?.place, p?.attempt, p?.why);
       break;
-    case 'admitted':
-      R.admittedByShip(p?.who, p?.place);
+    case 'call-mod-snap':
+      R.receiveModSnap(p?.host, p);
       break;
     /* THE DOOR: a lease owner's ship told us which note their room is, or that
      * it is private to a note we are not in. */
@@ -1225,9 +1266,7 @@ function onWorldFact(name, p, fromPresence=false) {
       R.leasePrivate(p?.who, p?.place);
       break;
     case 'peer-hosting':
-      /* Somebody is holding a room. Without this both people walking into an
-       * empty room each claim it, mint their own Galene room, and hear
-       * nothing -- they are in the same place but not the same call. */
+      /* Somebody is keeping a room's list: one list per room, not two. */
       R.noteHost(p.who, p.place, p.mode);
       break;
     case 'peer-unhosting':

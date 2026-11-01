@@ -25,14 +25,15 @@ function pair(){
       ...CallMod,...H,diagnostic:()=>{},console,performance,structuredClone,setTimeout:()=>0,clearTimeout(){},
       setInterval:()=>0,clearInterval(){},Date:FakeDate,Map,Set,Promise,JSON,Number,Math,String,Object,Array,
       navigator:{mediaDevices:{}},processMicrophone:async s=>({stream:s,cleanup(){}}),SfuSession:Sfu,
-      our,displayName:x=>x,palStatus:()=>'mutual',visiblePeers:()=>[...clients.keys()].filter(s=>s!==our),
+      our,WORLD_HOST:'~nolset',displayName:x=>x,palStatus:()=>'mutual',visiblePeers:()=>[...clients.keys()].filter(s=>s!==our),
       noteVisibility:()=>'private',requestRemoteNotes:async()=>{},subscribeRaw:async()=>({}),nbAction:async()=>{},
       onNoltbook:()=>()=>{},nb:{calls:{},callMods:{},noteAdmins:{},notes:{}},noteCallRole:()=>null,
-      noteCallMuted:()=>false,noteCallBooted:()=>false,noteCallRecording:()=>null,noteModerate:async()=>{},
+      noteCallMuted:()=>false,noteCallBooted:()=>false,glurffMuted:()=>false,noteCallRecording:()=>null,noteModerate:async()=>{},
       noteCreator:()=>null,regionAt:()=>0,COMMONS:0,micConstraints:()=>({}),camConstraints:()=>({}),refreshDevices(){},
       G:{watchCallAccess:()=>Promise.resolve(),claimRoom:async()=>{},releaseRoom:async()=>{},
         sendPresence:async(to,event)=>queue.push({from:our,to,event:structuredClone(event)}),
-        callOperation:async(op,place,who,attempt)=>operations.push({op,place,who,attempt})}});
+        callKnock:async(host,place,attempt,mode)=>operations.push({op:'knock',host,place,attempt,mode}),
+        callLeave:async()=>{},callMod:async()=>{},callRoster:async(host,place,ships)=>operations.push({op:'roster',host,place,ships:[...ships]})}});
     Object.assign(context,{worldMember:ship=>ship===our||clients.has(ship),worldBanned:()=>false});
     vm.runInContext(source+'\nglobalThis.app={initRooms,refresh,updateHuddle,currentHuddle,receiveCallEvent,receiveRoomEvent,setPositionGate,closeTab};',context);
     const client={app:context.app,operations};clients.set(our,client);return client;

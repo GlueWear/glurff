@@ -10,7 +10,7 @@
  * centre, so the only thing you could not see while editing was yourself.
  */
 import { CATALOG, SLOTS, DIRS, completeLook, groupsOf, variantOf, EXTRAS, EQUIPMENT, artUrl, equipmentOf, choicesOf, ownAttack as ownAttackOf } from 'world/parts';
-import { paintStage, paintItem } from 'world/paint';
+import { paintStage, paintItem, paintWearing, paintLayer, paintWeapon } from 'world/paint';
 import { esc } from 'ui/html';
 
 const title = (s) => String(s).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -22,6 +22,13 @@ const styleName = (g) => STYLE_NAMES[g] ?? title(g);
 /* A choice's picture (paintStage): the whole character, at four times or more
  * -- a box any smaller rounds it down to three, too small for a hat. */
 const PICTURE = { scale: 6, width: 84, height: 84, pad: 2 };
+/* Something small on its own -- a hat, a beard, a dagger -- drawn up to fill
+ * its frame, with a little air round it: fitted to its own drawn pixels, at a
+ * whole number of screen pixels to one of art, so it stays crisp. */
+const ALONE = { scale: 16, width: 84, height: 84, pad: 6 };
+/* Hats, hair and beards are pictured on their own; the rest of what is worn,
+ * on you. */
+const HEADWEAR = new Set(['hat', 'hair', 'beard']);
 /* How often Random leaves an optional thing off. */
 const BARE = { gloves: 0.6, shoulders: 0.7, beard: 0.6, hat: 0.5 };
 
@@ -122,7 +129,14 @@ export class Builder {
     const tab = this.tab, isGarment = garments.includes(tab);
     /* Every picture's look, painted once the markup is in. */
     this.pictures = [];
-    const picture = (look, alone = null) => { this.pictures.push({ look, alone }); return `<span class="item-pic"><canvas data-pic="${this.pictures.length - 1}"></canvas></span>`; };
+    /* `how`: 'wearing' (you in it), 'layer' (that slot alone), 'weapon',
+     * 'item' (a companion or a mount, `item` being it), or 'none'. A None is
+     * shown as nothing worn, never as some other picture. */
+    const picture = (look, how, slot = null, item = null, none = false) => {
+      this.pictures.push({ look, how, slot, item });
+      const mark = !none ? '' : how === 'none' ? ' none' : ' without';
+      return `<span class="item-pic${mark}"><canvas data-pic="${this.pictures.length - 1}"></canvas></span>`;
+    };
     let items = '', swatches = '';
     if (isGarment) {
       const meta = CATALOG[tab], groups = groupsOf(tab), group = this.groupFor(tab);
@@ -134,8 +148,11 @@ export class Builder {
       items = choices.map(([g, name]) => {
         const options = groups.get(g) ?? [];
         const key = g === '' ? '' : ((wornVariant && options.find((v) => v.colour === wornVariant.colour)) ?? options[0])?.key ?? '';
+        const look = { ...this.look, [tab]: { ...this.look[tab], part: key } };
+        const pic = HEADWEAR.has(tab) ? picture(look, key ? 'layer' : 'none', tab, null, !key)
+          : picture(look, 'wearing', tab, null, !key);
         return `<button class="item${g === selected ? ' on' : ''}" data-slot="${tab}" data-group="${esc(g)}" title="${esc(name)}"
-          aria-pressed="${g === selected}">${picture({ ...this.look, [tab]: { ...this.look[tab], part: key } })}<span class="item-name">${esc(name)}</span></button>`;
+          aria-pressed="${g === selected}">${pic}<span class="item-name">${esc(name)}</span></button>`;
       }).join('');
       /* The colours of the style the tab is showing, worn or not: clicking one
        * puts that style on in that colour. */
@@ -146,9 +163,10 @@ export class Builder {
       const slot = tab, worn = this.look[slot]?.part ?? '';
       items = [['', 'None'], ...choicesOf(slot).map((item) => [item.key, item.name])].map(([key, name]) =>
         `<button class="item${key === worn ? ' on' : ''}" data-equipment="${slot}" data-key="${esc(key)}" title="${esc(name)}"
-          aria-pressed="${key === worn}">${picture({ ...this.look, [slot]: { ...this.look[slot], part: key } },
-            /* A companion or a mount pictured on its own; a weapon in hand. */
-            slot === 'weapon' ? null : equipmentOf(slot, key))}<span class="item-name">${esc(name)}</span></button>`).join('');
+          aria-pressed="${key === worn}">${slot === 'weapon' ? picture({ ...this.look, weapon: { part: key } }, 'weapon', slot, null, !key)
+            : !key ? picture(this.look, 'none', slot, null, true)
+            /* A weapon in your hand; a companion or a mount on its own. */
+            : picture(this.look, 'item', slot, equipmentOf(slot, key))}<span class="item-name">${esc(name)}</span></button>`).join('');
     }
     const label = (slot) => CATALOG[slot]?.label ?? title(slot);
     const tabButton = (slot) => `<button class="slot-tab${slot === tab ? ' on' : ''}" data-tab="${slot}"${garments.includes(slot) ? ` data-style="${slot}"` : ''}
@@ -213,14 +231,18 @@ export class Builder {
     this.root.querySelector('.done').onclick = (e) => this.finish(e.currentTarget);
   }
 
-  /* Each choice, as us wearing it, at one size: small enough for a grid,
-   * big enough to tell a fedora from a ranger's hat. */
+  /* Each choice as what it is (see `picture` in render), at one size: small
+   * enough for a grid, big enough to tell a fedora from a ranger's hat. */
   paintPictures() {
     this.root.querySelectorAll('canvas[data-pic]').forEach((canvas) => {
-      const { look, alone } = this.pictures[Number(canvas.dataset.pic)];
+      const { look, how, slot, item } = this.pictures[Number(canvas.dataset.pic)];
       const draw = () => {
         if (!canvas.isConnected) return;
-        if (alone) paintItem(canvas, alone, PICTURE, draw); else paintStage(canvas, look, 'down', 0, PICTURE, draw);
+        if (how === 'wearing') paintWearing(canvas, look, PICTURE, draw);
+        else if (how === 'layer') paintLayer(canvas, look, slot, ALONE, draw);
+        else if (how === 'weapon') paintWeapon(canvas, look, PICTURE, draw);
+        else if (how === 'item') paintItem(canvas, item, PICTURE, draw);
+        else paintItem(canvas, null, PICTURE, draw);
       };
       draw();
     });

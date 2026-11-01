@@ -4,13 +4,14 @@
  * the commons. Only people you can see: the same people the world draws, so
  * someone outside your pals and dial is not listed even when they are there.
  *
- * The host is marked. In a room, the host can hand hosting to anyone in it;
- * that person is asked, and the call moves to them if they accept.
+ * Admins are marked -- the Glurff's host, its moderators and the call's own,
+ * all as "admin" -- and an admin can make anybody below them an admin of this
+ * call. Every call is held on the Glurff's host, so nobody here hosts one.
  */
 import { displayName, avatarUrl, onChange, myGroupNotes, noteName, noteVisibility,
          inNote, noteCreator, askToJoinNote, noteFacts, joinAsked, refreshNotes } from 'lib/noltbook';
 import { our } from 'lib/api';
-import { rooms, onRooms, offerHost, answerHostOffer, canHandOff, mayHandTo, chooseRoomHost,
+import { rooms, onRooms, moderate, mayActOn, rankFor, canModerate,
          roleFor, mutedShip, canLease, takeLease, releaseLease, leaseNote, leaseAt, learnLease,
          leaseHolder, onRoommates } from 'lib/rooms';
 import { roomById, COMMONS } from 'world/places';
@@ -20,19 +21,15 @@ import { avatarHtml } from 'ui/avatar';
 
 
 export class Members {
-  constructor(root, { people, here, onShowProfile = () => {} }) {
-    Object.assign(this, { root, people, here, onShowProfile });
+  constructor(root, { people, here, onShowProfile = () => {}, onGlurffMembers = null }) {
+    Object.assign(this, { root, people, here, onShowProfile, onGlurffMembers });
     this.open = false;
     root.className = 'members';
     root.innerHTML = `
       <button class="members-btn" aria-expanded="false" aria-haspopup="true"></button>
-      <div class="members-panel" hidden></div>
-      <div class="host-offer" role="alertdialog" hidden></div>
-      <div class="door-picker" role="dialog" hidden></div>`;
+      <div class="members-panel" hidden></div>`;
     this.btn = root.querySelector('.members-btn');
     this.panel = root.querySelector('.members-panel');
-    this.offer = root.querySelector('.host-offer');
-    this.door = root.querySelector('.door-picker');
 
     /* Taking a room, and giving it back: in the room's own menu, with the rest
      * of what this room is. */
@@ -87,40 +84,23 @@ export class Members {
       }
       takeLease(note).catch(() => {});
     });
-    this.door.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-host]');
-      if (b) chooseRoomHost(b.dataset.host);
-    });
     this.btn.onclick = () => this.toggle(!this.open);
     document.addEventListener('click', (e) => { if (this.open && !root.contains(e.target)) this.toggle(false); });
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) this.toggle(false); });
-    this.panel.addEventListener('click', async (e) => {
-      const make = e.target.closest('.make-host');
+    this.panel.addEventListener('click', (e) => {
+      /* EVERYBODY IN THE GLURFF, not only who is in this room (ui/glurff-members). */
+      if (e.target.closest('.gm-open')) { e.stopPropagation(); this.toggle(false); this.onGlurffMembers?.(); return; }
+      /* Making somebody an admin ASKS the Glurff's host -- or, in a leased
+       * room, the note's -- and shows once the record says so. */
+      const make = e.target.closest('.make-admin');
       if (make) {
         e.stopPropagation();
-        /* Handing on a room you LEASED gives the room back: its call is the
-         * note's, which is not yours to hand to anybody. Say so before it
-         * happens rather than after -- it is the same loss as taking a second
-         * lease, and that asks too. */
-        const place = this.here();
-        if (rooms.lease?.place === place) {
-          const what = noteName(rooms.lease.note) ?? rooms.lease.note;
-          const where = roomById(place)?.name ?? 'this room';
-          const go = await ask(`Make ${displayName(make.dataset.ship)} host of ${where}?`, {
-            yes: 'Make host', no: 'Keep the room',
-            detail: `${where} is yours while you hold it for ${what}. Handing hosting on gives the room back, and what is said here stops being saved to that note.`,
-          });
-          if (!go) return;
-        }
-        offerHost(make.dataset.ship);
+        make.disabled = true;
+        moderate(make.dataset.ship, 'promote');
         return;
       }
       const row = e.target.closest('.member-row');
       if (row) this.onShowProfile(row.dataset.ship);
-    });
-    this.offer.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-answer]');
-      if (b) answerHostOffer(b.dataset.answer === 'yes');
     });
     onRooms(() => this.paint());
     /* A room's guest list and its lease change on their own beat, not the
@@ -225,25 +205,18 @@ export class Members {
     const name = bound
       ? noteName(bound) ?? noteFacts(leaseHolder(place) ?? rooms.host, bound)?.name ?? physicalName
       : physicalName;
-    /* In a room, its host. In the commons there is no room host, only the host
-     * of the huddle you are in, if any. */
-    const host = rooms.host;
+    /* Us first, then the admins of the call we are in, then everybody else. */
     const people = [...new Set(this.people())].sort((a, b) =>
-      (b === our) - (a === our) || (b === host) - (a === host) ||
+      (b === our) - (a === our) || rankFor(b) - rankFor(a) ||
       displayName(a).toLowerCase().localeCompare(displayName(b).toLowerCase()));
-    /* Hosting can be handed on in a room AND in a proximity huddle -- but only
-     * to somebody who is in that call, never to a bystander standing about in
-     * the commons. */
-    const handOff = canHandOff();
-    const ask = rooms.hostAsk, offer = rooms.hostOffer;
-    const picker = rooms.picker;
-    const signature = JSON.stringify([place, host, this.open, handOff, ask?.to ?? null,
-      picker ? picker.options.map((o) => [o.host, o.count, displayName(o.host)]) : null,
-      offer ? [offer.from, offer.place, !!offer.accepted] : null,
+    /* "Make admin" for anybody below us -- in this call, so only while we are
+     * in one. */
+    const promotable = (ship) => canModerate() && rankFor(ship) === 0 && mayActOn(ship);
+    const signature = JSON.stringify([place, this.open,
       rooms.lease ? [rooms.lease.place, rooms.lease.note] : null,
       name, bound, leaseAt(place).vis, inNote(bound ?? ''),
       joinAsked(bound ?? ''), myGroupNotes().length,
-      people.map((s) => [s, displayName(s), avatarUrl(s), roleFor(s), mutedShip(s), handOff && mayHandTo(s)])]);
+      people.map((s) => [s, displayName(s), avatarUrl(s), roleFor(s), mutedShip(s), promotable(s)])]);
     if (signature === this.signature) return;
     this.signature = signature;
 
@@ -251,33 +224,16 @@ export class Members {
     this.btn.textContent = `${name} · ${people.length} here ▾`;
     this.panel.hidden = !this.open;
     if (this.open) {
-      this.panel.innerHTML = this.leaseRow(place) + people.map((ship) => `
+      const everybody = this.onGlurffMembers
+        ? '<button type="button" class="gm-open">Glurff Members</button>' : '';
+      this.panel.innerHTML = everybody + this.leaseRow(place) + people.map((ship) => `
         <div class="member-row" data-ship="${esc(ship)}">
           <span class="av">${avatarHtml(ship)}</span>
           <span class="who">${esc(displayName(ship))}${ship === our ? ' <span class="dim">(you)</span>' : ''}</span>
-          ${ship === host ? `<span class="tag">${place === COMMONS ? 'huddle host' : 'host'}</span>` : ''}
-          ${roleFor(ship) === 'admin' ? '<span class="tag">ADMIN</span>' : ''}
+          ${roleFor(ship) ? '<span class="tag">ADMIN</span>' : ''}
           ${mutedShip(ship) ? '<span class="tag">MUTED</span>' : ''}
-          ${handOff && mayHandTo(ship)
-            ? (ask?.to === ship ? '<span class="dim">asked…</span>' : `<button class="make-host" data-ship="${esc(ship)}">Make host</button>`)
-            : ''}
+          ${promotable(ship) ? `<button class="make-admin" data-ship="${esc(ship)}">Make admin</button>` : ''}
         </div>`).join('');
-    }
-    /* At the door of a room whose copies the people we know are spread across. */
-    this.door.hidden = !picker;
-    if (picker) {
-      const room = esc(roomById(picker.place)?.name ?? 'this room');
-      this.door.innerHTML = `<span>People you know are in more than one ${room}. Join:</span>
-        <div class="options">${picker.options.map((o) =>
-          `<button data-host="${esc(o.host)}">${esc(displayName(o.host))} · ${o.count}</button>`).join('')}</div>`;
-    }
-    this.offer.hidden = !offer;
-    if (offer) {
-      const room = esc(offer.huddle ? 'this huddle' : roomById(offer.place)?.name ?? 'this room');
-      this.offer.innerHTML = offer.accepted
-        ? `<span>Taking over as host of ${room}…</span>`
-        : `<span>${esc(displayName(offer.from))} asked you to host ${room}.</span>
-           <div class="row"><button data-answer="yes">Accept</button><button data-answer="no">Decline</button></div>`;
     }
   }
 }

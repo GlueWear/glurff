@@ -65,6 +65,32 @@ export function paintItem(canvas, item, size = {}, onLoad = null) {
   drawLayers(canvas, item ? [wholeFrame(item, 'down', 0)] : [], size, onLoad);
 }
 
+/* THE EDITOR'S CHOICES, EACH AS WHAT IT IS (2026-10-31; ui/builder):
+ *
+ *   paintWearing  you in that choice -- and nothing you carry or ride, which
+ *                 only made you smaller and covered what was being chosen
+ *   paintLayer    a hat, a head of hair, a beard: that layer alone
+ *   paintWeapon   you holding the weapon, standing still
+ *
+ * Each fitted to its own drawn pixels and centred, like everything here. */
+const bare = (look) => {
+  const { weapon, mount, companion, ...rest } = look ?? {};
+  return completeLook(rest);
+};
+export function paintWearing(canvas, look, size = {}, onLoad = null) {
+  drawLayers(canvas, characterLayers(bare(look), 'down', 0), size, onLoad);
+}
+export function paintLayer(canvas, look, slot, size = {}, onLoad = null) {
+  drawLayers(canvas, characterLayers(bare(look), 'down', 0).filter((l) => l.key === slot), size, onLoad);
+}
+/* A WEAPON AS YOU HOLD IT, STANDING STILL (2026-10-31): its sheets have
+ * nothing of it but in a hand -- at rest, a hilt in a fist -- and every bigger
+ * frame is mid-swing. So: you, holding it, as you stand in the world. */
+export function paintWeapon(canvas, look, size = {}, onLoad = null) {
+  const { mount, companion, ...rest } = look ?? {};
+  drawLayers(canvas, characterLayers(completeLook(rest), 'down', 0), size, onLoad);
+}
+
 /* Whatever is drawn, in the middle of the box at one whole-pixel scale. */
 function drawLayers(canvas, layers, { scale = 9, width = 380, height = 300, pad = 8 } = {}, onLoad = null) {
   const dpr = Math.max(1, Math.round(globalThis.devicePixelRatio || 1));
@@ -76,8 +102,11 @@ function drawLayers(canvas, layers, { scale = 9, width = 380, height = 300, pad 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  /* Everything drawn, in art pixels around the feet. */
-  let left = -1, right = 1, top = -1, bottom = 1;
+  /* Everything drawn, in art pixels around the feet -- the DRAWING's box, not
+   * the feet's: a hat on its own is far above them, and measuring from them
+   * drew it small at the top of its frame (2026-10-31). Nothing drawn yet is
+   * the feet alone. */
+  let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
   const ready = [];
   for (const f of layers) {
     const img = sheet(f.url, onLoad);
@@ -90,6 +119,7 @@ function drawLayers(canvas, layers, { scale = 9, width = 380, height = 300, pad 
     left = Math.min(left, dx + x0); right = Math.max(right, dx + x1);
     top = Math.min(top, dy + ink[1] - f.feet); bottom = Math.max(bottom, dy + ink[3] - f.feet);
   }
+  if (left > right) { left = -1; right = 1; top = -1; bottom = 1; }
   const fit = Math.min(scale, (width - 2 * pad) / (right - left), (height - 2 * pad) / (bottom - top));
   const unit = Math.max(1, Math.floor(fit)), s = unit * dpr;
   /* The drawing's middle on the box's middle, on whole pixels. */

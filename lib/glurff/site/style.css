@@ -35,7 +35,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg);
   color: var(--text); font: 14px/1.4 var(--font-ui); }
 #stage { position: absolute; inset: 0; }
 #stage canvas { image-rendering: pixelated; display: block; }
-#hud { position: absolute; right: 0; top: 0; bottom: 0; width: 300px; z-index: 5;
+#hud { position: absolute; right: 0; top: 0; bottom: 0; width: 318px; z-index: 5;
   display: flex; flex-direction: column; justify-content: flex-end;
   padding: 12px; pointer-events: none; }
 /* Only the chat's own pieces take the pointer; the column around them is
@@ -225,6 +225,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .dm-send input { width: 100%; background: var(--raise); border: 1px solid var(--line);
   color: inherit; font: inherit; padding: .3rem; border-radius: var(--r-sm); }
 .dm-send input:focus { outline: none; border-color: var(--accent); }
+
+/* ---- the ringed planet: a placeholder (ui/soon) ------------------------ */
+.soon-btn { line-height: 0; padding: 0; width: 35px; height: 35px; display: grid; place-items: center; }
+.soon-btn svg { width: 21px; height: 21px; display: block; }
 
 /* ---- contacts and pal requests ---------------------------------------- */
 .contacts { position: relative; z-index: 7; }
@@ -429,15 +433,6 @@ button.on { border-color: var(--accent); color: var(--accent); }
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);}
 .chat-toggle {align-self:flex-end;display:flex;align-items:center;gap:7px;padding:.4rem .75rem;font-weight:600;}
 .chat-toggle svg {flex:none;color:var(--accent);}
-/* CHAT AT A GLANCE (ui/hud paintPeek): the newest lines, faint, fading. */
-.chat-peek {display:flex;flex-direction:column;align-items:flex-end;gap:3px;cursor:pointer;pointer-events:none;}
-.chat-peek .peek-line {max-width:100%;padding:3px 9px;border-radius:var(--r-sm);background:rgba(12,15,22,.78);
-  color:var(--text);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  opacity:0;transform:translateY(3px);transition:opacity .6s,transform .6s;}
-.chat-peek .peek-line b {color:var(--accent);font-weight:600;}
-.chat-peek.fresh {pointer-events:auto;}
-.chat-peek.fresh .peek-line, .chat-peek.fresh:hover .peek-line {opacity:.95;transform:none;}
-.chat-open .chat-peek {display:none;}
 .chat-unread {display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:#c2453d;color:#fff;font:700 11px/1 var(--font-ui);}
 .chat-unread[hidden] {display:none;}
 /* The last seven messages, whole, the same size whatever the pointer does;
@@ -479,6 +474,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
   font:13px var(--font-ui);padding:.45rem .55rem;}
 .chat .say input:focus {border-color:var(--accent);}
 .replying {font:12px var(--font-ui);}
+/* ROOM CHAT, A LITTLE LARGER (2026-10-31): about 6% on the words and the
+   spacing round them -- 13 to 13.8px, 11 to 11.7px -- and the column with
+   them, 300 to 318px. The room chat only: DMs keep their size. Real sizes
+   rather than a transform, so the text stays sharp. */
+#hud .stream .line {font-size:13.8px;padding:5.3px 8.5px;margin-bottom:5.3px;}
+#hud .line header {font-size:11.7px;gap:6.4px;}
+#hud .line .send-state, #hud .post-text .edited {font-size:11.7px;}
+#hud .chat .say input {font-size:13.8px;padding:.48rem .58rem;}
+#hud .replying {font-size:12.7px;}
+#hud .chat-toggle {font-size:1.06em;}
 /* RUMORS is nobody's: what it is, said once, above it. */
 .rumors-note {background:rgba(32,24,46,.92);border:1px solid #4d3f68;border-radius: var(--r);color:#d6cdea;
   padding:6px 8px;font:11px/1.45 ui-monospace,Menlo,monospace;text-shadow:none;}
@@ -518,6 +523,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   border-radius: var(--r); padding: 1rem; box-shadow: 0 12px 60px #000a;
   display: flex; flex-direction: column; gap: .6rem; }
 .ask-q { font-weight: 600; line-height: 1.35; }
+.ask-sub { margin-top: 4px; font-size: 12px; line-height: 1.35; }
 .ask-detail { line-height: 1.4; font-size: 12px; }
 .ask-row { display: flex; gap: .4rem; justify-content: flex-end; }
 .ask-row .ask-yes { border-color: var(--accent); color: var(--accent); }
@@ -869,7 +875,10 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
    screen, behind Glurff's interface -- which floats over it as it floats over
    the world, and can be hidden (html.overlay-off) and brought back from the
    tab at the top. Wave notices show either way. */
-.app-panel.staged { left: 0; top: 0; right: 0; bottom: 0; transform: none; width: auto; height: auto;
+/* ROOM FOR GLURFF (2026-10-31): what is staged fits between Glurff's bars,
+   measured by ui/stage into --stage-top and --stage-bottom (0 with Glurff
+   hidden), so neither bar covers it or its own controls. */
+.app-panel.staged { left: 0; top: var(--stage-top, 0px); right: 0; bottom: var(--stage-bottom, 0px); transform: none; width: auto; height: auto;
   max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: #000; z-index: 3; }
 .app-panel.staged .app-head { display: none; }
 .app-panel.staged .app-body { flex: 1; min-height: 0; }
@@ -878,15 +887,23 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 #stage-media:empty { display: none; }
 #stage-call-media { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 #stage-call-media:empty { display: none; }
-.tile.staged-call-tile { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: auto;
+/* Stretched between top and bottom: a tile's own `align-self: flex-start`
+   would otherwise size a fixed box to its video (box alignment applies to
+   positioned boxes too). */
+.tile.staged-call-tile { position: fixed; left: 0; right: 0; top: var(--stage-top, 0px); bottom: var(--stage-bottom, 0px);
+  width: auto; height: auto; align-self: stretch; justify-self: stretch; pointer-events: auto;
   border: 0; border-radius: 0; background: #000; }
 .tile.staged-call-tile video { width: 100%; height: 100%; object-fit: contain; }
 .tile.staged-call-tile .face { width: 100%; height: 100%; object-fit: contain; }
 .tile.staged-call-tile .initials { height: 100%; aspect-ratio: auto; font-size: min(20vw,20vh); }
 .tile.staged-call-tile .grip { display: none; }
-.world-media.staged-media { position: fixed; inset: 0; width: auto; height: auto; pointer-events: auto;
+.world-media.staged-media { position: fixed; left: 0; right: 0; top: var(--stage-top, 0px); bottom: var(--stage-bottom, 0px);
+  width: auto; height: auto; pointer-events: auto;
   border: 0; box-shadow: none; background: #000; }
-.staged #world-media-layer, .staged .touch-controls, .staged .arrange-bar, .staged .clock-tip { display: none !important; }
+.staged .touch-controls, .staged .arrange-bar, .staged .clock-tip { display: none !important; }
+/* A screen on the stage stays in its own layer (so its player keeps playing);
+   only the others in it go. */
+.staged #world-media-layer > .world-media:not(.staged-media) { display: none !important; }
 .staged #hud { background: none; }
 .overlay-off #hud, .overlay-off #rail, .overlay-off #strip, .overlay-off #top-left, .overlay-off #top-mid,
 .overlay-off #top-right, .overlay-off .call-panels, .overlay-off .card-overlay,
@@ -905,7 +922,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 /* The tab: what is on the stage, Glurff's interface off and on, and close. */
 /* HIDDEN, STILL RUNNING: out of sight but alive (a frame keeps running, a
    video keeps playing), and a chip at the bottom right to bring it back. */
-.stage-min .app-panel.staged, .stage-min #stage-media, .stage-min #stage-call-media { visibility: hidden !important; pointer-events: none !important; }
+.stage-min .app-panel.staged, .stage-min #stage-media, .stage-min #stage-call-media,
+.stage-min .world-media.staged-media { visibility: hidden !important; pointer-events: none !important; }
 .stage-dock { position: fixed; z-index: 45; right: 324px; bottom: calc(12px + var(--safe-b, 0px)); display: flex; gap: 4px;
   align-items: center; padding: 4px; background: rgba(16,20,29,.92); border: 1px solid #3a4760; border-radius: 999px;
   box-shadow: 0 4px 14px rgba(0,0,0,.45); }
@@ -1066,6 +1084,12 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .item-pic { width: 84px; height: 84px; display: grid; place-items: center; border-radius: var(--r-sm);
   background: repeating-conic-gradient(rgba(255,255,255,.035) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
 .item-pic canvas { display: block; image-rendering: pixelated; }
+/* NONE IS NOTHING (2026-10-31): an empty frame with the "none" mark, or -- for
+   clothes -- you without it, marked in the corner. Never some other picture. */
+.item-pic.none, .item-pic.without { position: relative; }
+.item-pic.none::after, .item-pic.without::after { content: '\2205'; position: absolute; color: var(--dim);
+  font: 600 34px/1 var(--font-ui); pointer-events: none; }
+.item-pic.without::after { top: 4px; right: 6px; font-size: 15px; }
 .item-name { max-width: 100%; font-size: 11px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item.on .item-name { color: var(--bright); }
 .colours { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
@@ -1159,3 +1183,90 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .stage-dock { left: auto; right: calc(8px + var(--safe-r, 0px)); bottom: calc(var(--rail-h, 56px) + 64px + var(--safe-b, 0px)); }
 }
 
+/* THE SCREENS' CONTROLS (2026-10-31; ui/media-surfaces). The painted screen is
+   one safe click target -- a clear shield over the player -- and its bar is
+   beside it, never over the picture, at a size that does not follow the map's
+   zoom: one row of symbols, each named on hover. In full screen the bar is in
+   the bottom row with the call bar and the chat button (placed by script). */
+.media-shield { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent; cursor: pointer; }
+.media-shield:hover { background: transparent; }
+.media-shield:focus-visible { outline: 2px solid #8fc3ff; outline-offset: -2px; }
+.world-media:not([data-mode="docked"]) .media-shield { display: none; }
+.media-panel { position: fixed; z-index: 13; width: auto; max-width: calc(100vw - 16px); box-sizing: border-box;
+  padding: 4px; background: rgba(16,20,29,.96); border: 1px solid #3a4760; border-radius: var(--r, 8px);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45); color: #e8ecf4; }
+.media-panel[hidden] { display: none !important; }
+.media-panel .mp-acts { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.media-panel .mp-acts button { display: grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px;
+  font-size: 13px; white-space: nowrap; }
+.media-panel .mp-acts button svg { width: 18px; height: 18px; }
+.media-panel .mp-acts button.mp-text { padding: 0 10px; }
+.media-panel .mp-acts button[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.touch .media-panel .mp-acts button { min-width: 44px; height: 44px; }
+/* Its names above it, where the bottom of the screen leaves room for them. */
+.media-panel [data-tip]::after { top: auto; bottom: calc(100% + 7px); left: 50%; transform: translate(-50%, 2px); }
+.media-panel [data-tip]:hover::after, .media-panel [data-tip]:focus-visible::after { transform: translate(-50%, 0); }
+.overlay-off .media-panel, .stage-min .media-panel.staged-bar { display: none !important; }
+
+/* ON THE STAGE, BLACK ALL ROUND (2026-10-31): the strips above and below what
+   is on it hide the world, and Glurff's bars sit on the black. */
+.staged body::before { content: ''; position: fixed; inset: 0; z-index: 2; background: #000; pointer-events: none; }
+
+/* The ringed planet on a phone: a tap shows its words for a moment. */
+.soon-btn { position: relative; }
+.soon-btn.tip-on::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 7px);
+  padding: 3px 7px; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line);
+  box-shadow: var(--shadow); color: var(--bright); font: 12px/1.3 var(--font-ui); white-space: nowrap;
+  pointer-events: none; z-index: 30; }
+
+/* GLURFF MEMBERS (2026-10-31; ui/glurff-members): everybody in the Glurff's
+   note, from the room menu. A panel on a desktop, the whole screen on a phone. */
+.members-panel .gm-open { display: block; width: calc(100% - 1rem); margin: .4rem .5rem; text-align: left; }
+.gm-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: start center;
+  padding: 64px 16px 16px; background: rgba(4,6,10,.45); }
+.gm-overlay[hidden] { display: none; }
+.gm { display: flex; flex-direction: column; width: min(460px, 100%); max-height: min(640px, calc(100dvh - 80px));
+  background: var(--panel, #10141d); color: #e8ecf4; border: 1px solid #3a4760; border-radius: var(--r, 8px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5); overflow: hidden; }
+.gm-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2a3448; }
+.gm-head h3 { flex: 1; margin: 0; font-size: 15px; }
+.gm-head button { min-width: 36px; min-height: 36px; padding: 0 8px; font-size: 18px; }
+.gm-tools { padding: 8px 10px 4px; display: grid; gap: 6px; }
+.gm-search { width: 100%; box-sizing: border-box; min-height: 34px; }
+.gm-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.gm-filters button { min-height: 30px; padding: 2px 8px; font-size: 12px; }
+.gm-filters button.on { background: var(--accent-wash, #22304a); border-color: var(--accent, #6aa7ff); }
+.gm-filters .n { opacity: .75; margin-left: 2px; }
+.gm-status { padding: 0 10px; font-size: 12px; color: #c3cbe0; min-height: 0; }
+.gm-status:empty { display: none; }
+.gm-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0 8px; scrollbar-width: thin; }
+.gm-row { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; }
+.gm-row:hover { background: var(--accent-wash, rgba(106,167,255,.08)); }
+.gm-row.removed .gm-name { text-decoration: line-through; opacity: .75; }
+.gm-row .av { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 3px; overflow: hidden; }
+.gm-row .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gm-who { flex: 1 1 140px; min-width: 0; display: grid; text-align: left; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.gm-who:hover { background: none; }
+.gm-name, .gm-ship { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-ship { font-size: 11px; }
+.gm-tags { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.gm-tags .tag { color: var(--warm, #f0c674); font-size: 11px; }
+.gm-tags .gm-blocked { color: #ff8f8f; }
+.gm-here { font-size: 11px; color: #8fe0a8; }
+.gm-more { min-width: 32px; min-height: 32px; padding: 0 6px; font-size: 16px; }
+.gm-busy { font-size: 12px; }
+.gm-menu { position: absolute; right: 10px; top: calc(100% - 4px); z-index: 2; display: grid; min-width: 160px;
+  background: #151b27; border: 1px solid #3a4760; border-radius: var(--r, 8px); box-shadow: 0 8px 24px rgba(0,0,0,.45); padding: 4px; }
+.gm-menu button { text-align: left; min-height: 34px; border: 0; background: none; }
+.gm-menu button:hover { background: var(--accent-wash, #22304a); }
+.gm-menu button.danger { color: #ff9b9b; }
+.gm-note { flex-basis: 100%; padding-left: 30px; font-size: 12px; color: #c3cbe0; }
+.gm-note.bad { color: #ff9b9b; }
+.gm-empty { padding: 16px 10px; font-size: 13px; }
+.touch .gm-filters button, .touch .gm-more, .touch .gm-menu button, .touch .gm-search { min-height: 44px; }
+@media (max-width: 640px) {
+  .gm-overlay { padding: 0; place-items: stretch; }
+  .gm { width: 100%; max-height: none; height: 100dvh; border-radius: 0; border: 0;
+    padding-top: var(--safe-t, env(safe-area-inset-top, 0px)); padding-bottom: var(--safe-b, env(safe-area-inset-bottom, 0px)); }
+}

@@ -153,6 +153,88 @@
 ::  asking again at once, over and over, until the window turned.
 ++  world-window  ~m3
 ::
+::  ------------------------------------------------------------- the calls
+::
+::  EVERY CALL ON THE GLURFF'S HOST (2026-10-31). Every room's call and every
+::  huddle's is held on the ship that created the Glurff's note -- the ship
+::  that keeps the world room -- not on whoever walked in first. Its agent
+::  decides who gets in and keeps each call's moderation, so no browser has to
+::  be open for either. A room leased to a Noltbook note is the exception: its
+::  call is the note's own, on the note's creator.
+::
+::  The Glurff's note. Mirrored as WORLD_NOTE in lib/world-config.js; the two
+::  MUST agree. Its creator is the Glurff's host, its admins are the Glurff's
+::  moderators -- admins of every call -- and its members are who may call.
+++  world-note  `@ta`'note-~2026.09.26..03.54.17..5634'
+::  Call places: rooms below huddle-base, huddles from it up to call-top.
+::  Mirrored as HUDDLE_BASE in lib/huddle.js.
+++  huddle-base  1.000
+++  call-top     901.000
+::  A participant not heard from for this long has left the call. Browsers
+::  renew their credentials at least once a minute.
+++  call-gone  ~m3
+::  host-call: one call as the Glurff's host keeps it.
+::
+::    inc       which run of the call this is. A call that empties and fills
+::              again is a new run: its admins, mutes and removals start over.
+::    rev       the record's revision, so a snapshot is never applied out of
+::              order
+::    seen      who is in the call, and when we last heard from them
+::    admins    the call's own admins: whoever started it, anyone promoted,
+::              and whoever it passed to when they had all gone
+::    muted, booted, recording  as the admins left them
+::    roster    a huddle's members, as its elected member registered them;
+::              `~` for a room, which any member of the Glurff may enter
+::    asked, failing  the call server's room, kept as the world room's is
+::    touched   when anything last happened to the call; a day after, the
+::              record is forgotten
+::    quiet     who the call server was last told to keep quiet in this room:
+::              everybody muted in this call, or in the whole Glurff by its
+::              note (2026-10-31). Kept so the server is told only when that
+::              changes, and so a mute of one kind never lifts the other.
++$  host-call
+  $:  inc=@ud
+      rev=@ud
+      seen=(map @p @da)
+      admins=(set @p)
+      muted=(set @p)
+      booted=(set @p)
+      recording=(unit [by=@p since=@da])
+      roster=(unit (set @p))
+      asked=@da
+      failing=(unit @da)
+      touched=@da
+      quiet=(set @p)
+  ==
+::  A call as state-10 kept it, before `quiet`.
++$  host-call-10
+  $:  inc=@ud
+      rev=@ud
+      seen=(map @p @da)
+      admins=(set @p)
+      muted=(set @p)
+      booted=(set @p)
+      recording=(unit [by=@p since=@da])
+      roster=(unit (set @p))
+      asked=@da
+      failing=(unit @da)
+      touched=@da
+  ==
+::  What everybody in a call is told about it. `mods` are the Glurff's
+::  moderators, sent along so every browser ranks people as the host does.
+::  `muted` is who this call's admins muted; `gmuted`, who in it is muted in
+::  the whole Glurff -- kept apart, so lifting one never lifts the other.
++$  call-snap
+  $:  inc=@ud
+      rev=@ud
+      admins=(set @p)
+      mods=(set @p)
+      muted=(set @p)
+      gmuted=(set @p)
+      booted=(set @p)
+      recording=(unit [by=@p since=@da])
+  ==
+::
 ::  OUR SETTINGS. Owner-local JSON the agent keeps and never reads: which
 ::  clocks we have in the sky and where, and our time zone. Capped, since a
 ::  browser writes it.
@@ -191,10 +273,9 @@
       [%dress peers=(list @p) =look]
       ::  someone we can see is wearing a look we have not got.
       [%fetch-look peers=(list @p) who=@p]
-      ::  claim / release / hand off a room, and set its lock.
+      ::  claim / release a movement session's room.
       [%claim peers=(list @p) =place]
       [%release peers=(list @p) =place]
-      [%lock peers=(list @p) =place mode=lock-mode]
       ::  ask a host -- who need not be a pal -- to let us into their room.
       [%knock peers=(list @p) host=@p =place]
       ::  materialise the commons note. See commons-note-id above.
@@ -215,13 +296,21 @@
       ::  (`take`, on opening) or to stay it (renewing, without `take`). See
       ::  `live` below.
       [%session peers=(list @p) tab=@t take=?]
-      ::  HOST-SHIP ADMISSION. The ships our browser has already let into the
-      ::  call at `place`; our agent admits them again -- renewals, reconnects
-      ::  -- without asking our browser. An empty list forgets the place.
-      [%admits peers=(list @p) =place ships=(list @p)]
-      ::  Ask a host's SHIP for credentials to its call at `place`. See
-      ::  `%call-knock` in `remote`.
+      ::  EVERY CALL ON THE GLURFF'S HOST (see `host-call` below). Ask its ship
+      ::  for credentials to the call at `place` -- a room's or a huddle's --
+      ::  tell it we have left that call, ask it to moderate the call (or,
+      ::  with op %sync, for the call's record), and, as a huddle's elected
+      ::  member, tell it who is in the huddle. Our own agent answers when we
+      ::  are that host.
       [%call-knock peers=(list @p) host=@p =place attempt=@ud mode=@tas]
+      [%call-leave peers=(list @p) host=@p =place]
+      [%call-mod peers=(list @p) host=@p =place inc=@ud target=@p op=@tas]
+      [%call-roster peers=(list @p) host=@p =place ships=(list @p)]
+      ::  As the Glurff's host or one of its moderators, after changing
+      ::  somebody's standing in the Glurff's note: put it into effect in every
+      ::  call now -- and, for somebody removed, the world room -- rather than
+      ::  at their next renewal.
+      [%call-recheck peers=(list @p) host=@p who=@p]
       ::  THE LEASED ROOM'S DOOR: the note's members, and how open the note is.
       ::  Our agent tells the members which note the room is -- a secret note's
       ::  id never rides the relay -- and answers them when they ask.
@@ -241,8 +330,10 @@
       ::  ...or a website, or `~` to give the spot back to the map.
       [%spot-web peers=(list @p) id=@tas web=(unit spot-web)]
   ==
-::  How a host answers a knock. No Noltbook admin controls exist yet, so a host
-::  confers only "the ship that mints tokens" -- no kick, no mute.
+::  How a host answers a knock on a movement session's room. Only %open is
+::  ever set now: room locks are gone (2026-10-31) -- a room that should be
+::  closed is leased to a note, and the note's membership decides. The other
+::  modes stay in the type because it travels between ships in %hosting.
 +$  lock-mode  ?(%open %pals %ask %locked)
 ::  A LEASE on a room of the communal map.
 ::
@@ -354,12 +445,22 @@
       ::  agent tells the occupants directly, or they go on believing the room
       ::  is still the note.
       [%lease-gone =place gen=@ud]
-      ::  A guest's ship asking ours for credentials to our call at `place`,
-      ::  for its attempt `attempt`. Answered by minting -- no browser involved
-      ::  -- if our browser already let them in; otherwise put to our browser.
+      ::  EVERY CALL ON THE GLURFF'S HOST. A ship asking the host's for
+      ::  credentials to the call at `place`, for its attempt `attempt`; the
+      ::  host's refusal, with why; a participant leaving the call; one asking
+      ::  for moderation, or (op %sync) for the record; and the host telling
+      ::  everybody in the call what the record now is. All decided by the
+      ::  host's agent, with no browser involved.
       [%call-knock =place attempt=@ud mode=@tas]
-      ::  The answer when we are not hosting that call at all.
       [%call-refused =place attempt=@ud why=@tas]
+      [%call-leave =place]
+      [%call-mod =place inc=@ud target=@p op=@tas]
+      [%call-mod-snap =place snap=call-snap]
+      ::  A huddle's elected member telling the Glurff's host who is in it.
+      [%call-roster =place ships=(set @p)]
+      ::  A moderator asking the Glurff's host to put somebody's standing in
+      ::  the Glurff into effect now. See %call-recheck in `action`.
+      [%call-recheck who=@p]
       ::  THE DOOR. A ship asking which note our leased room is; the answer to
       ::  a member; and the answer to anybody else.
       [%lease-ask =place]
@@ -390,12 +491,10 @@
       [%lease-gone who=@p =place gen=@ud]
       ::  which browser session is this ship's live one, and its generation
       [%session tab=@t gen=@ud]
-      ::  a ship asked for our call and our agent could not decide alone
-      [%call-knocked who=@p =place attempt=@ud mode=@tas]
-      ::  a host's ship turned our knock away
+      ::  the Glurff's host turned our knock away
       [%call-refused who=@p =place attempt=@ud why=@tas]
-      ::  our agent let somebody back into our call without asking us
-      [%admitted who=@p =place attempt=@ud]
+      ::  the Glurff's host telling us the record of a call we are in
+      [%call-mod-snap host=@p =place snap=call-snap]
       ::  a lease owner told us which note their room is
       [%lease-info who=@p =place note=@ta vis=@tas gen=@ud]
       ::  a lease owner told us their room is private to a note we are not in

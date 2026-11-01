@@ -4,7 +4,7 @@ import { createChatUnread } from 'lib/chat-unread';
 import { our } from 'lib/api';
 import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   displayName, noteName, noteUrl, watchNotes, setChatHistory, chatHistoryCount,
-  hasEarlierMessages, loadEarlierMessages, onChange, editMessage, deleteMessage } from 'lib/noltbook';
+  hasEarlierMessages, loadEarlierMessages, onChange, editMessage, deleteMessage, glurffMuted } from 'lib/noltbook';
 import { messageActions, openMenu, closeMenu, paintText, aboutLine, paintSendState } from 'ui/messages';
 import { ask } from 'ui/ask';
 import { roomById, GAME_ROOM } from 'world/places';
@@ -162,7 +162,6 @@ export class Hud {
   build() {
     this.root.innerHTML = `
       <div class="chat">
-        <div class="chat-peek" aria-hidden="true"></div>
         <button class="chat-toggle" aria-expanded="false">${CHAT_ICON}<span class="chat-toggle-label">Open chat</span><span class="chat-unread" hidden></span></button>
         <div class="chat-content" hidden>
         <div class="where"></div>
@@ -187,9 +186,6 @@ export class Hud {
     this.setOpen=open=>{this.chatOpen=open;if(open)this.historySize=CHAT_LINES;if(touchy())this.root.querySelector('.say input').placeholder='Say something';
       document.documentElement.classList.toggle('chat-open',open);this.unread.open(open);setChatHistory(open?this.historySize:0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
     this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
-    /* A line seen in passing is a way in: click it and the chat opens. */
-    this.peek = this.root.querySelector('.chat-peek');
-    this.peek.onclick = () => this.setOpen(true);
     this.stream = this.root.querySelector('.stream');
     /* OLDER MESSAGES: scrolled to the top -- or, while everything still fits,
      * a wheel turned up there -- brings fifty more. */
@@ -259,6 +255,15 @@ export class Hud {
     this.chatSticky = false;
     input.addEventListener('pointerdown', () => { this.chatSticky = true; });
     input.addEventListener('blur', () => { this.chatSticky = false; });
+    /* MUTED IN THE GLURFF (2026-10-31): reading, yes; saying, no -- anywhere
+     * in it. What was typed stays in the box. A word that is not sent at all
+     * (the Library's, the Game Room's) still works. */
+    const gagged = (v) => {
+      if (!glurffMuted(our)) return false;
+      if (!input.value) input.value = v;
+      this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot send messages.';
+      return true;
+    };
     form.onsubmit = (e) => {
       e.preventDefault();
       if (!this.chatSticky) input.blur();
@@ -269,13 +274,14 @@ export class Hud {
       if (this.editing) {
         const target = this.editing, note = this.noteFor(this.room);
         this.editing = null; this.paint();
-        if (v === target.text) return;
+        if (v === target.text || gagged(v)) return;
         (note ? editMessage(note, target.replyId, v) : this.events.edit(target.eid, v)).catch(() => {
           this.root.querySelector('.error').textContent = 'That could not be edited. Try again.';
         });
         return;
       }
       if (this.secret(v, this.room)) return;
+      if (gagged(v)) return;
       const note = this.noteFor(this.room);
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
       this.replyTo = null;
@@ -286,6 +292,7 @@ export class Hud {
       });
     };
     this.root.querySelector('.game-controls button').onclick = async (e) => {
+      if (glurffMuted(our)) { this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot roll for the room.'; return; }
       e.target.disabled = true;
       try { await this.events.roll(); } catch { this.root.querySelector('.error').textContent = 'Roll could not be shared. Try again.'; }
       finally { e.target.disabled = false; }
@@ -317,7 +324,10 @@ export class Hud {
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
     this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
     this.root.querySelector('.rumors-note').hidden = note !== RUMORS_NOTE;
-    this.paintPeek();
+    /* CLOSED IS CLOSED (2026-10-31): no line of anybody's shows while the chat
+     * is shut -- not one just arrived, not one of ours still sending, not a
+     * page of history landing late. The button and its unread count say there
+     * is something to read. */
     if (!this.chatOpen) return;
     const all = this.lines();
     const shown = recentLines(all, this.historySize);
@@ -403,43 +413,10 @@ export class Hud {
     const ms = this.pending.wakeIn();
     if (ms != null) this.sendTimer = setTimeout(() => { this.pending.tick(); this.changedSends(); }, ms + 30);
   }
-
-  /* The glance: see PEEK_MS. Rebuilt only when the newest line changes. */
-  paintPeek() {
-    if (!this.peek) return;
-    if (this.chatOpen) { this.peek.classList.remove('fresh'); return; }
-    const lines = this.lines(), last = lines.at(-1), newest = last?.eid ?? null, room = this.room;
-    const changed = newest !== this.peekNewest || room !== this.peekRoom;
-    this.peekNewest = newest; this.peekRoom = room;
-    if (!changed) return;
-    this.peek.textContent = '';
-    for (const m of lines.slice(-PEEK_LINES)) {
-      const row = document.createElement('div');
-      row.className = 'peek-line';
-      const who = document.createElement('b');
-      who.textContent = String(m.who ?? 'Anonymous');
-      const said = document.createElement('span');
-      paintText(said, m.text, { our, name: displayName, embed: false });
-      row.append(who, ' ', said);
-      this.peek.appendChild(row);
-    }
-    clearTimeout(this.peekTimer);
-    /* Just said -- or ours, not yet stamped. History arriving after us is
-     * older than PEEK_RECENT_MS, and stays out of the way. */
-    const recent = last && (!Number.isFinite(last.at) || Date.now() - last.at < PEEK_RECENT_MS);
-    if (!recent) { this.peek.classList.remove('fresh'); return; }
-    this.peek.classList.add('fresh');
-    this.peekTimer = setTimeout(() => this.peek.classList.remove('fresh'), PEEK_MS);
-  }
 }
 
 /* How many messages an open chat shows, before scrolling up for more. */
 export const CHAT_LINES = 7;
-/* CHAT AT A GLANCE (2026-10-21): with the chat shut, what was just said shows
- * faintly above its button -- the newest PEEK_LINES lines, for PEEK_MS after
- * the newest arrived -- so a conversation is noticed as it happens. Only what
- * was said in the last PEEK_RECENT_MS: older history is not replayed. */
-export const PEEK_LINES = 3, PEEK_MS = 9000, PEEK_RECENT_MS = 120000;
 const CHAT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 
 /* Played by touch: see ui/touch-controls. */

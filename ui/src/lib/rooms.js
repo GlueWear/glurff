@@ -4,18 +4,22 @@ import { processMicrophone } from 'lib/noise';
 import { createMicHealth, MIC_CHECK_MS } from 'lib/mic-health';
 /* Room calls.
  *
- * Walking into a room joins its call. The first person in becomes its host, and
- * the host's own broker mints tokens for everyone else -- which is what spreads
- * hosting cost across the network instead of concentrating it on one ship.
+ * Walking into a room joins its call, and every room's call and every huddle's
+ * is held on the GLURFF'S HOST (2026-10-31): the ship that created the
+ * Glurff's note, which keeps the world room too. Its agent lets people in and
+ * keeps each call's moderation, so no browser of anybody's has to be open for
+ * either. Whoever starts a call is its admin; the Glurff's host and its
+ * moderators are admins of every call. A room leased to a note is the one
+ * exception: its call is the note's own (lib/notecall).
  *
- * Ames does not care about pals, so knowing a host's @p is enough to ask them
- * for a way in. Presence carries the host of whatever room a peer is standing
- * in, which means anyone you can see is an introduction to a room you could not
- * otherwise reach.
+ * A room still has a KEEPER -- the first one in, as presence agrees -- who
+ * keeps its guest list (lib/roommates): who can see whom through its walls, and
+ * which note it is leased to. That is all a keeper does now; it hosts nothing
+ * and nobody is shown as one.
  */
 import * as G from 'lib/glurff';
 import { our } from 'lib/api';
-import { displayName, visiblePeers, palStatus, worldMember, worldBanned, noteCreator, nb, onChange as onNoltbook, nbAction, noteCallRole, noteCallMuted, noteCallBooted, noteCallRecording, noteModerate, noteVisibility, requestRemoteNotes, inNote, noteFacts } from 'lib/noltbook';
+import { displayName, visiblePeers, palStatus, worldMember, worldBanned, noteCreator, nb, onChange as onNoltbook, nbAction, noteCallRole, noteCallMuted, noteCallBooted, noteCallRecording, noteModerate, noteVisibility, requestRemoteNotes, inNote, noteFacts, glurffMuted } from 'lib/noltbook';
 import { subscribeRaw } from 'lib/api';
 import { createRoommates } from 'lib/roommates';
 import { SfuSession } from 'lib/sfu';
@@ -23,7 +27,8 @@ import { regionAt, COMMONS } from 'world/places';
 import { clusterPeers, agreedMembers, electHost, huddleKey, huddlePlace, HUDDLE_BASE } from 'lib/huddle';
 import { micConstraints, camConstraints, refreshDevices } from 'lib/devices';
 import { createModeration } from 'lib/moderation-session';
-import { roleOf, isMuted, isBooted, mayPlay, recordingOf } from 'lib/moderation';
+import { roleOf, rankOf, mayModerate, isMuted, isCallMuted, isBooted, mayPlay, recordingOf } from 'lib/moderation';
+import { WORLD_HOST } from 'lib/world-config';
 import { createRecorder, canRecord } from 'lib/recording';
 import { createNoteCall } from 'lib/notecall';
 
@@ -56,26 +61,22 @@ export const rooms = {
   /* A call is being held back until positions can be trusted. */
   waiting: false,
   /* What a call that has not connected is waiting on: 'waiting-ship' is our own
-   * ship not having taken the request yet, 'waiting-host' is the host not
-   * answering. Everything else is the call's own phase. */
+   * ship not having taken the request yet, 'waiting-host' is the Glurff's host
+   * not answering. Everything else is the call's own phase. */
   stage: 'idle',
-  /* Hosting being handed over: the offer we made, and one made to us. */
-  hostAsk: null,
-  hostOffer: null,
   /* Other ships actually in the call with us, as the call server reports. */
   others: 0,
-  /* At the door of a room whose copies world members are spread across: the copies
-   * to choose from, {place, options:[{host, count}]}. No call until one is chosen. */
-  picker: null,
-  /* MODERATION, as the call's host keeps it; see lib/moderation. `role` is
-   * ours in this call -- 'host', 'admin' or null -- and the two flags are what
-   * an admin has done TO US. `recording` is whoever is recording, for the
-   * notice everybody sees. */
+  /* MODERATION, as the Glurff's host keeps it; see lib/moderation. `role` is
+   * ours in this call -- 'host', 'mod', 'admin' or null; everybody sees all
+   * three as "admin" -- and the two flags are what an admin has done TO US.
+   * `recording` is whoever is recording, for the notice everybody sees. */
   /* THE LEASE we hold: {place, note} or null. One at a time, by rule. */
   lease: null,
   mod: null,
   role: null,
   mutedByAdmin: false,
+  /* Muted across the whole Glurff by its note, rather than in this call. */
+  mutedInGlurff: false,
   bootedByAdmin: false,
   recording: null,
 };
@@ -86,7 +87,6 @@ let moderation=null, recorder=null, noteCall=null;
 /* Keep live SFU publications while membership updates catch up. A temporarily
  * unknown participant is silent/hidden, then restored without renegotiating. */
 const receivedStreams=new Map();
-const revokedCallPeers=new Set();
 const mayReceiveMedia=ship=>worldMember(our) && palStatus(ship)!=='blocked' && !worldBanned(ship) &&
   (!!noteCall?.note() || worldMember(ship));
 const subscribeNoltbook=(path,fn)=>subscribeRaw('noltbook',path,fn);
@@ -119,9 +119,12 @@ const sendAsking=(to,e)=>{
     Promise.resolve(p).then(()=>{lastControl={...lastControl,out:{kind:e.kind,who:to,at:Date.now()}};},()=>{});
   return p;
 };
-/* What the person should be told about the host they are waiting on, if the
- * trouble is the path to them rather than slowness. */
-export const hostReach=()=>rooms.host && rooms.host!==our?reach?.status(rooms.host)??null:null;
+/* What the person should be told about the host they are waiting on -- the
+ * Glurff's host, or a leased room's note's -- if the trouble is the path to
+ * them rather than slowness. */
+export const hostReach=()=>{const h=controller?.current?.host??rooms.host;return h && h!==our?reach?.status(h)??null:null;};
+/* The ship our Glurff call is on -- the Glurff's host -- or null. */
+export const callHost=()=>controller?.current?.host??null;
 let positionGate={ready:()=>true,roster:null,reliable:()=>true,confidence:()=> 'live-stationary'};
 export const setPositionGate=gate=>{positionGate={...positionGate,...gate};};
 const rosterReady=()=>(positionGate.roster??positionGate.ready)();
@@ -190,6 +193,11 @@ function createMates(){
   return createRoommates({our,send:sendAsking,trace:diagnostic,
     blocked:who=>palStatus(who)==='blocked',
     member:worldMember,
+    /* Asking a keeper for its list is asking to be on it. A room's list takes
+     * anybody the room would; a huddle's, only its members. */
+    accepts:(who,place)=>place>=HUDDLE_BASE
+      ? huddle?.place===place && huddle.host===our && huddle.members.includes(who)
+      : rooms.here===place && admitsToRoom(who,place),
     here:()=>roomContext.here(),
     standing:()=>rooms.here,
     watchers:()=>roomContext.watchers(),
@@ -592,7 +600,7 @@ export const receiveRoomEvent=(who,event)=>{
   if(event?.kind==='room-roster' && event.host===who)reach?.answered(who);
   return mates?.receive(who,event);
 };
-export const tickRoom=()=>{mates?.tick();syncAdmits();pushDoor();askUnknownLeases();};
+export const tickRoom=()=>{mates?.tick();pushDoor();askUnknownLeases();};
 /* A SECRET LEASE WE CAN SEE BUT NOT READ: somebody's room is leased, and how
  * open it is rides the relay, but a secret note's id does not. Ask its owner's
  * ship -- well inside the life of the answer, so a member standing there keeps
@@ -636,51 +644,16 @@ function closeToPrivate(){
   rooms.voice='blocked';rooms.error=PRIVATE_TEXT;
   mark('private',`${rooms.privateRoom?.place??0}/${rooms.privateRoom?.host??''}`);
 }
-/* HOST-SHIP ADMISSION.
- *
- * Who we have let into the call we host, told to our own agent, which then
- * answers those ships' knocks by itself: a renewal or a reconnect is admitted
- * with no browser involved, so a call survives the host's tab being slow,
- * backgrounded or asleep. Anybody new is still put to us (see receiveKnocked)
- * and judged by the room's rules. Booted and blocked ships are never on it. */
-const saidAdmits=new Map();      //  place -> the list our agent holds, as JSON
-function syncAdmits(){
-  const want=new Map();
-  const c=controller?.current;
-  if(c && c.host===our && controller.phase==='connected' && !noteCall?.note()){
-    const roster=mates?.current?.();
-    const ships=c.place>=HUDDLE_BASE
-      ? (huddle?.host===our && huddle.place===c.place ? huddle.members : [])
-      : (roster?.host===our && roster.place===c.place ? roster.guests : []);
-    const list=[...new Set(ships)].filter(s=>s!==our && worldMember(s) &&
-      palStatus(s)!=='blocked' && !bootedShip(s)).sort().slice(0,64);
-    if(list.length)want.set(c.place,list);
-  }
-  for(const place of [...saidAdmits.keys()])if(!want.has(place)){
-    saidAdmits.delete(place);Promise.resolve(G.admits?.(place,[])).catch(()=>{});
-  }
-  for(const [place,list] of want){
-    const key=JSON.stringify(list);
-    if(saidAdmits.get(place)===key)continue;
-    saidAdmits.set(place,key);
-    Promise.resolve(G.admits?.(place,list)).catch(()=>{saidAdmits.delete(place);});
-  }
-}
-/* A ship knocked for our call and our agent could not decide alone: the same
- * as a request arriving any other way. */
-export function receiveKnocked(who,place,attempt,mode){
-  if(!worldMember(who))return;
-  receiveCallEvent(who,{kind:'call-request',place,attempt,mode:mode==='access'?'access':'renew-access'});
-}
-/* A host's ship turned our knock away. */
+/* The Glurff's host turned our knock away, with why. */
 export function receiveShipRefusal(who,place,attempt,why){
   receiveCallEvent(who,{kind:'call-refused',place,attempt,reason:String(why??'refused')});
 }
-/* Our agent let somebody back in on its own: they are still a guest. */
-export function admittedByShip(who,place){
-  if(!worldMember(who))return;
-  mates?.admit?.(who,place);
-  mark('admitted',`${who}:${place}`);
+/* THE GLURFF'S HOST told us a call's record: its admins, who is muted or
+ * removed, and who is recording. Taken only from the host of the call we are
+ * in, and only if it is newer; see lib/moderation-session. */
+export function receiveModSnap(who,snap){
+  if(!snap || typeof snap!=='object')return false;
+  return moderation?.receive(who,snap)??false;
 }
 let listeners=new Set();
 export const onRooms=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
@@ -741,7 +714,7 @@ function removeRemoteStream(id,ship) {
 
 export function initRooms() {
   mates=createMates();
-  if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),picker:rooms.picker,
+  if(typeof window!=='undefined')window.glurffRoomDiagnostics=()=>({...mates.stats(),current:mates.current(),
     huddle:huddle?{state:huddle.state,host:huddle.host,place:huddle.place,session:huddle.session,
       epoch:huddle.epoch,rev:huddle.rev,members:[...huddle.members],pending:huddlePending?.key??null,
       recovery:huddleRecovery?.tries??0}:null,
@@ -764,7 +737,7 @@ export function initRooms() {
     onStreamRemoved:removeRemoteStream,
     onPeerLeft:ship=>{for(const [id,r] of receivedStreams)if(r.ship===ship)receivedStreams.delete(id);
       for(const [id,r] of rooms.remoteStreams)if(r.ship===ship)rooms.remoteStreams.delete(id);
-      revokedCallPeers.delete(ship);rooms.streams.delete(ship);changed();},
+      rooms.streams.delete(ship);changed();},
     onStatus:(status,why)=>{
       mark('sfu',`${status}${why?':'+why:''}`);
       /* In a leased room the call is Noltbook's, so the Glurff controller is
@@ -785,11 +758,7 @@ export function initRooms() {
       controller?.status(status,why);
     },
     onUsers:()=>{const others=callPeers();mates?.inCall(others);const n=others.size;if(n!==rooms.others){rooms.others=n;changed();}
-      refreshCallMembership();
-      /* A recording whose recorder has left the call is stopped by the host:
-       * nobody else can, and a REC notice for a recording that is not
-       * happening is worse than none. */
-      moderation?.membersChanged();watchAlone();},
+      refreshCallMembership();watchAlone();},
     /* ONE PUBLICATION'S FATE, on its own. A camera or a screen that cannot be
      * sent is reported against that kind and nothing else: the call, and the
      * microphone in it, carry on. */
@@ -827,8 +796,9 @@ export function initRooms() {
       changed();
     },
   });
-  moderation=createModeration({our,send:G.sendPresence,trace:diagnostic,
-    members:callMembers,
+  /* Moderation is asked of the Glurff's host's ship, which decides, enforces
+   * on the call server and tells everybody in the call. */
+  moderation=createModeration({our,send:G.callMod,trace:diagnostic,
     enforce:applyModeration,
     changed:()=>{readModeration();changed();},
   });
@@ -859,33 +829,20 @@ export function initRooms() {
     },
   });
   controller=new CallController({our,sfu,trace:diagnostic,
-    /* A guest's request goes to the host's SHIP (see ask() in the controller);
-     * the host's agent lets back in anybody we already admitted. */
-    transport:{send:sendAsking,operation:G.callOperation,
-      ...(G.callKnock?{knock:(host,place,attempt,mode)=>{reach?.asked(host);return G.callKnock(host,place,attempt,mode);}}:{})},
-    known:worldMember,
-    /* Rooms and huddles admit by their guest list, not by where the host
-     * happens to see you standing: asking for the call is asking to be on the
-     * list, and the mode decides. Somebody the host cannot see yet is on the
-     * list the moment they ask, and seen as soon as their state arrives. */
-    accepts:(who,place)=>worldMember(who) && (place>=HUDDLE_BASE
-      ? huddle?.place===place && huddle.host===our && huddle.members.includes(who) && !!mates?.admit(who,place)
-      : rooms.here===place && admitsToRoom(who,place) && !!mates?.admit(who,place)),
+    /* Every request goes to the Glurff's host's SHIP -- our own agent, when we
+     * are that host -- which decides it alone (+call-knock in app/glurff). */
+    transport:{
+      knock:(host,place,attempt,mode)=>{reach?.asked(host);return G.callKnock(host,place,attempt,mode);},
+      leave:(host,place)=>G.callLeave(host,place)},
     changed:(phase,error)=>{
       mark('phase',`${phase}${error?':'+error:''}`);
       rooms.voice=phase;rooms.error=error;watchAlone();
       if(phase==='connected'){
-        /* The call server's own generation is what tells two incarnations of
-         * the same room apart, so moderation is bound to it rather than to
-         * anything we could invent. */
+        /* The call's record is the host's, and arrives as a snapshot; which
+         * run of the call it is about is in the snapshot, not in anything we
+         * could work out here. */
         const c=controller?.current;
-        if(c){
-          const incarnation={place:c.place,host:c.host,gen:c.grant?.gen??0};
-          /* Hosting just moved to us: take up the record that came with it,
-           * bound to the generation of the call we have actually joined. */
-          if(c.host===our && carriedMod){moderation?.assume(incarnation,carriedMod);carriedMod=null;}
-          else moderation?.enter(incarnation);
-        }
+        if(c)moderation?.enter({place:c.place,host:c.host});
         /* A reconnect throws away every publication the session held, so what
          * we think we are sending can outlive what is actually going out.
          * Forget those before restoring intent, or a reconnected call is
@@ -907,8 +864,10 @@ export function initRooms() {
   onNoltbook(()=>{
     const note=noteCall?.note();
     if(note)noteCall.snapshot(nb.calls[note]??null);
-    readModeration();changed();
-  },c=>['calls','callMods','noteAdmins'].includes(c.field));
+    readModeration();
+    if(!note)applyModeration(moderation?.record()??null,moderation?.call()??null);
+    changed();
+  },c=>['calls','callMods','noteAdmins','noteMuted'].includes(c.field));
   /* OUR OWN LEASED NOTE changing its settings -- opened up, closed down, a
    * member added -- has to reach everybody standing in the room. The roster is
    * how they hear it, so publish it again. */
@@ -941,18 +900,11 @@ export function initRooms() {
 }
 /* Membership changes must reach calls even while everyone is stationary.
  * Note-call participants remain note-call participants; only world presence
- * and ordinary Glurff calls require the official world's roster. */
+ * and ordinary Glurff calls require the official world's roster. Somebody who
+ * has left the Glurff is neither played nor shown (mayReceiveMedia), and the
+ * Glurff's host turns them away at their next renewal. */
 function refreshCallMembership(){
   if(!sfu)return;
-  const call=controller?.current;
-  if(!noteCall?.note() && call?.host===our && worldMember(our)){
-    for(const ship of sfu.others()){
-      if(worldMember(ship)){revokedCallPeers.delete(ship);continue;}
-      if(revokedCallPeers.has(ship))continue;
-      revokedCallPeers.add(ship);
-      G.evictFromCall(call.place,ship).catch(()=>{revokedCallPeers.delete(ship);});
-    }
-  }
   applyPlayable(moderation?.record()??null,moderation?.call()??null);
   rooms.others=callPeers().size;
 }
@@ -961,14 +913,9 @@ export function refreshWorldMembership(){
   if(!worldMember(our)){
     if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
     recorder?.stop();closeTab({permanent:false});lastPeers=new Map();rooms.live=new Map();peerRooms.clear();
-    rooms.picker=null;rooms.waiting=false;changed();return;
+    rooms.waiting=false;changed();return;
   }
   for(const who of peerRooms.keys())if(!worldMember(who))peerRooms.delete(who);
-  for(const [place,host] of chosen)if(!worldMember(host))chosen.delete(place);
-  for(const [place,host] of handoffs)if(!worldMember(host))handoffs.delete(place);
-  if(rooms.hostAsk && !worldMember(rooms.hostAsk.to))rooms.hostAsk=null;
-  if(rooms.hostOffer && !worldMember(rooms.hostOffer.from))rooms.hostOffer=null;
-  if(huddleHandoff && !worldMember(huddleHandoff.host))huddleHandoff=null;
   refreshCallMembership();
   if(huddle){
     if(!worldMember(huddle.host))clearHuddle('world-membership');
@@ -1022,19 +969,20 @@ function selectCall(place,host,{preserve=false}={}) {
   /* Not a leased room any more, or never was: our seat goes back. */
   dropSeat();
   if(noteCall?.note())noteCall.leave();
-  if(controller?.current?.place===place && controller.current.host===host)return;
-  /* Removed from this call: standing in the room is not a way back in. The bar
-   * lifts when an admin allows us back, or when the call is a new one. */
-  if(barred(place,host)){releaseMedia();controller?.select(null);rooms.host=host;changed();return;}
-  if(!preserve)releaseMedia();rooms.host=host;
-  rooms.timings={requested:performance.now(),role:host===our?'host':'guest'};
-  controller?.select({place,host},{preserve});
-  /* In a room or a huddle, we are on its host's list -- or keep the list, if the
-   * host is us. */
+  /* THE CALL IS THE GLURFF'S HOST'S, whoever keeps the room's list: one call
+   * per room, so a new keeper is never a new call. */
+  rooms.host=host;
   if(isListPlace(place) && host)mates?.follow(place,host);
   else mates?.leave();
-  /* A room we hold a lease on carries it from the moment we host it. */
+  /* A room we hold a lease on carries it from the moment we keep its list. */
   if(host===our)republishLease();
+  if(controller?.current?.place===place && controller.current.host===WORLD_HOST){refreshStage();return;}
+  /* Removed from this call: standing in the room is not a way back in. The bar
+   * lifts when an admin allows us back, or when the call is a new one. */
+  if(barred(place,WORLD_HOST)){releaseMedia();controller?.select(null);changed();return;}
+  if(!preserve)releaseMedia();
+  rooms.timings={requested:performance.now(),role:WORLD_HOST===our?'host':'guest'};
+  controller?.select({place,host:WORLD_HOST},{preserve});
   refreshStage();
 }
 /* Who a call is waiting on changes with TIME, not only with the call's phase:
@@ -1049,11 +997,12 @@ function refreshStage() {
   if(TRYING.has(next))stageTimer=setTimeout(refreshStage,1000);
 }
 export function receiveCallEvent(who,event){
-  /* The ACTOR is the ship the agent says sent this, never a field in it. */
-  if(!worldMember(who))return;
+  /* The ACTOR is the ship the agent says sent this, never a field in it. The
+   * Glurff's host answers for its calls whether or not it is a member itself. */
+  if(!worldMember(who) && who!==WORLD_HOST)return;
   if(typeof event?.kind==='string'){
     lastControl={...lastControl,in:{kind:event.kind,who,at:Date.now()}};
-    if(['call-refused','call-error','call-host-moved','call-huddle-end'].includes(event.kind))mark('control-in',`${event.kind}:${who}`);
+    if(['call-refused','call-error','call-huddle-end'].includes(event.kind))mark('control-in',`${event.kind}:${who}`);
   }
   /* ASKED FOR A GLURFF CALL IN A ROOM WE HAVE LEASED. There is no Glurff call
    * there -- the room's call is the note's -- and "not hosting" sent the asker
@@ -1075,8 +1024,9 @@ export function receiveCallEvent(who,event){
     if(event.kind==='call-huddle-roster' && event.host===who)reach?.answered(who);
     receiveHuddleEvent(who,event);return;
   }
-  if(typeof event?.kind==='string' && event.kind.startsWith('call-mod-')){moderation?.receive(who,event);return;}
-  if(HANDOFF.has(event?.kind)){receiveHandoff(who,event);return;}
+  /* A call's record comes only from the Glurff's host's agent now (see
+   * receiveModSnap); one a browser sends is from before, and means nothing. */
+  if(typeof event?.kind==='string' && event.kind.startsWith('call-mod-'))return;
   if(event?.kind==='call-leave' && isListPlace(event.place))mates?.left(who,event.place);
   /* A refusal or an error is still an answer: they heard us. */
   if(event?.kind==='call-refused' || event?.kind==='call-error')reach?.answered(who);
@@ -1125,9 +1075,30 @@ function sendHuddle(kind,record,targets=record.members){
 }
 const huddleSummaryOf=r=>({host:r.host,place:r.place,epoch:r.epoch,session:r.session,rev:r.rev,
   members:[...r.members].sort()});
+/* THE HUDDLE'S ROSTER, told to the Glurff's host by the member the huddle
+ * elected: the host lets those on it, and nobody else, into the huddle's call,
+ * and makes that member its admin. Said again every so often in case the host
+ * missed it, and emptied when the huddle ends. */
+const ROSTER_MS=60000;
+let rosterTimer=null;
+function tellRoster(record){
+  clearInterval(rosterTimer);rosterTimer=null;
+  if(!record || record.host!==our)return;
+  const say=()=>Promise.resolve(G.callRoster?.(WORLD_HOST,record.place,
+    huddle?.place===record.place?huddle.members:record.members)).catch(()=>{});
+  say();
+  rosterTimer=setInterval(()=>{
+    if(huddle?.host===our && huddle.place===record.place)say();
+    else{clearInterval(rosterTimer);rosterTimer=null;}
+  },ROSTER_MS);
+}
 function clearHuddle(reason='ended',notify=false){
   const before=huddle;if(!before)return;
   if(notify && before.host===our)sendHuddle('call-huddle-end',before,before.members);
+  if(before.host===our){
+    clearInterval(rosterTimer);rosterTimer=null;
+    Promise.resolve(G.callRoster?.(WORLD_HOST,before.place,[])).catch(()=>{});
+  }
   diagnostic('huddle',{reason,place:before.place,host:before.host,count:0,detail:before.session});
   huddle=null;huddlePending=null;huddleRecovery=null;frozenSince.clear();rooms.host=null;booted=null;
   releaseMedia();controller?.select(null);mates?.leave();changed();
@@ -1147,6 +1118,9 @@ function useHuddle(record,reason='roster',preserve=false){
 function hostHuddle(members,reason='formed'){
   const token=huddleSession();
   const record={...token,rev:1,host:our,place:huddlePlace(our),members:[...members].sort()};
+  /* The roster first, so the Glurff's host has it before anybody -- us
+   * included -- asks for the call. Both go through our ship, in order. */
+  tellRoster(record);
   useHuddle(record,reason,!!huddle);
   sendHuddle('call-huddle-roster',record);
 }
@@ -1155,6 +1129,7 @@ function updateHostedHuddle(members,reason='changed'){
   const old=[...before.members];
   const record={...before,rev:before.rev+1,members:[...members].sort(),authorityAt:Date.now(),state:'active'};
   huddle={...record,key:huddleKey(record.members)};
+  tellRoster(record);
   mates?.keepOnly?.(who=>record.members.includes(who));
   sendHuddle('call-huddle-roster',record,new Set([...old,...record.members]));
   diagnostic('huddle',{reason,place:record.place,host:our,count:record.members.length,
@@ -1166,8 +1141,7 @@ function recordIsNewer(record,current=huddle){
   if(record.session===current.session)return record.rev>current.rev;
   if(record.host===current.host)return record.epoch>current.epoch;
   /* Competing sessions converge on the deterministic host when both proposed
-   * rosters describe the same group. A deliberate handoff is trusted too. */
-  if(huddleHandoff?.host===record.host)return true;
+   * rosters describe the same group. */
   /* Our own ship is deliberately absent from `lastPeers`. Do not mistake that
    * for a vanished authority: doing so lets the local host adopt any competing
    * session while every guest deterministically keeps the local host. */
@@ -1299,16 +1273,13 @@ export function updateHuddle(self,peers) {
   if(!mine){if(huddle)clearHuddle('ended',true);return;}
   // Presence determines the same elected host on both ships. Timeouts never
   // create a competing host while that participant remains in the huddle.
-  /* The call is the host's (see huddlePlace): somebody joining or leaving
-   * changes who is in it, not which call it is, so nobody reconnects. */
-  /* A huddle handed to somebody stays theirs while they are in it. Without
-   * this the lowest @p wins the election straight back and the handoff undoes
-   * itself in the same beat. */
-  if(huddleHandoff && !mine.includes(huddleHandoff.host))huddleHandoff=null;
-  /* `hosts` is what each person near us says their own host is. Passing it in
-   * is what lets two browsers notice they disagree and settle on the same
-   * answer; see electHost. A handoff we are running is trusted over it. */
-  const host=electHost(mine,huddleHandoff?.host??huddle?.host??null,hosts,!!huddleHandoff);
+  /* The call is the elected member's place (see huddlePlace), on the
+   * Glurff's host: somebody joining or leaving changes who is in it, not which
+   * call it is, so nobody reconnects. */
+  /* `hosts` is what each person near us says their elected member is. Passing
+   * it in is what lets two browsers notice they disagree and settle on the
+   * same answer; see electHost. */
+  const host=electHost(mine,huddle?.host??null,hosts,false);
   if(!huddle){
     if(host===our)hostHuddle(mine,'formed');
     else G.sendPresence(host,{kind:'call-huddle-sync',host,place:huddlePlace(host)}).catch(()=>{});
@@ -1317,28 +1288,8 @@ export function updateHuddle(self,peers) {
   updateHostedHuddle(mine,'changed');
 }
 const occupantsIn=room=>[our,...[...lastPeers].filter(([who,p])=>settledRoomOfPeer(who,p)===room).map(([s])=>s)].sort();
-/* THE DOOR. The copies of a room that people we can see are in, where a copy
- * counts only once it has somebody besides its host: a host alone in a room is
- * somebody who just walked in, not a party to choose. Hosts we cannot see
- * standing in the room are not offered. */
-const chosen=new Map();   //  room -> the host picked at its door, this visit
-function doorOptions(room){
-  if(!mates)return [];
-  const occupants=new Set(occupantsIn(room));
-  return [...mates.instances(room)].filter(([host,r])=>r.count>=2 && host!==our && occupants.has(host))
-    .map(([host,r])=>({host,count:r.count,note:r.note??null}))
-    .sort((a,b)=>b.count-a.count || (a.host<b.host?-1:1));
-}
-export function chooseRoomHost(host){
-  const picker=rooms.picker;
-  if(!worldMember(host) || !picker || rooms.here!==picker.place || !picker.options.some(o=>o.host===host))return false;
-  chosen.set(picker.place,host);rooms.picker=null;
-  diagnostic('room-door',{place:picker.place,host,count:picker.options.length,reason:'chosen'});
-  if(positionGate.ready())selectCall(picker.place,host);
-  else rooms.waiting=true;
-  changed();
-  return true;
-}
+/* WHO KEEPS A ROOM'S LIST (lib/roommates), and for a leased room who holds
+ * the lease. Never who hosts its call: that is always the Glurff's host. */
 function roomHost(room) {
   /* A LEASED ROOM'S HOST IS WHOEVER HOLDS THE LEASE -- not whoever we happen
    * to be able to see standing in it. The call is the note's, minted by the
@@ -1349,14 +1300,6 @@ function roomHost(room) {
   const holder=leaseHolder(room);
   if(holder && leaseAt(room,holder).note)return holder;
   const occupants=occupantsIn(room);
-  /* A room handed to someone stays theirs while they are in it. */
-  const handed=handoffs.get(room);
-  if(handed && occupants.includes(handed))return handed;
-  if(handed)handoffs.delete(room);
-  /* So does a copy chosen at the door. */
-  const picked=chosen.get(room);
-  if(picked && occupants.includes(picked))return picked;
-  if(picked)chosen.delete(room);
   const announced=[...lastPeers].filter(([who,p])=>settledRoomOfPeer(who,p)===room).map(([,p])=>p.host).filter(h=>occupants.includes(h));
   if(rooms.here===room && occupants.includes(rooms.host))announced.push(rooms.host);
   return announced.sort()[0]??occupants[0];
@@ -1368,18 +1311,10 @@ export function refresh(peers) {
   for(const [who,p] of peers){const room=settledRoomOfPeer(who,p);if(room===COMMONS)continue;
     const r=live.get(room)??{host:null,occupants:new Set()};r.occupants.add(who);if(p.host)r.host=p.host;live.set(room,r);}
   if(rooms.here!==COMMONS && worldMember(our)){const host=roomHost(rooms.here),r=live.get(rooms.here)??{host,occupants:new Set()};r.occupants.add(our);r.host=host;live.set(rooms.here,r);
-    /* The room's host is only chosen once positions are trustworthy; see
-     * updateHuddle for why. main.js re-runs this when that changes. */
-    /* Standing at the door of a room split between copies: nothing until one
-     * is chosen. If the split goes away meanwhile, so does the question. */
-    if(rooms.picker){
-      const options=doorOptions(rooms.here);
-      if(options.length<2){rooms.picker=null;changed();}
-      else if(JSON.stringify(options)!==JSON.stringify(rooms.picker.options)){rooms.picker={place:rooms.here,options};changed();}
-    }
-    /* The room's host changed under us: keep talking while the new host's
-     * call comes up, as a huddle does. */
-    if(!rooms.picker && host!==rooms.host && rosterReady())selectCall(rooms.here,host,{preserve:rooms.voice==='connected'});}
+    /* The room's keeper is only chosen once positions are trustworthy; see
+     * updateHuddle for why. main.js re-runs this when that changes. A new
+     * keeper is a new list to follow, never a new call. */
+    if(host!==rooms.host && rosterReady())selectCall(rooms.here,host,{preserve:rooms.voice==='connected'});}
   const waiting=rooms.here!==COMMONS && rooms.host===null && !positionGate.ready();
   if(waiting!==rooms.waiting){rooms.waiting=waiting;changed();}
   const same=live.size===rooms.live.size && [...live].every(([id,r])=>{const old=rooms.live.get(id);return old && old.host===r.host && old.occupants.size===r.occupants.size && [...r.occupants].every(s=>old.occupants.has(s));});
@@ -1397,17 +1332,9 @@ export function enterRoom(room) {
   if(room===rooms.here)return;
   if(room===COMMONS){leaveRoom();return;}
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
-  mates?.leave();chosen.clear();booted=null;
+  mates?.leave();booted=null;
   if(rooms.privateRoom)clearPrivate();
-  huddle=null;huddlePending=null;rooms.here=room;rooms.host=null;rooms.picker=null;clearHandoff();
-  /* People we can see are in more than one copy of this room: ask which. */
-  const options=doorOptions(room);
-  if(options.length>=2){
-    releaseMedia();controller?.select(null);
-    rooms.picker={place:room,options};
-    diagnostic('room-door',{place:room,count:options.length,reason:'asked'});
-    changed();return;
-  }
+  huddle=null;huddlePending=null;rooms.here=room;rooms.host=null;
   const host=roomHost(room);if(host===our)G.claimRoom(room).catch(()=>{});
   if(positionGate.ready())selectCall(room,host);
   else {releaseMedia();controller?.select(null);rooms.waiting=true;}   //  never stay in the call we walked out of
@@ -1418,188 +1345,15 @@ export function leaveRoom() {
   if(rooms.privateRoom)clearPrivate();
   noteCall?.leave();
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
-  clearHandoff();mates?.leave();chosen.clear();booted=null;
-  rooms.here=COMMONS;rooms.host=null;rooms.waiting=false;rooms.picker=null;huddlePending=null;releaseMedia();controller?.select(null);changed();
+  mates?.leave();booted=null;
+  rooms.here=COMMONS;rooms.host=null;rooms.waiting=false;huddlePending=null;releaseMedia();controller?.select(null);changed();
 }
 // Legacy room claims update the display; admission uses correlated call-request.
 export function noteHost(who,room){if(rooms.here===room && lastPeers.has(who))refresh(lastPeers);}
 export function clearHost(who,room){const r=rooms.live.get(room);r?.occupants.delete(who);if(r?.host===who)r.host=null;}
 export function answerKnock(){}
 
-/* Handing a room's hosting to someone else in it.
- *
- * The host asks; the person answers. On a yes the host tells everyone in the
- * room, releases its claim and joins the new host's call like any guest, while
- * the new host claims the room and opens the call on its own broker. Only the
- * host everyone already follows can move hosting, only to someone standing in
- * the room, and only with their yes -- hosting spends their broker. The call
- * drops for a moment while everyone reconnects to the new host.
- *
- * Everyone who saw the handover keeps following the new host while that host
- * stays in the room; otherwise the lowest @p would win the election straight
- * back. Anyone arriving later hears the new host announced by those inside.
- * Commons huddles are not handed over: their host follows from who is in them. */
-const HANDOFF=new Set(['call-host-offer','call-host-accept','call-host-decline','call-host-moved']);
-/* A huddle handed over: the host chosen, kept while they are still in it. A
- * huddle's call is its HOST's (see huddlePlace), so moving hosting moves
- * everybody to a different place -- which is why the move is announced to the
- * members rather than derived, and why a late arrival hears it from them. */
-let huddleHandoff=null;
-const HANDOFF_MS=30000;
-const handoffs=new Map();   //  room -> the host it was handed to
 const isRoom=place=>Number.isSafeInteger(place) && place>COMMONS && place<1000;
-function clearHandoff(){handoffs.clear();huddleHandoff=null;rooms.hostAsk=null;rooms.hostOffer=null;}
-/* The huddle we are in, as a place a handoff can name. */
-const huddleNow=()=>huddle&&rooms.here===COMMONS?huddle:null;
-const inHuddle=(ship)=>!!huddleNow()?.members.includes(ship);
-function expireHandoffLater(){
-  setTimeout(()=>{
-    const t=Date.now();let moved=false;
-    if(rooms.hostAsk && t>=rooms.hostAsk.until){rooms.hostAsk=null;moved=true;}
-    if(rooms.hostOffer && t>=rooms.hostOffer.until){rooms.hostOffer=null;moved=true;}
-    if(moved)changed();
-  },HANDOFF_MS+100);
-}
-const tellHandoff=(who,kind,place,id,extra={})=>Promise.resolve(G.sendPresence(who,{kind,place,attempt:id,...extra})).catch(()=>{});
-/* Hosting can be handed on in an authored room, and in a proximity huddle --
- * where the members are the people actually in it, never everyone standing
- * about in the commons. */
-export const canHandOff=()=>rosterReady() &&
-  ((isRoom(rooms.here) && rooms.host===our) || (!!huddleNow() && huddleNow().host===our));
-/* Who this host may hand to: a member of THIS call, not a bystander. */
-export function mayHandTo(ship){
-  if(!canHandOff() || ship===our || !worldMember(ship) || !visiblePeers().includes(ship))return false;
-  const h=huddleNow();
-  return h && h.host===our ? h.members.includes(ship) : occupantsOf(rooms.here).includes(ship);
-}
-export function offerHost(ship){
-  if(!mayHandTo(ship))return false;
-  const h=huddleNow();
-  const place=h&&h.host===our?h.place:rooms.here;
-  const id=Date.now()*1000+Math.floor(Math.random()*1000);
-  rooms.hostAsk={to:ship,place,id,until:Date.now()+HANDOFF_MS,huddle:!!h};
-  tellHandoff(ship,'call-host-offer',place,id,h?{members:h.members}:{});
-  expireHandoffLater();changed();
-  return true;
-}
-export function answerHostOffer(accept){
-  const offer=rooms.hostOffer;
-  if(!offer || offer.accepted)return;
-  /* Still the same offer, about a call we are still in, from the host of it.
-   * A huddle's place is not where we are standing -- the commons is -- so it
-   * is the huddle's own place and host that have to match. */
-  const h=huddleNow();
-  const current=Date.now()<offer.until && (offer.huddle
-    ? !!h && h.place===offer.place && h.host===offer.from
-    : rooms.here===offer.place && rooms.host===offer.from);
-  if(!accept || !current){
-    rooms.hostOffer=null;tellHandoff(offer.from,'call-host-decline',offer.place,offer.id);changed();return;
-  }
-  /* Nothing changes here until the host confirms: it may have moved on. */
-  rooms.hostOffer={...offer,accepted:true};
-  tellHandoff(offer.from,'call-host-accept',offer.place,offer.id);changed();
-}
-/* Where a handoff event is about: an authored room, or the huddle whose place
- * the sender named. A huddle's place is a function of its HOST, so the place
- * in the event identifies the call being moved, not where it is going. */
-const handoffPlace=(place)=>isRoom(place)?'room':(huddleNow()?.place===place?'huddle':null);
-
-/* The moderation record handed over with hosting, held until our own call
- * connects and we know the generation it belongs to. */
-let carriedMod=null;
-
-function receiveHandoff(who,event){
-  const {kind,place,attempt:id}=event;
-  const scope=handoffPlace(place);
-  if(!scope || !Number.isSafeInteger(id) || who===our)return;
-  const h=scope==='huddle'?huddleNow():null;
-  const hostNow=h?h.host:rooms.host;
-  const membersNow=()=>h?h.members:occupantsOf(place);
-
-  if(kind==='call-host-offer'){
-    /* Only the host of the call we are actually in may offer it, and only to
-     * somebody who is in it -- us. */
-    const ours=scope==='huddle'?h.members.includes(our):rooms.here===place;
-    if(!ours || hostNow!==who || !visiblePeers().includes(who)){tellHandoff(who,'call-host-decline',place,id);return;}
-    rooms.hostOffer={from:who,place,id,until:Date.now()+HANDOFF_MS,huddle:scope==='huddle'};
-    expireHandoffLater();changed();return;
-  }
-  if(kind==='call-host-decline'){
-    if(rooms.hostAsk?.to===who && rooms.hostAsk.id===id){rooms.hostAsk=null;changed();}
-    return;
-  }
-  if(kind==='call-host-accept'){
-    const ask=rooms.hostAsk;
-    if(!ask || ask.to!==who || ask.id!==id || ask.place!==place)return;
-    rooms.hostAsk=null;
-    if(Date.now()>=ask.until || hostNow!==our || !membersNow().includes(who)){
-      tellHandoff(who,'call-host-decline',place,id);changed();return;
-    }
-    /* A recording is the outgoing host's to finish: it must not be left
-     * running against a call that is about to become somebody else's. */
-    if(rooms.recording)stopRecording();
-    /* Promotions, mutes and boots go with hosting, so a transfer does not
-     * quietly un-mute somebody. */
-    const carry=moderation?.carry()??null;
-    for(const s2 of membersNow())if(s2!==our)
-      tellHandoff(s2,'call-host-moved',place,id,{host:who,...(s2===who&&carry?{mod:carry}:{})});
-    if(scope==='huddle'){
-      huddleHandoff={host:who,at:Date.now()};
-      moderation?.enter(null);
-      controller?.hosted.delete(place);
-      /* The recipient mints the new authoritative session. Everyone else gets
-       * the ordinary moved notice and then its roster. */
-      huddle={...huddle,host:who,place:huddlePlace(who),state:'transitioning'};
-      selectCall(huddlePlace(who),who,{preserve:true});changed();return;
-    }
-    /* HANDING A LEASED ROOM ON GIVES THE ROOM BACK.
-     *
-     * A leased room's call is the note's, minted by the note's own ship -- it
-     * is not ours to hand to anybody. Worse, while the lease stands every
-     * client picks the lease holder as the room's host, so a handoff was
-     * immediately elected back and the call flapped between the two of them.
-     *
-     * So the lease ends here and what is handed over is an ordinary Glurff
-     * room. No re-select: the handoff is about to choose the new host's call
-     * itself, and selecting our own in between would start a call we are in
-     * the middle of giving away. */
-    if(rooms.lease?.place===place){
-      diagnostic('room-lease',{place,reason:'handed-on'});
-      G.dropLease().catch(()=>{});
-      setLease(null,{reselect:false});
-    }
-    handoffs.set(place,who);
-    G.releaseRoom(place).catch(()=>{});
-    controller?.hosted.delete(place);   //  our broker's room is no longer the call
-    moderation?.enter(null);
-    selectCall(place,who,{preserve:rooms.voice==='connected'});changed();return;
-  }
-  if(kind==='call-host-moved'){
-    const host=event.host;
-    /* Only the host we follow can say hosting moved, and never to itself. */
-    if(typeof host!=='string' || !worldMember(host) || hostNow!==who || host===who)return;
-    if(scope==='huddle' && !h.members.includes(host))return;   //  never to a non-member
-    if(host===our){
-      const offer=rooms.hostOffer;
-      if(!offer?.accepted || offer.from!==who || offer.id!==id || offer.place!==place)return;   //  we never agreed
-      rooms.hostOffer=null;
-      /* Carried moderation is applied once our own call connects and its
-       * generation is known; see the controller's `connected`. */
-      carriedMod=event.mod&&typeof event.mod==='object'?{...event.mod,rev:Number(event.mod.rev)||0}:null;
-      if(scope==='room')G.claimRoom(place).catch(()=>{});
-    } else if(scope==='room' && !occupantsOf(place).includes(host)) return;   //  a host we cannot see is not one we can join
-    if(scope==='huddle'){
-      huddleHandoff={host,at:Date.now()};
-      moderation?.enter(null);
-      if(host===our){hostHuddle(h.members,'handed');return;}
-      huddle={...huddle,host,place:huddlePlace(host),state:'transitioning'};
-      selectCall(huddlePlace(host),host,{preserve:true});changed();return;
-    }
-    handoffs.set(place,host);
-    moderation?.enter(null);
-    selectCall(place,host,{preserve:rooms.voice==='connected'});changed();
-  }
-}
 export const occupantsOf=room=>[...(rooms.live.get(room)?.occupants??[])];
 export const hostOf=room=>rooms.live.get(room)?.host??null;
 export const hostName=room=>{const h=hostOf(room);return h?displayName(h):null;};
@@ -1764,7 +1518,7 @@ function releaseMedia() {
     published[kind]=null;
   }
   rooms.micOn=intent.mic;rooms.camOn=intent.cam;rooms.screenOn=intent.screen;
-  receivedStreams.clear();revokedCallPeers.clear();
+  receivedStreams.clear();
   rooms.streams.clear();rooms.remoteStreams.clear();
   for(const k of [...rooms.localStreams.keys()])if(!(k==='cam' && preview) && !(k==='screen' && display))rooms.localStreams.delete(k);
 }
@@ -1783,7 +1537,7 @@ export async function reopenCapture(kind){
   await publish('mic',()=>navigator.mediaDevices.getUserMedia(micConstraints()),'camera');
 }
 export const outputChanged=()=>sfu?.refreshOutput();
-export function closeTab({permanent=true}={}){noteCall?.leave();mates?.leave();if(permanent)controller?.close();else controller?.select(null);clearHandoff();clearTimeout(huddleTimer);huddleTimer=null;huddlePending=null;clearTimeout(stageTimer);stageTimer=null;huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=intent.screen=false;releaseMedia();stopPreview();stopDisplay();}
+export function closeTab({permanent=true}={}){noteCall?.leave();mates?.leave();if(permanent)controller?.close();else controller?.select(null);clearTimeout(huddleTimer);clearInterval(rosterTimer);rosterTimer=null;huddleTimer=null;huddlePending=null;clearTimeout(stageTimer);stageTimer=null;huddle=null;rooms.here=COMMONS;rooms.host=null;intent.mic=intent.cam=intent.screen=false;releaseMedia();stopPreview();stopDisplay();}
 
 /* The world never opens a microphone or camera on its own: each of these is an
  * explicit act, and each can be undone without leaving the room. */
@@ -2078,9 +1832,6 @@ export function callMembers(){
   return [...new Set([our,...others,...here,...guests])].filter(worldMember);
 }
 
-/* The call we are in, for the moderation rules. */
-const callNow=()=>{const c=controller?.current;return c?{place:c.place,host:c.host,gen:c.grant?.gen??0}:null;};
-
 /* Copy the record into the shape the UI reads, and keep the recorder pointed
  * at it. Nothing here decides anything: the record does. */
 function readModeration(){
@@ -2093,7 +1844,11 @@ function readModeration(){
     rooms.mod=null;
     rooms.role=noteCallRole(note,our);
     rooms.recording=noteCallRecording(note);
-    rooms.mutedByAdmin=noteCallMuted(note,our);
+    /* The Glurff's own mute holds here too, though Noltbook's call server
+     * knows nothing of it: our page locks our media, and everybody's page
+     * stops playing us. */
+    lockMedia(noteCallMuted(note,our)||glurffMuted(our),'muted');
+    rooms.mutedInGlurff=glurffMuted(our);
     rooms.bootedByAdmin=noteCallBooted(note,our);
     rooms.recordingMine=!!recorder?.active();
     applyPlayable(null,null);
@@ -2120,9 +1875,8 @@ function readModeration(){
  * A boot disconnects us and keeps us disconnected while we are still standing
  * in the room, which is the only way "removed from this call" can mean
  * anything when the room is a place you can walk back into. */
-let booted=null;   //  the call incarnation we were removed from
-function applyModeration(record,call){
-  const muted=isMuted(record,call,our);
+let booted=null;   //  the run of the call we were removed from: {place, host, inc}
+function lockMedia(muted,reason,place=0){
   const wasMuted=rooms.mutedByAdmin;
   rooms.mutedByAdmin=muted;
   if(muted && !wasMuted){
@@ -2130,21 +1884,28 @@ function applyModeration(record,call){
     for(const kind of ['mic','cam','screen'])unpublish(kind);
     stopPreview();stopDisplay();
     rooms.micOn=rooms.camOn=rooms.screenOn=false;
-    diagnostic('call-mod-applied',{place:call?.place??0,reason:'muted'});
+    diagnostic('call-mod-applied',{place,reason});
   }
+}
+function applyModeration(record,call){
+  const run=record?.inc??0;
+  /* Muted in this call, or across the whole Glurff -- which Noltbook says at
+   * once, before the host's next record of the call says it too. */
+  rooms.mutedInGlurff=glurffMuted(our);
+  lockMedia(isMuted(record,call,our)||rooms.mutedInGlurff,'muted',call?.place??0);
   const bootedNow=isBooted(record,call,our);
   rooms.bootedByAdmin=bootedNow;
   if(bootedNow && call){
-    if(!booted || booted.place!==call.place || booted.host!==call.host || booted.gen!==call.gen){
-      booted={...call};
+    if(!booted || booted.place!==call.place || booted.host!==call.host || booted.inc!==run){
+      booted={place:call.place,host:call.host,inc:run};
       diagnostic('call-mod-applied',{place:call.place,reason:'booted'});
       releaseMedia();controller?.select(null);
     }
-  } else if(booted && call && booted.place===call.place && booted.host===call.host && booted.gen===call.gen){
+  } else if(booted && call && booted.place===call.place && booted.host===call.host && booted.inc===run){
     /* Allowed back in, without having to walk out and in again. */
     booted=null;
     diagnostic('call-mod-applied',{place:call.place,reason:'unbooted'});
-    selectCall(call.place,call.host);
+    selectCall(call.place,rooms.host??call.host);
   }
   /* A muted participant is not played and not shown by anybody. */
   applyPlayable(record,call);
@@ -2161,7 +1922,7 @@ function applyPlayable(record,call){
    * so a roster arriving after a stream can reveal it without a second offer. */
   for(const [id,r] of receivedStreams){
     const {ship}=r;if(!ship)continue;
-    const hide=!mayReceiveMedia(ship) || (note?(noteCallMuted(note,ship)||noteCallBooted(note,ship)):!mayPlay(record,call,ship));
+    const hide=!mayReceiveMedia(ship) || glurffMuted(ship) || (note?(noteCallMuted(note,ship)||noteCallBooted(note,ship)):!mayPlay(record,call,ship));
     if(hide)blocked.add(ship);
     else rooms.remoteStreams.set(id,r);
   }
@@ -2174,8 +1935,9 @@ function applyPlayable(record,call){
   rooms.blocked=[...blocked];
 }
 
-/* Ask for something. The host does it; everyone else asks the host, and the
- * host's answer is the snapshot everybody takes. */
+/* Ask for something. The Glurff's host's ship decides, makes it true on the
+ * call server, and tells everybody in the call; its answer is the snapshot
+ * everybody takes, ourselves included. */
 export function moderate(target,op){
   const note=noteCall?.note();
   if(note){
@@ -2185,31 +1947,22 @@ export function moderate(target,op){
     noteModerate(note,target,op).catch(()=>{});
     return true;
   }
-  const call=moderation?.call();
-  if(!call)return false;
-  const before=moderation.record();
-  const ok=moderation.request(target,op);
-  /* Server-side enforcement, from the host only: Galene is told to stop
-   * accepting that participant's media, or to drop them. Our own copy of the
-   * record is what the button reads; this is what makes it true for everyone,
-   * including a client that ignores us. */
-  if(ok && call.host===our)enforceOnServer(before,moderation.record(),call);
-  return ok;
-}
-function enforceOnServer(before,after,call){
-  if(!after || before===after)return;
-  const was=(k)=>new Set(before?.[k]??[]);
-  const now=(k)=>new Set(after[k]??[]);
-  for(const who of now('muted'))if(!was('muted').has(who))G.muteInCall(call.place,who).catch(()=>{});
-  for(const who of was('muted'))if(!now('muted').has(who))G.unmuteInCall(call.place,who).catch(()=>{});
-  for(const who of now('booted'))if(!was('booted').has(who))G.evictFromCall(call.place,who).catch(()=>{});
+  return moderation?.request(target,op)??false;
 }
 export const modRecord=()=>moderation?.record()??null;
 export const modCall=()=>moderation?.call()??null;
 export const myRole=()=>rooms.role;
 export const canModerate=()=>!!rooms.role;
-/* Admins may act on anyone in the call but the host and themselves; an
- * ordinary admin may not act on another admin. */
+/* HOW HIGH SOMEBODY STANDS in the call we are in, for who may act on whom:
+ * 3 the host, 2 a Glurff moderator, 1 an admin of this call, 0 anybody else.
+ * In a leased room it is Noltbook's own two: the note's creator, then its
+ * admins and the call's together. */
+export function rankFor(ship){
+  const note=noteCall?.note();
+  if(note){const r=noteCallRole(note,ship);return r==='host'?3:r?1:0;}
+  return rankOf(moderation?.record()??null,moderation?.call()??null,ship);
+}
+/* Admins may act on anybody below them, and never on themselves. */
 export function mayActOn(ship){
   const note=noteCall?.note();
   if(note){
@@ -2217,19 +1970,28 @@ export function mayActOn(ship){
     const theirs=noteCallRole(note,ship);
     return !(theirs && rooms.role!=='host');
   }
-  const call=moderation?.call();
-  if(!call || !rooms.role || ship===our || ship===call.host)return false;
-  const theirs=roleOf(moderation.record(),call,ship);
-  return !(theirs && rooms.role!=='host');
+  return mayModerate(moderation?.record()??null,moderation?.call()??null,our,ship);
 }
-export const roleFor=(ship)=>{
-  const note=noteCall?.note();
-  return note?noteCallRole(note,ship):roleOf(moderation?.record()??null,moderation?.call()??null,ship);
+/* What everybody is SHOWN: "admin" for anybody with rights in this call --
+ * the host, a moderator or the call's own -- and nothing for anybody else. */
+export const roleFor=(ship)=>rankFor(ship)>0?'admin':null;
+/* Somebody else's recording may be stopped by anybody above its recorder. */
+export const mayStopRecording=()=>{
+  const rec=rooms.recording;
+  return !!rec && (rec.by===our || rankFor(our)>rankFor(rec.by));
 };
 export const mutedShip=(ship)=>{
   const note=noteCall?.note();
-  return note?noteCallMuted(note,ship):isMuted(moderation?.record()??null,moderation?.call()??null,ship);
+  return glurffMuted(ship) || (note?noteCallMuted(note,ship):isMuted(moderation?.record()??null,moderation?.call()??null,ship));
 };
+/* Muted by THIS call's admins, which is all a call's Unmute can lift. */
+export const callMutedShip=(ship)=>{
+  const note=noteCall?.note();
+  return note?noteCallMuted(note,ship):isCallMuted(moderation?.record()??null,moderation?.call()??null,ship);
+};
+/* Muted across the whole Glurff: lifted only in the Glurff's members. */
+export const glurffMutedShip=(ship)=>glurffMuted(ship) ||
+  (!noteCall?.note() && !!moderation?.record()?.gmuted?.includes?.(ship));
 export const bootedShip=(ship)=>{
   const note=noteCall?.note();
   return note?noteCallBooted(note,ship):isBooted(moderation?.record()??null,moderation?.call()??null,ship);
@@ -2262,7 +2024,7 @@ function recordableAudio(){
   for(const t of mine)out.push({key:'self:'+t.id,track:t});
   const record=moderation?.record()??null,call=moderation?.call()??null;
   for(const {ship,stream} of rooms.remoteStreams.values()){
-    if(!ship || ship===our || !mayReceiveMedia(ship) || !mayPlay(record,call,ship))continue;
+    if(!ship || ship===our || !mayReceiveMedia(ship) || glurffMuted(ship) || !mayPlay(record,call,ship))continue;
     for(const t of stream.getAudioTracks?.()??[])out.push({key:ship+':'+t.id,track:t});
   }
   return out;

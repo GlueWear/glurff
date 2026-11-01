@@ -116,15 +116,6 @@
     ?:  =('fetch-look' op)  [%fetch-look peers (need (ship 'who'))]
     ?:  =('claim' op)    [%claim peers (num 'place' 0)]
     ?:  =('release' op)  [%release peers (num 'place' 0)]
-    ?:  =('lock' op)
-      =/  m=lock-mode:g
-        =/  v  (str 'mode')
-        ?~  v  %open
-        ?:  =('pals' u.v)    %pals
-        ?:  =('ask' u.v)     %ask
-        ?:  =('locked' u.v)  %locked
-        %open
-      [%lock peers (num 'place' 0) m]
     ?:  =('knock' op)
       [%knock peers (need (ship 'host')) (num 'place' 0)]
     ?:  =('splash' op)
@@ -148,12 +139,22 @@
       :*  %seat  peers  (slav %p (need (str 'host')))  (num 'place' 0)
           (num 'gen' 0)  `@t`(need (str 'tab'))  w
       ==
-    ?:  =('admits' op)
-      [%admits peers (num 'place' 0) (ships 'ships')]
+    ::  EVERY CALL ON THE GLURFF'S HOST: asking for one, leaving one,
+    ::  moderating one, and registering a huddle's members.
     ?:  =('call-knock' op)
       :*  %call-knock  peers  (need (ship 'host'))  (num 'place' 0)
           (num 'attempt' 0)  `@tas`(need (str 'mode'))
       ==
+    ?:  =('call-leave' op)
+      [%call-leave peers (need (ship 'host')) (num 'place' 0)]
+    ?:  =('call-mod' op)
+      :*  %call-mod  peers  (need (ship 'host'))  (num 'place' 0)
+          (num 'inc' 0)  (need (ship 'target'))  `@tas`(need (str 'mod'))
+      ==
+    ?:  =('call-roster' op)
+      [%call-roster peers (need (ship 'host')) (num 'place' 0) (ships 'ships')]
+    ?:  =('call-recheck' op)
+      [%call-recheck peers (need (ship 'host')) (need (ship 'who'))]
     ?:  =('lease-door' op)
       [%lease-door peers `@tas`(need (str 'vis')) (ships 'members')]
     ?:  =('lease-ask' op)

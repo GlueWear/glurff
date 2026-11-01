@@ -112,7 +112,7 @@ function directAdapter(root, provider, ref) {
   root.appendChild(el);
   let pendingSeek = null;
   el.addEventListener('loadedmetadata',()=>{if(pendingSeek!==null){el.currentTime=pendingSeek/1000;pendingSeek=null;}});
-  const tell = () => bus.emit({ paused: el.paused, positionMs: provider === 'radio' ? 0 : (el.currentTime || 0) * 1000 });
+  const tell = () => bus.emit({ paused: el.paused, ended: el.ended, positionMs: provider === 'radio' ? 0 : (el.currentTime || 0) * 1000 });
   el.addEventListener('play', tell); el.addEventListener('pause', tell); el.addEventListener('seeked', tell);
   return {
     ready: Promise.resolve(), load: () => {}, play: () => el.play().catch(() => {}), pause: () => el.pause(),
@@ -135,7 +135,8 @@ function youtubeAdapter(root, ref, { playlistIndex = 0 } = {}) {
     const url = video ? `https://www.youtube.com/watch?v=${video}${list ? `&list=${list}` : ''}` : ref;
     const playing = status === globalThis.YT?.PlayerState?.PLAYING;
     const paused = status === globalThis.YT?.PlayerState?.PAUSED || status === globalThis.YT?.PlayerState?.ENDED;
-    return { status, playing, paused, stable:playing||paused, positionMs:(player?.getCurrentTime?.()||0)*1000,
+    const ended = status === globalThis.YT?.PlayerState?.ENDED;
+    return { status, playing, paused, ended, stable:playing||paused, positionMs:(player?.getCurrentTime?.()||0)*1000,
       ref:url, playlistIndex:index, playlistLength:player?.getPlaylist?.()?.length??0 };
   };
   const ready = youtubeScript().then(() => new Promise((resolve, reject) => {

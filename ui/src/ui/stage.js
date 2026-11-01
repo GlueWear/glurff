@@ -7,9 +7,16 @@
  * the world stops drawing (presence and calls go on), and our character shows
  * the others what we are doing (see lib/sites activityText).
  *
- * THE TAB, always on screen at the top: what is on the stage, a button that
- * hides Glurff's controls or brings them back, "Open in a new tab" for a
- * website, and the cross that closes it. A game that has taken the mouse
+ * ROOM FOR GLURFF (2026-10-31). While Glurff's interface shows, what is on the
+ * stage is fitted BETWEEN its bars, never under them: the space taken at the
+ * top and at the bottom is measured from the bars actually on screen -- a
+ * phone's notch and home bar, a call bar that grows -- and kept in
+ * --stage-top and --stage-bottom, which staged apps, websites, videos and call
+ * tiles keep clear of. With Glurff hidden, the stage has the whole screen.
+ *
+ * THE TAB, always on screen at the top: what is on the stage, "Hide Glurff"
+ * and "Show Glurff", "Open in a new tab" for a website, and the cross that
+ * closes it. A game that has taken the mouse
  * gives it back on Esc -- the browser guarantees that -- and then the tab is
  * one click away. Inside a game that runs on our own ship, Ctrl+Shift+G does
  * the same without Esc.
@@ -38,6 +45,11 @@ function paintIcon(el, source) {
   else el.textContent = (source.title || '?').trim().charAt(0).toUpperCase();
 }
 const HIDE_TAB_MS = 5000;
+/* What Glurff keeps on screen over the stage, at the top and at the bottom. */
+const TOP_BARS = ['#top-left', '#top-mid', '#top-right', '.stage-tab .stage-bar'];
+const BOTTOM_BARS = ['#rail', '#hud .chat-toggle'];
+const BAR_GAP = 6;
+const shown = (el) => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity !== 0; };
 const SHORTCUT = (e) => e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyG';
 
 export class Stage {
@@ -81,6 +93,42 @@ export class Stage {
       if(this.source&&!this.overlay&&e.key==='Escape')this.wake();
     };
     window.addEventListener('keydown', this.onKey, true);
+    this.layout = this.layout.bind(this);
+    window.addEventListener('resize', this.layout);
+    window.visualViewport?.addEventListener?.('resize', this.layout);
+    if (typeof ResizeObserver === 'function') this.bars = new ResizeObserver(() => this.layout());
+  }
+
+  /* The space Glurff's bars take, as they are laid out right now. A source may
+   * ask for more at the bottom for its own buttons (`reserve.bottom`), which
+   * then sit in that space rather than over what is playing. */
+  layout() {
+    const root = document.documentElement.style;
+    const set = (top, bars, bottom) => {
+      root.setProperty('--stage-top', `${top}px`);
+      root.setProperty('--stage-bars-bottom', `${bars}px`);
+      root.setProperty('--stage-bottom', `${bottom}px`);
+    };
+    if (!this.source || this.minimized || !this.overlay) { set(0, 0, 0); return; }
+    const h = window.innerHeight;
+    let top = 0, bottom = 0;
+    for (const el of document.querySelectorAll(TOP_BARS.join(','))) {
+      const r = el.getBoundingClientRect();
+      if (r.height && r.top < h / 2 && shown(el)) top = Math.max(top, r.bottom);
+    }
+    for (const el of document.querySelectorAll(BOTTOM_BARS.join(','))) {
+      const r = el.getBoundingClientRect();
+      if (r.height && r.bottom > h / 2 && shown(el)) bottom = Math.max(bottom, h - r.top);
+    }
+    const bars = bottom ? Math.ceil(bottom + BAR_GAP) : 0;
+    const ask = this.source.reserve?.bottom;
+    const extra = Math.max(0, Number(typeof ask === 'function' ? ask() : ask) || 0);
+    set(top ? Math.ceil(top + BAR_GAP) : 0, bars, bars + extra);
+  }
+  watchBars() {
+    if (!this.bars) return;
+    this.bars.disconnect();
+    for (const el of document.querySelectorAll([...TOP_BARS, ...BOTTOM_BARS].join(','))) this.bars.observe(el);
   }
 
   /* Something on the stage, and showing: hidden in the corner, we are back
@@ -100,6 +148,7 @@ export class Stage {
     hide.textContent = source.hideLabel ?? (source.kind === 'media' ? 'Hide video' : `Hide ${source.title || 'app'}`);
     this.tab.hidden = false;
     this.setOverlay(true);
+    this.watchBars();
     if (source.frame) this.listenInside(source.frame);
     this.hint(source);
     this.onActivity(activityText(source));
@@ -114,6 +163,8 @@ export class Stage {
     this.overlay = true;
     this.tab.hidden = true;
     this.q('.stage-hint').hidden = true;
+    this.bars?.disconnect();
+    this.layout();
     this.game?.resume?.();
     this.onActivity(null);
   }
@@ -136,6 +187,7 @@ export class Stage {
       document.documentElement.classList.add('stage-min');
       document.documentElement.classList.remove('staged', 'overlay-off');
       this.tab.hidden = true;
+      this.layout();
       this.game?.resume?.();
     });
   }
@@ -159,7 +211,7 @@ export class Stage {
     document.documentElement.classList.remove('stage-min');
   }
   stagedElements() {
-    return [...document.querySelectorAll('.app-panel.staged, #stage-media > *, #stage-call-media > *')];
+    return [...document.querySelectorAll('.app-panel.staged, #stage-media > *, #stage-call-media > *, .world-media.staged-media')];
   }
   /* The little animation: down into the corner, or up out of it. */
   shrink(elements, away) {
@@ -176,14 +228,16 @@ export class Stage {
     return Promise.all(runs);
   }
 
-  /* Glurff's controls over the stage, or not. The player's own play/pause and
-   * timeline remain its own; wave notices still show. */
+  /* Glurff over the stage, or not. The player's own play/pause and timeline
+   * remain its own; wave notices still show. */
   setOverlay(on) {
     this.overlay = !!on;
     document.documentElement.classList.toggle('overlay-off', !this.overlay);
     const b = this.q('.stage-overlay');
-    b.textContent = this.overlay ? 'Hide Controls' : 'Show Controls';
+    b.textContent = this.overlay ? 'Hide Glurff' : 'Show Glurff';
+    b.setAttribute('aria-label', this.overlay ? 'Hide Glurff over this' : 'Show Glurff again');
     b.title = this.touch() ? '' : 'Ctrl+Shift+G';
+    this.layout();
     clearTimeout(this.sleepTimer);this.sleepTimer=null;this.tab.classList.remove('sleeping');
     if(!this.overlay)this.keepAwake();
   }
@@ -213,7 +267,7 @@ export class Stage {
     const parts = [];
     if (source.kind !== 'media' && !this.hinted) {
       this.hinted = true;
-      parts.push(this.touch() ? 'Tap “Hide Controls” to give the game the whole screen.'
+      parts.push(this.touch() ? 'Tap “Hide Glurff” to give the game the whole screen.'
         : 'If the game has your mouse, press Esc, then use this bar. Ctrl+Shift+G works in Urbit games.');
     }
     if (source.kind === 'web') parts.push('Blank? This site doesn’t allow being shown inside Glurff — open it in a new tab.');

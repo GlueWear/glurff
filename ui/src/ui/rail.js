@@ -4,7 +4,7 @@
  * readout of who can hear you and what you are sending. Video sits along the
  * top: double-click a tile to expand it, drag its corner to size it.
  */
-import { rooms, onRooms, onSpeaking, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged, hostReach,
+import { rooms, onRooms, onSpeaking, toggleMic, toggleCam, toggleScreen, occupantsOf, hostOf, currentHuddle, retryCall, reopenCapture, outputChanged, hostReach, callHost,
          canModerate, mayRecord, mutedShip, roleFor, callPeers, retryMic, soundless, micOff } from 'lib/rooms';
 import { devices, onDevices, refreshDevices, chosenDevice, chooseDevice, canPickOutput, noiseReduction, setNoiseReduction } from 'lib/devices';
 import { displayName, avatarUrl, onChange } from 'lib/noltbook';
@@ -18,6 +18,9 @@ import { columnMode, onColumnMode, defaultTileWidth, dragToSize, resetTileSizes,
 /* As wide as a tile may be dragged: nearly the whole window. */
 const maxTileWidth=()=>columnMode()?maxColumnTile():Math.max(720,(globalThis.innerWidth??744)-24);
 const screenPublication=label=>String(label??'').startsWith('screen');
+
+/* What the Glurff's host said when it would not let us into a call. */
+const REFUSED = { booted: 'Removed from this call', 'not-a-member': "You aren't in this Glurff" };
 
 export class Rail {
   constructor(root, strip, {stage=null} = {}) {
@@ -69,7 +72,7 @@ export class Rail {
 
   /* EVERYBODY IN THE CALL HAS A TILE. Their camera if it is on, otherwise
    * their profile picture -- or their initials, with no picture -- and their
-   * name under it, with host, admin and muted as small tags. This is where the
+   * name under it, with admin and muted as small tags. This is where the
    * call's names live now; the list that used to be squeezed in beside the
    * buttons is gone. Screens are tiles of their own, after the people.
    * Before the call connects only your own camera preview shows. */
@@ -100,15 +103,16 @@ export class Rail {
   /* The tiles that are showing video right now: what a recording draws. */
   videos() { return this.participants().filter((t) => t.stream); }
 
-  /* Small tags after a name: who hosts, who is an admin, who is muted. */
+  /* Small tags after a name: who is an admin, who is muted. Every call is held
+   * on the Glurff's host, so nobody in one is its "host": the Glurff's host,
+   * its moderators and the call's own admins are all simply "admin". */
   tags(ship) {
     if (!ship) return '';
-    const host = currentHuddle()?.host ?? (rooms.here !== COMMONS ? rooms.host : null);
     /* "no sound": their audio should be reaching us and is not. Not our
      * speakers -- see lib/sfu soundless. */
     /* "mic off": muted by themselves. Their stream stays in the call now,
      * silent, so without this nobody could tell muted from quiet. */
-    return [ship === host ? 'host' : '', roleFor(ship) === 'admin' ? 'admin' : '',
+    return [roleFor(ship) ? 'admin' : '',
       mutedShip(ship) ? 'muted' : micOff(ship) ? 'mic off' : '',
       ship !== our && soundless().has(ship) ? 'no sound' : '']
       .filter(Boolean).join(' · ');
@@ -231,16 +235,17 @@ export class Rail {
       transitioning: 'Switching call…' };
     /* Being muted by an admin is the first thing about a call you need to
      * know, so it takes the status line rather than hiding in a tooltip. */
-    const status = rooms.mutedByAdmin ? 'Muted by an admin' : rooms.bootedByAdmin ? 'Removed from this call'
-      : rooms.error ?? (rooms.callHealth?.failed ? unreachable(rooms.callHealth.missing, rooms.callHealth.reach) :
+    /* The ship the call is on: the Glurff's host, or a leased room's note's. */
+    const holder = callHost() ?? rooms.host;
+    const status = rooms.mutedInGlurff ? 'Muted in this Glurff' : rooms.mutedByAdmin ? 'Muted by an admin' : rooms.bootedByAdmin ? 'Removed from this call'
+      : (rooms.error ? REFUSED[rooms.error] ?? rooms.error : null) ?? (rooms.callHealth?.failed ? unreachable(rooms.callHealth.missing, rooms.callHealth.reach) :
       rooms.mediaError ? mediaFailed(rooms.mediaError.kind) :
-      room!==COMMONS && rooms.picker ? 'Choose which one…' :
       room!==COMMONS && rooms.waiting ? 'Connecting…' : room===COMMONS && !huddle ? 'No nearby call' :
       rooms.voice === 'connected' && !rooms.others ? 'Waiting for others' :
       /* Waiting on a host whose ship we cannot reach says so, rather than
        * "switching" for ever. See lib/reachability. */
-      rooms.voice !== 'connected' && rooms.host && hostReach() === 'one-way' ? `${displayName(rooms.host)} can't hear your ship` :
-      rooms.voice !== 'connected' && rooms.host && hostReach() === 'unreachable' ? `Can't reach ${displayName(rooms.host)}'s ship` :
+      rooms.voice !== 'connected' && holder && hostReach() === 'one-way' ? `${displayName(holder)} can't hear your ship` :
+      rooms.voice !== 'connected' && holder && hostReach() === 'unreachable' ? `Can't reach ${displayName(holder)}'s ship` :
       waitingOn[rooms.stage] ?? rooms.voice);
 
     const signature=JSON.stringify([room,host,people.map(s=>[s,displayName(s),roleFor(s),mutedShip(s)]),status,rooms.micTrouble,rooms.voice,
@@ -257,7 +262,7 @@ export class Rail {
      *   problem     anything wrong is said in words: nothing silent. */
     const idle = status === 'No nearby call' && !rooms.micTrouble;
     const problem = !idle && (!!(rooms.mutedByAdmin || rooms.bootedByAdmin || rooms.error || rooms.callHealth?.failed || rooms.mediaError)
-      || /can't|isn't/i.test(status) || (room !== COMMONS && !!rooms.picker));
+      || /can't|isn't/i.test(status));
     const live = !idle && !problem && rooms.voice === 'connected';
     const mode = idle ? 'idle' : problem ? 'problem' : live ? 'live' : 'connecting';
     for (const m of ['idle', 'connecting', 'live', 'problem']) this.root.classList.toggle(m, m === mode);

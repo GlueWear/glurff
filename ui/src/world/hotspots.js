@@ -73,7 +73,9 @@ export function spotApp(app, host) {
 
 export const SCREEN_RECTS = {
   amphitheatre: { x:650, y:36, w:240, h:64 },
-  movie: { x:1201, y:113, w:131, h:56 },
+  /* Four pixels further left than it was (2026-11-01): the painted screen
+   * showed past the video's left edge. */
+  movie: { x:1197, y:113, w:131, h:56 },
 };
 
 export const pointInRect = (point, rect) => !!point && point.x >= rect.x && point.y >= rect.y &&

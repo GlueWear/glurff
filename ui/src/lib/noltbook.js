@@ -58,6 +58,10 @@ export const nb = {
   contacts: {},   //  ship -> true
   callMods: {},   //  noteId -> {noteId, rev, mod}  moderation of that note's call
   noteAdmins: {}, //  noteId -> [ship]
+  noteMuted: {},  //  noteId -> [ship], muted across the whole note
+  /* The Glurff's members as its note has them, roles and all: the newest
+   * answer to Noltbook's members scry, or null before there is one. */
+  glurffMembers: null,
   /* Durable unread, straight from Noltbook: a note is unread when its unread
    * activity is later than the last time it was marked read. Both survive a
    * reload and both arrive on the global /notes watch, so the DM dot is right
@@ -110,6 +114,11 @@ export const worldStatus = () => nb.world;
 export const worldJoined = () => nb.world.joined && nb.palsReady;
 export const worldBanned = ship => (nb.notes[WORLD_NOTE]?.creator === WORLD_HOST &&
   (nb.notes[WORLD_NOTE]?.removed ?? []).includes(ship));
+/* MUTED ACROSS THE WHOLE GLURFF (2026-10-31): its note mutes them, which is
+ * Noltbook's note-wide mute -- given only by the Glurff's host or one of its
+ * admins. It holds in every call, in room chat and in shared media. */
+export const glurffMuted = ship => !!ship && nb.notes[WORLD_NOTE]?.creator === WORLD_HOST &&
+  (nb.noteMuted[WORLD_NOTE] ?? []).includes(ship);
 export const worldMember = ship => worldJoined() && memberShips.has(ship) &&
   nb.pals[ship] !== 'blocked' && !worldBanned(ship);
 export const worldMembers = () => [...memberShips].filter(worldMember);
@@ -233,7 +242,15 @@ export function applyFact(name, p) {
       field = 'callMods'; break;
     case 'admins-updated':
       if (!p?.id) return;
+      if (p.id === WORLD_NOTE) roleFacts.admins++;
       nb.noteAdmins[p.id] = p.admins ?? []; field = 'noteAdmins'; noteId = p.id; break;
+    /* Muted across a whole note -- for the Glurff's, across the whole Glurff
+     * (2026-10-31): every call, room chat and shared media. */
+    case 'muted-updated':
+      if (!p?.id) return;
+      if (p.id === WORLD_NOTE) roleFacts.muted++;
+      nb.noteMuted[p.id] = Array.isArray(p.muted) ? p.muted : [];
+      field = 'noteMuted'; noteId = p.id; break;
     case 'note-deleted': delete nb.notes[p.id]; field = 'notes'; noteId = p.id; break;
     /* A note's SETTINGS changed -- public, private, secret, read-only. Without
      * this a note that was opened up an hour ago still reads closed, and
@@ -250,6 +267,7 @@ export function applyFact(name, p) {
       const n = nb.notes[p.id];
       if (!n) return;
       const users = p.users ?? n.users;
+      if (p.id === WORLD_NOTE) roleFacts.users++;
       nb.notes[p.id] = { ...n, users, removed: p.removed ?? n.removed };
       pendingJoins.delete(p.id);
       /* Approval removes the host-side request even if its explicit removal
@@ -676,7 +694,68 @@ export async function initNoltbook() {
   await subscribe('noltbook', '/notes', applyFact);
   membership.update({ ready: nb.ready, notes: nb.notes });
   grantApp().catch(() => {});
+  loadGlurffMembers().catch(() => {});
   return nb;
+}
+
+/* THE GLURFF'S MEMBERS, AND WHO IS MUTED AND WHO IS AN ADMIN (2026-10-31).
+ * Noltbook announces a note's admins and mutes only when they change, never
+ * when we start watching, so they are read from its members scry: at boot,
+ * whenever the members panel opens, and after anything done there. A role
+ * fact that lands while the scry is out is newer than its answer, and wins.
+ *
+ *   {ship, name, avatar, role: 'host'|'admin'|'member', muted, removed}
+ */
+const roleFacts = { admins: 0, muted: 0, users: 0 };
+/* How many times Noltbook itself has told us the Glurff's note changed -- not
+ * our own reading of it, which would otherwise be a reason to read it again. */
+export const glurffNoteRevision = () => roleFacts.admins + roleFacts.muted + roleFacts.users;
+let membersRead = null;
+export function loadGlurffMembers() {
+  if (membersRead) return membersRead;
+  const seen = { ...roleFacts };
+  const read = Promise.resolve().then(() => api.scry({ app: 'noltbook', path: `/api/notes/${WORLD_NOTE}/members` })).then((r) => {
+    const rows = (Array.isArray(r?.members) ? r.members : [])
+      .filter((m) => typeof m?.ship === 'string')
+      .map((m) => ({
+        ship: m.ship,
+        name: typeof m.displayName === 'string' && m.displayName ? m.displayName : null,
+        avatar: m.avatar ?? null,
+        role: m.ship === WORLD_HOST ? 'host' : m.role === 'admin' && !m.removed ? 'admin' : 'member',
+        muted: m.muted === true && !m.removed && m.ship !== WORLD_HOST,
+        removed: m.removed === true,
+      }));
+    nb.glurffMembers = rows;
+    if (roleFacts.admins === seen.admins)
+      nb.noteAdmins[WORLD_NOTE] = rows.filter((m) => m.role === 'admin').map((m) => m.ship);
+    if (roleFacts.muted === seen.muted)
+      nb.noteMuted[WORLD_NOTE] = rows.filter((m) => m.muted).map((m) => m.ship);
+    changed('noteAdmins', WORLD_NOTE); changed('noteMuted', WORLD_NOTE); changed('glurffMembers', WORLD_NOTE);
+    return rows;
+  });
+  membersRead = read.finally(() => { membersRead = null; });
+  return membersRead;
+}
+
+/* THE GLURFF'S ROSTER (2026-11-01) is its note's member list as Noltbook's own
+ * MEMBERS dialog has it: everybody in the note's users, here or not, and then
+ * whoever it has removed. The members scry is taken as it is for anybody it
+ * lists; anybody else on the note gets what the note's facts say of them.
+ * null until either has been read. */
+export function glurffRoster() {
+  const note = nb.notes[WORLD_NOTE], read = nb.glurffMembers;
+  if (!note && !read) return null;
+  const rows = new Map((read ?? []).map((r) => [r.ship, r]));
+  const admins = nb.noteAdmins[WORLD_NOTE] ?? [], muted = nb.noteMuted[WORLD_NOTE] ?? [];
+  const removed = new Set(note?.removed ?? []);
+  for (const ship of [...(note?.users ?? []), ...removed]) {
+    if (typeof ship !== 'string' || rows.has(ship)) continue;
+    const gone = removed.has(ship);
+    rows.set(ship, { ship, name: null, avatar: null,
+      role: ship === WORLD_HOST ? 'host' : !gone && admins.includes(ship) ? 'admin' : 'member',
+      muted: !gone && ship !== WORLD_HOST && muted.includes(ship), removed: gone });
+  }
+  return [...rows.values()];
 }
 
 /* Opening the room menu asks Noltbook for a fresh authoritative note list.

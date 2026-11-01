@@ -6,12 +6,12 @@
  * the click and the eye. These are built once and only their contents change.
  *
  * Neither panel decides anything. What they show is the authoritative record
- * the call's host keeps (lib/moderation), and pressing a button ASKS -- the
+ * the Glurff's host keeps (lib/moderation), and pressing a button ASKS -- the
  * answer arrives as a snapshot like everybody else's. A button is never the
  * reason somebody is an admin.
  */
-import { rooms, onRooms, moderate, mayActOn, roleFor, mutedShip, bootedShip, canModerate,
-         mayRecord, startRecording, stopRecording, recordingElapsed } from 'lib/rooms';
+import { rooms, onRooms, moderate, mayActOn, rankFor, roleFor, callMutedShip, glurffMutedShip, bootedShip, canModerate,
+         mayRecord, mayStopRecording, startRecording, stopRecording, recordingElapsed } from 'lib/rooms';
 import { displayName } from 'lib/noltbook';
 import { our } from 'lib/api';
 import { esc } from 'ui/html';
@@ -79,9 +79,9 @@ export class CallPanels {
   }
 
   paint() {
-    /* The buttons exist only for the host and the admins of this call. Being
-     * unable to see them is not the enforcement -- the host's record is -- but
-     * showing them to everybody would be a lie about who decides. */
+    /* The buttons exist only for the admins of this call. Being unable to see
+     * them is not the enforcement -- the Glurff's host is -- but showing them
+     * to everybody would be a lie about who decides. */
     /* A panel closes when its button is no longer offered. */
     if (!canModerate() && this.adminOpen) this.adminOpen = false;
     if (!mayRecord() && rooms.recording?.by !== our && this.recOpen) this.recOpen = false;
@@ -96,24 +96,28 @@ export class CallPanels {
   paintAdmin() {
     const people = [...new Set(this.members())].filter((s) => s !== our);
     const rows = people.map((ship) => {
-      const role = roleFor(ship);
-      const muted = mutedShip(ship);
+      const rank = rankFor(ship);
+      /* A call's Unmute lifts only this call's mute: one put on across the
+       * whole Glurff is lifted in its members, and says so here. */
+      const muted = callMutedShip(ship), everywhere = glurffMutedShip(ship);
       const can = mayActOn(ship);
-      const tag = [role ? role.toUpperCase() : '', muted ? 'MUTED' : '', bootedShip(ship) ? 'REMOVED' : '']
+      const tag = [roleFor(ship) ? 'ADMIN' : '', everywhere ? 'MUTED IN GLURFF' : muted ? 'MUTED' : '', bootedShip(ship) ? 'REMOVED' : '']
         .filter(Boolean).join(' · ');
       const button = (op, label) => `<button data-op="${op}" data-ship="${esc(ship)}">${label}</button>`;
+      /* Only an admin of THIS call can be removed as one: the Glurff's
+       * moderators are admins of every call, by the Glurff's own say. */
       return `<div class="mod-row">
         <span class="who">${esc(displayName(ship))}</span>
         ${tag ? `<span class="tag">${esc(tag)}</span>` : ''}
         ${can ? `<span class="acts">
-          ${role === 'admin' ? button('demote', 'Remove admin') : button('promote', 'Make admin')}
+          ${rank === 1 ? button('demote', 'Remove admin') : rank === 0 ? button('promote', 'Make admin') : ''}
           ${muted ? button('unmute', 'Unmute') : button('mute', 'Mute')}
           ${bootedShip(ship) ? button('unboot', 'Allow back') : button('boot', 'Remove')}
         </span>` : '<span class="dim">—</span>'}
       </div>`;
     }).join('');
     const html = `<h4>Call moderation</h4>${rows || '<div class="dim pad">nobody else is in this call</div>'}
-      <small class="dim">The host decides. Nobody can act on the host, and an admin cannot act on another admin.</small>`;
+      <small class="dim">The Glurff's host and its moderators can act on any admin of a call; a call's admins can act on everybody else. Nobody can act on themselves.</small>`;
     if (this.admin.dataset.html !== html) { this.admin.innerHTML = html; this.admin.dataset.html = html; }
   }
 
@@ -122,8 +126,8 @@ export class CallPanels {
     let html = '<h4>Record this call</h4>';
     if (rec && rec.by !== our) {
       html += `<div class="dim pad">${esc(displayName(rec.by))} is recording.</div>`;
-      /* The host may stop somebody else's recording; nobody else may. */
-      if (roleFor(our) === 'host') html += '<button data-rec="stop">Stop their recording</button>';
+      /* Anybody above the recorder may stop somebody else's recording. */
+      if (mayStopRecording()) html += '<button data-rec="stop">Stop their recording</button>';
     } else if (rec) {
       html += `<div class="dim pad">Recording · ${clock(recordingElapsed())}</div>
         <button data-rec="stop">Stop and save</button>`;

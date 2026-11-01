@@ -1,13 +1,15 @@
 ::  %glurff: a shared pixel world, with Noltbook underneath it.
 ::
 ::  WHAT THIS IS
-::  The world and the bodies. Where people stand, what they look like, and which
-::  ship is holding which room's call. It is a fan-out with almost no memory.
+::  The world and the bodies. Where people stand, what they look like, and the
+::  calls in its rooms and huddles. It is a fan-out with almost no memory.
 ::
 ::  WHAT IT IS NOT
-::  It stores no message, no contact list, no call roster and no chat history.
-::  Those are Noltbook's, reached from the browser over the same Eyre channel
-::  that serves this page. This agent never modifies the %noltbook desk.
+::  It stores no message, no contact list and no chat history. Those are
+::  Noltbook's, reached from the browser over the same Eyre channel that serves
+::  this page. This agent never modifies the %noltbook desk. On the Glurff's
+::  host it does keep each call's record -- who is in it and its moderation --
+::  because every call is held there (see `host-call` in /sur).
 ::
 ::  PRESENCE IS STATELESS
 ::  An incoming claim goes straight out as a fact to our own client and is
@@ -166,10 +168,49 @@
       spots=(map @tas spot-app:g)
       webs=(map @tas spot-web:g)
   ==
+::  state-10 moves EVERY CALL ONTO THE GLURFF'S HOST (2026-10-31): the calls
+::  this ship keeps when it is that host, one record per room and huddle --
+::  see `host-call` in /sur. HOST-SHIP ADMISSION goes: nobody's browser lets
+::  anybody into a call any more, the host's agent decides.
++$  state-10
+  $:  %10
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call-10:g)
+  ==
+::  state-11 adds what each call's server was told to keep QUIET (2026-10-31):
+::  a member muted in the whole Glurff by its note is muted in every call, and
+::  a mute of one kind never lifts the other. See `host-call` in /sur.
++$  state-11
+  $:  %11
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-9
+=|  state-11
 =*  state  -
 ^-  agent:gall
 =<
@@ -180,7 +221,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, admits ~, door ~, world ~, prefs '', spots ~, webs ~)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, door ~, world ~, prefs '', spots ~, webs ~, calls ~)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -193,23 +234,33 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
+  =/  eleven=(unit state-11)
+    =/  res  (mule |.(!<(state-11 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  eleven
+    :_  this(state u.eleven)
+    [(bind:glurff-site) calls-watch:hc]
+  =/  ten=(unit state-10)
+    =/  res  (mule |.(!<(state-10 old)))
+    ?:(?=(%| -.res) ~ `p.res)
   =/  nine=(unit state-9)
+    ?^  ten  ~
     =/  res  (mule |.(!<(state-9 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  eight=(unit state-8)
-    ?^  nine  ~
+    ?:  |(?=(^ ten) ?=(^ nine))  ~
     =/  res  (mule |.(!<(state-8 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  seven=(unit state-7)
-    ?:  |(?=(^ nine) ?=(^ eight))  ~
+    ?:  |(?=(^ ten) ?=(^ nine) ?=(^ eight))  ~
     =/  res  (mule |.(!<(state-7 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  current=(unit state-6)
-    ?:  |(?=(^ nine) ?=(^ eight) ?=(^ seven))  ~
+    ?:  |(?=(^ ten) ?=(^ nine) ?=(^ eight) ?=(^ seven))  ~
     =/  res  (mule |.(!<(state-6 old)))
     ?:(?=(%| -.res) ~ `p.res)
   =/  now-state=(unit state-5)
-    ?^  current  ~
+    ?:  |(?=(^ ten) ?=(^ current))  ~
     =/  res  (mule |.(!<(state-5 old)))
     ?:(?=(%| -.res) ~ `p.res)
   ::  An older lease was permanent and had no occupancy at all. It is carried
@@ -272,8 +323,22 @@
     ?~  spotted  ~
     =/  was=state-8  u.spotted
     `[%9 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was admits.was door.was world.was prefs.was spots.was ~]
-  ?~  last  on-init
-  :_  this(state u.last)
+  ::  No calls kept yet: the first ask after the upgrade opens each afresh.
+  ::  Who our browser had let into our own calls is dropped -- the Glurff's
+  ::  host decides that now.
+  =/  newest=(unit state-10)
+    ?^  ten  ten
+    ?~  last  ~
+    =/  was=state-9  u.last
+    `[%10 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was door.was world.was prefs.was spots.was webs.was ~]
+  ::  What each call's server was told to keep quiet: its own mutes, the only
+  ::  ones state-10 ever told it about.
+  ?~  newest  on-init
+  =/  was=state-10  u.newest
+  =/  calls=(map place:g host-call:g)
+    %-  ~(run by calls.was)
+    |=(c=host-call-10:g `host-call:g`[inc rev seen admins muted booted recording roster asked failing touched muted]:c)
+  :_  this(state [%11 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was door.was world.was prefs.was spots.was webs.was calls])
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-poke
@@ -300,6 +365,9 @@
     ::  The world room is opened by asks alone (see +world-knock). Opening it
     ::  from a browser would throw out everybody inside.
     ?:  &(=(%open op) =(place world-place:g))  `this
+    ::  Nor is any room's or huddle's call opened, renewed or moderated from a
+    ::  browser: the Glurff's host does all of that (see +call-knock).
+    ?:  (call-place:hc place)  `this
     =.  hosting
       ?:  ?&(?=(%open op) (gth place movement-base:g) (lth place 1.000.000))
         (~(put by hosting) place %open)
@@ -406,6 +474,7 @@
     ?>  =(src.bowl our.bowl)
     =+  !<(res=call-result:gc vase)
     =.  state  (world-heard:hc res)
+    =.  state  (call-heard:hc res)
     [(grant-cards:hc res) this]
   ::
   ::  A grant handed to us by a room's host.
@@ -568,6 +637,40 @@
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
+  ::  THE CALLS, READABLE, on the Glurff's host (see `host-call` in /sur):
+  ::
+  ::    > .^(json %gx /=glurff=/calls/json)
+  ::
+  ::  Each call's run, who is in it and when we last heard from them, and its
+  ::  moderation. Ships and times only.
+  ?:  ?=([%x %calls ~] path)
+    =/  ships
+      |=  s=(set @p)
+      ^-  json
+      a+(turn ~(tap in s) |=(w=@p s+(scot %p w)))
+    :^  ~  ~  %json
+    !>  ^-  json
+    %-  pairs:enjs:format
+    %+  turn  ~(tap by calls)
+    |=  [p=place:g c=host-call:g]
+    ^-  [@t json]
+    :-  (scot %ud p)
+    %-  pairs:enjs:format
+    :~  ['inc' (numb:enjs:format inc.c)]
+        ['rev' (numb:enjs:format rev.c)]
+        :-  'seen'
+        %-  pairs:enjs:format
+        (turn ~(tap by seen.c) |=([w=@p t=@da] [(scot %p w) s+(scot %da t)]))
+        ['admins' (ships admins.c)]
+        ['muted' (ships muted.c)]
+        ['booted' (ships booted.c)]
+        ['recording' ?~(recording.c ~ s+(scot %p by.u.recording.c))]
+        ['roster' ?~(roster.c ~ (ships u.roster.c))]
+        ['asked' s+(scot %da asked.c)]
+        ['failing' ?~(failing.c ~ s+(scot %da u.failing.c))]
+        ['touched' s+(scot %da touched.c)]
+        ['quiet' (ships quiet.c)]
+    ==
   ?.  ?=([%x %lease ~] path)  (on-peek:def path)
   :^  ~  ~  %json
   !>  ^-  json
@@ -692,7 +795,7 @@
 ::  its OWN seat: no guest can release a lease, and no guest can evict another.
 ++  seat-change
   |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
-  ^-  (quip card state-9)
+  ^-  (quip card state-11)
   ?~  lease  `state
   =/  h=held:g  u.lease
   ?.  =(place place.h)  `state
@@ -831,8 +934,16 @@
 ::  room is noticed within world-window, not at once.
 ++  world-knock
   |=  who=@p
-  ^-  (quip card state-9)
+  ^-  (quip card state-11)
   =/  =place:g  world-place:g
+  ::  ONLY THE GLURFF'S MEMBERS (2026-10-31): somebody blocked -- removed from
+  ::  its note -- is not let back into the world room. With Noltbook unable to
+  ::  say, the room stays as open as it always was.
+  =/  gn  glurff-note
+  ?:  ?&  ?=(^ gn)  =(creator.u.gn our.bowl)  !=(who our.bowl)
+          !(~(has in members.u.gn) who)
+      ==
+    :_(state ~[(tell who [%refused place %not-a-member])])
   =/  held=(map place:g lock-mode:g)  (~(put by hosting) place %open)
   =/  fresh=?
     ?~  world  %.y
@@ -872,7 +983,7 @@
 ::  nobody-has-asked reopen in +world-knock never came either.
 ++  world-heard
   |=  res=call-result:gc
-  ^-  state-9
+  ^-  state-11
   ?~  world  state
   ?-    -.res
       %granted
@@ -892,6 +1003,527 @@
   ^-  ?
   =/  head=tape  (trip (cat 3 (scot %ud world-place:g) '/'))
   =(head (scag (lent head) (trip c)))
+::
+::  ---- EVERY CALL ON THE GLURFF'S HOST (see `host-call` in /sur) ----
+::
+::  A room's place or a huddle's. Movement places and the world room are far
+::  above call-top.
+++  call-place
+  |=  =place:g
+  ^-  ?
+  ?&((gth place 0) (lth place call-top:g))
+::  A huddle's place, from the member it elected: the hash huddlePlace in
+::  lib/huddle.js makes, which this MUST match. The host checks with it that a
+::  huddle's roster comes from the one ship whose place it is.
+++  huddle-place
+  |=  who=@p
+  ^-  @ud
+  =/  key=tape  (scow %p who)
+  =/  h=@  0x811c.9dc5
+  |-  ^-  @ud
+  ?~  key  (add huddle-base:g (mod h 900.000))
+  =.  h  (end [0 32] (mul (mix h i.key) 0x100.0193))
+  $(key t.key, h (mix h (rsh [0 13] h)))
+::  THE GLURFF'S NOTE, read from our own Noltbook: who created it, who is in
+::  it, its admins -- the Glurff's moderators -- who it has muted, and who it
+::  has removed: blocked from the Glurff. `~` when we have no such note or
+::  Noltbook cannot say, and then we host no calls. Read through Noltbook's
+::  published API, as a browser would; nothing in Noltbook changes.
++$  gnote  [creator=@p members=(set @p) mods=(set @p) muted=(set @p) removed=(set @p)]
+++  glurff-note
+  ^-  (unit gnote)
+  =/  base=path
+    :~  (scot %p our.bowl)  %noltbook  (scot %da now.bowl)
+        %api  %notes  world-note:g
+    ==
+  =/  meta  (mule |.(.^(json %gx (weld base /meta/json))))
+  ?:  ?=(%| -.meta)  ~
+  =/  creator=(unit @p)
+    ?.  ?=([%o *] p.meta)  ~
+    =/  c  (~(get by p.p.meta) 'creator')
+    ?.  ?=([~ %s *] c)  ~
+    (slaw %p p.u.c)
+  ?~  creator  ~
+  =/  mem  (mule |.(.^(json %gx (weld base /members/json))))
+  ?:  ?=(%| -.mem)  ~
+  =/  rows=(list json)
+    ?.  ?=([%o *] p.mem)  ~
+    =/  m  (~(get by p.p.mem) 'members')
+    ?.  ?=([~ %a *] m)  ~
+    p.u.m
+  =|  members=(set @p)
+  =|  mods=(set @p)
+  =|  muted=(set @p)
+  =|  removed=(set @p)
+  |-  ^-  (unit gnote)
+  ?~  rows  `[u.creator members mods muted removed]
+  =/  row=json  i.rows
+  ?.  ?=([%o *] row)  $(rows t.rows)
+  =/  ship  (~(get by p.row) 'ship')
+  =/  who=(unit @p)  ?.(?=([~ %s *] ship) ~ (slaw %p p.u.ship))
+  ?~  who  $(rows t.rows)
+  ?:  =(`[%b %.y] (~(get by p.row) 'removed'))
+    $(rows t.rows, removed (~(put in removed) u.who))
+  %=  $
+    rows     t.rows
+    members  (~(put in members) u.who)
+    mods     ?.(=(`[%s 'admin'] (~(get by p.row) 'role')) mods (~(put in mods) u.who))
+    muted    ?.(=(`[%b %.y] (~(get by p.row) 'muted')) muted (~(put in muted) u.who))
+  ==
+::  Participants gone: out of the call, no longer admins, and no longer
+::  recording. The revision moves when the record everybody sees does.
+++  call-drop
+  |=  [c=host-call:g gone=(list @p)]
+  ^-  host-call:g
+  =/  next=host-call:g
+    %+  roll  gone
+    |=  [who=@p acc=_c]
+    %=  acc
+      seen       (~(del by seen.acc) who)
+      admins     (~(del in admins.acc) who)
+      recording  ?:(?&(?=(^ recording.acc) =(by.u.recording.acc who)) ~ recording.acc)
+    ==
+  ?:  ?&(=(admins.next admins.c) =(recording.next recording.c))  next
+  next(rev +(rev.c))
+::  NOBODY LEFT TO RUN IT. When none of a call's own admins is in it any more,
+::  the lowest @p still in it becomes one. The Glurff's host and its
+::  moderators are not counted either way: they are admins of every call.
+++  call-succeed
+  |=  [c=host-call:g mods=(set @p)]
+  ^-  host-call:g
+  ?:  (~(any in admins.c) |=(a=@p (~(has by seen.c) a)))  c
+  =/  pool=(list @p)
+    %+  sort
+      %+  skip  ~(tap in ~(key by seen.c))
+      |=(s=@p ?|(=(s our.bowl) (~(has in mods) s) (~(has in booted.c) s)))
+    lth
+  ?~  pool  c
+  c(admins (~(put in admins.c) i.pool), rev +(rev.c))
+::  Everybody we have not heard from for call-gone has left the call.
+++  call-sweep
+  |=  [c=host-call:g mods=(set @p)]
+  ^-  host-call:g
+  =/  gone=(list @p)
+    %+  murn  ~(tap by seen.c)
+    |=  [who=@p last=@da]
+    ^-  (unit @p)
+    ::  A stamp in the future is clock skew, not a lapse -- and `sub` would
+    ::  underflow.
+    ?:  (gte last now.bowl)  ~
+    ?:  (lth (sub now.bowl last) call-gone:g)  ~
+    `who
+  ?~  gone  c
+  (call-succeed (call-drop c gone) mods)
+::  The record, as everybody in the call is told it.
+++  call-snap-of
+  |=  [c=host-call:g gn=gnote]
+  ^-  call-snap:g
+  :*  inc.c  rev.c  admins.c  mods.gn  muted.c
+      (~(int in muted.gn) ~(key by seen.c))
+      booted.c  recording.c
+  ==
+::  ...to each ship named: our own page as a fact, anybody else's agent by
+::  poke.
+++  call-tell
+  |=  [=place:g snap=call-snap:g to=(list @p)]
+  ^-  (list card)
+  %+  turn  to
+  |=  who=@p
+  ^-  card
+  ?:  =(who our.bowl)  (fact [%call-mod-snap our.bowl place snap])
+  (tell who [%call-mod-snap place snap])
+::  ...to everybody in the call, and to `also`.
+++  call-publish
+  |=  [=place:g c=host-call:g gn=gnote also=(list @p)]
+  ^-  (list card)
+  %^  call-tell  place  (call-snap-of c gn)
+  ~(tap in (~(gas in ~(key by seen.c)) also))
+::  A knock turned away, said to the knocker, with why.
+++  call-refuse
+  |=  [who=@p =place:g attempt=@ud why=@tas]
+  ^-  card
+  ?:  =(who our.bowl)  (fact [%call-refused our.bowl place attempt why])
+  (tell who [%call-refused place attempt why])
+::  Calls nothing has happened to for a day are forgotten.
+++  call-prune
+  |=  all=(map place:g host-call:g)
+  ^-  (map place:g host-call:g)
+  %-  malt
+  %+  skip  ~(tap by all)
+  |=([p=place:g c=host-call:g] (gth now.bowl (add touched.c ~d1)))
+::  WHAT THE CALL SERVER IS TOLD (2026-10-31). Everybody in a call who is
+::  muted -- by this call's admins, or in the whole Glurff by its note -- is
+::  kept quiet there, and nobody else is; the server is told only of a change,
+::  so a mute of one kind never lifts the other. Anybody in the call who is no
+::  longer in the Glurff is put out of it. The revision moves when who is quiet
+::  does, so every browser hears.
+++  call-reconcile
+  |=  [=place:g c=host-call:g gn=gnote]
+  ^-  [(list card) host-call:g]
+  =/  out=(list @p)
+    %+  skip  ~(tap in ~(key by seen.c))
+    |=(s=@p ?|(=(s our.bowl) (~(has in members.gn) s)))
+  =/  evict=(list card)
+    %+  turn  out
+    |=  s=@p
+    %-  calls-poke
+    [%evict (call-req place `@ud`(sham [place s %out now.bowl]) %evict s) (room-key place) s]
+  =.  c  ?~(out c (call-succeed (call-drop c out) mods.gn))
+  =/  here=(set @p)  ~(key by seen.c)
+  =/  want=(set @p)  (~(int in (~(uni in muted.c) muted.gn)) here)
+  =/  hush=(list @p)  ~(tap in (~(dif in want) quiet.c))
+  =/  free=(list @p)  ~(tap in (~(dif in (~(int in quiet.c) here)) want))
+  =/  at  |=(s=@p `@ud`(sham [place s now.bowl]))
+  =/  cards=(list card)
+    ;:  weld
+      evict
+      %+  turn  hush
+      |=  s=@p
+      %-  calls-poke
+      :*  %mute-access  (call-req place (at s) %mute-access s)
+          (room-key place)  s  %glurff  (call-ctx place s (at s))
+      ==
+      %+  turn  free
+      |=  s=@p
+      %-  calls-poke
+      :*  %unmute-access  (call-req place (at s) %unmute-access s)
+          (room-key place)  s  %glurff  (call-ctx place s (at s))
+      ==
+    ==
+  =/  quiet=(set @p)  (~(uni in (~(dif in quiet.c) (silt free))) (silt hush))
+  ?:  =(quiet quiet.c)  [cards c]
+  [cards c(quiet quiet, rev +(rev.c))]
+::  SOMEBODY ASKS FOR A CALL: a room's or a huddle's.
+::
+::  Decided here and nowhere else, with no browser asked. Anybody in the
+::  Glurff may be in a room's call; only those its elected member registered
+::  may be in a huddle's; nobody removed from a call gets back in while it
+::  lasts. The first one into an empty call starts a new run of it and is its
+::  admin -- for a huddle, the member it elected, whoever asks first.
+::
+::  Request ids are the browser's attempt, which is fresh for every join and
+::  every renewal and the same across retries of one -- never a window, as the
+::  world room's are: a mute reissues somebody's credentials, and a renewal
+::  answered from a record made before it would hand back the ones it revoked.
+++  call-knock
+  |=  [who=@p =place:g attempt=@ud mode=@tas]
+  ^-  (quip card state-11)
+  ?.  (call-place place)  `state
+  ?.  ?|(=(%access mode) =(%renew-access mode))  `state
+  =/  gn  glurff-note
+  ?~  gn  :_(state ~[(call-refuse who place attempt %not-hosting)])
+  ?.  =(creator.u.gn our.bowl)
+    :_(state ~[(call-refuse who place attempt %not-hosting)])
+  ?.  |(=(who our.bowl) (~(has in members.u.gn) who))
+    :_(state ~[(call-refuse who place attempt %not-a-member)])
+  =/  c=host-call:g
+    (call-sweep (~(gut by calls) place *host-call:g) mods.u.gn)
+  =.  touched.c  now.bowl
+  =/  huddle=?  (gte place huddle-base:g)
+  =/  why=(unit @tas)
+    ?:  ?&(huddle ?=(~ roster.c))  `%not-yet
+    ?:  ?&(huddle ?=(^ roster.c) !(~(has in u.roster.c) who))  `%not-in-huddle
+    ?:  ?&(!=(~ seen.c) (~(has in booted.c) who))  `%booted
+    ~
+  ?^  why
+    :_  state(calls (~(put by calls) place c))
+    ~[(call-refuse who place attempt u.why)]
+  ::  An empty call: a new run of it, started by `who` -- or, for a huddle, by
+  ::  the member it elected.
+  =/  fresh=?  =(~ seen.c)
+  =?  c  fresh
+    =/  by=@p
+      ?.  huddle  who
+      ?~  roster.c  who
+      =/  own=(list @p)
+        (skim ~(tap in u.roster.c) |=(s=@p =(place (huddle-place s))))
+      ?~(own who i.own)
+    c(inc +(inc.c), rev +(rev.c), admins (silt ~[by]), muted ~, booted ~, recording ~)
+  =/  new=?  !(~(has by seen.c) who)
+  =.  seen.c  (~(put by seen.c) who now.bowl)
+  ::  The call server's room: opened when it may not be there any more, as the
+  ::  world room is; otherwise this admission extends its lease.
+  =/  open=?
+    ?|  =(*@da asked.c)
+        (gth now.bowl (add asked.c (mul ~s1 movement-ttl:g)))
+        ?~(failing.c %.n (gth now.bowl (add u.failing.c world-reopen:g)))
+    ==
+  ::  WHO IS KEPT QUIET. A room that may have been made afresh has forgotten
+  ::  its mutes, so anybody who should be muted is muted again. Somebody who
+  ::  comes in muted, or comes back no longer muted, has that done with their
+  ::  own attempt in place of plain access -- the only grant their page takes,
+  ::  and the call server's mute or unmute issues one.
+  =/  want=(set @p)  (~(uni in muted.c) muted.u.gn)
+  =?  quiet.c  open  (~(dif in quiet.c) want)
+  =/  hush=?  ?&((~(has in want) who) !(~(has in quiet.c) who))
+  =/  free=?  ?&((~(has in quiet.c) who) !(~(has in want) who))
+  ::  Each tagged action built on its own: a computed tag inside one tuple
+  ::  does not nest in the calls action union.
+  =/  self=(list card)
+    ?:  hush
+      :~  %-  calls-poke
+          :*  %mute-access
+              (call-req place attempt %mute-access who)
+              (room-key place)  who  %glurff
+              (call-ctx place who attempt)
+          ==
+      ==
+    ?.  free  ~
+    :~  %-  calls-poke
+        :*  %unmute-access
+            (call-req place attempt %unmute-access who)
+            (room-key place)  who  %glurff
+            (call-ctx place who attempt)
+        ==
+    ==
+  =/  access=(list card)
+    ?:  ?&(?=(^ self) open)
+      :_  self
+      %-  calls-poke
+      [%ensure (call-req place attempt %ensure who) (room-key place) movement-ttl:g]
+    ?^  self
+      %+  snoc  self
+      %-  calls-poke
+      :*  %renew
+          (call-req place `@ud`(div now.bowl world-window:g) %renew our.bowl)
+          (room-key place)
+          movement-ttl:g
+      ==
+    ?:  open
+      :~  %-  calls-poke
+          :*  %ensure-access
+              (call-req place attempt %ensure who)
+              (room-key place)  movement-ttl:g  who  %glurff
+              (call-ctx place who attempt)
+          ==
+      ==
+    :~  ?:  =(%renew-access mode)
+          %-  calls-poke
+          :*  %renew-access
+              (call-req place attempt %renew-access who)
+              (room-key place)  who  %glurff
+              (call-ctx place who attempt)
+          ==
+        %-  calls-poke
+        :*  %access
+            (call-req place attempt %access who)
+            (room-key place)  who  %glurff
+            (call-ctx place who attempt)
+        ==
+        %-  calls-poke
+        :*  %renew
+            (call-req place `@ud`(div now.bowl world-window:g) %renew our.bowl)
+            (room-key place)
+            movement-ttl:g
+        ==
+    ==
+  =.  asked.c  now.bowl
+  =?  failing.c  open  ~
+  =/  was=@ud  rev.c
+  =?  c  hush  c(quiet (~(put in quiet.c) who), rev +(rev.c))
+  =?  c  free  c(quiet (~(del in quiet.c) who), rev +(rev.c))
+  ::  Everybody else as the record and the note now say, and anybody who has
+  ::  left the Glurff put out.
+  =^  enforce  c  (call-reconcile place c u.gn)
+  ::  The record to everybody in a call that has just started or changed, and
+  ::  to a newcomer to one already going.
+  =/  told=(list card)
+    ?:  |(fresh !=(was rev.c))  (call-publish place c u.gn ~)
+    ?.  new  ~
+    (call-tell place (call-snap-of c u.gn) ~[who])
+  :_  state(calls (call-prune (~(put by calls) place c)))
+  :(weld access enforce told)
+::  Somebody has left a call. Leaving gives up admin, and a call left with no
+::  admin of its own gets the next one.
+++  call-leave
+  |=  [who=@p =place:g]
+  ^-  (quip card state-11)
+  ?.  (call-place place)  `state
+  =/  c0=(unit host-call:g)  (~(get by calls) place)
+  ?~  c0  `state
+  ?.  (~(has by seen.u.c0) who)  `state
+  =/  gn  glurff-note
+  =/  note=gnote  ?~(gn *gnote u.gn)
+  =/  c=host-call:g  (call-succeed (call-drop u.c0 ~[who]) mods.note)
+  =.  touched.c  now.bowl
+  :_  state(calls (~(put by calls) place c))
+  ?:  =(rev.c rev.u.c0)  ~
+  (call-publish place c note ~)
+::  A MODERATION REQUEST, judged by the ship that sent it and never by
+::  anything in it -- or, with op %sync, somebody in the call asking for the
+::  record.
+::
+::  Everybody has a rank: the Glurff's host, then its moderators, then the
+::  call's own admins, then everybody else. An admin of any rank may act only
+::  on somebody of a lower one, and never on themselves. That is Noltbook's
+::  rule with one difference, on purpose: a Glurff's moderator outranks a
+::  call's admins, where Noltbook ranks a note's admins and a call's together.
+++  call-mod
+  |=  [actor=@p =place:g inc=@ud target=@p op=@tas]
+  ^-  (quip card state-11)
+  ?.  (call-place place)  `state
+  =/  c0=(unit host-call:g)  (~(get by calls) place)
+  ?~  c0  `state
+  =/  gn  glurff-note
+  =/  note=gnote  ?~(gn *gnote u.gn)
+  =/  mods=(set @p)  mods.note
+  =/  c=host-call:g  (call-sweep u.c0 mods)
+  =/  here=?  (~(has by seen.c) actor)
+  ?:  =(%sync op)
+    :_  state(calls (~(put by calls) place c))
+    ?.  here  ~
+    (call-tell place (call-snap-of c note) ~[actor])
+  ::  Nobody is moderated while the note cannot be read: it is who is in the
+  ::  Glurff, and +call-reconcile would take an empty one to mean nobody.
+  ?~  gn  `state(calls (~(put by calls) place c))
+  ?.  ?&(here =(inc inc.c))  `state(calls (~(put by calls) place c))
+  =/  rank
+    |=  s=@p
+    ^-  @ud
+    ?:  =(s our.bowl)  3
+    ?:  (~(has in mods) s)  2
+    ?:((~(has in admins.c) s) 1 0)
+  =/  mine=@ud  (rank actor)
+  =/  next=(unit host-call:g)
+    ?:  =(%record-start op)
+      ?.  ?&((gte mine 1) ?=(~ recording.c))  ~
+      `c(recording `[actor now.bowl])
+    ?:  =(%record-stop op)
+      ?~  recording.c  ~
+      ?.  |(=(actor by.u.recording.c) (gth mine (rank by.u.recording.c)))  ~
+      `c(recording ~)
+    ?.  ?&((gte mine 1) !=(target actor) (gth mine (rank target)))  ~
+    ?+  op  ~
+        %promote
+      ?.  ?&((~(has by seen.c) target) =(0 (rank target)))  ~
+      `c(admins (~(put in admins.c) target))
+    ::
+        %demote
+      ?.  (~(has in admins.c) target)  ~
+      `c(admins (~(del in admins.c) target))
+    ::
+        %mute
+      ?:  (~(has in muted.c) target)  ~
+      `c(muted (~(put in muted.c) target))
+    ::
+        %unmute
+      ?.  (~(has in muted.c) target)  ~
+      `c(muted (~(del in muted.c) target))
+    ::
+        %boot
+      ?:  (~(has in booted.c) target)  ~
+      `(call-drop c(booted (~(put in booted.c) target)) ~[target])
+    ::
+        %unboot
+      ?.  (~(has in booted.c) target)  ~
+      `c(booted (~(del in booted.c) target))
+    ==
+  ?~  next  `state(calls (~(put by calls) place c))
+  =/  done=host-call:g
+    =/  n=host-call:g  u.next(rev +(rev.c), touched now.bowl)
+    ?.(=(%boot op) n (call-succeed n mods))
+  ::  Made true on the call server, not only in everybody's browser: a boot
+  ::  puts them out, and a mute or an unmute goes through +call-reconcile, so
+  ::  unmuting here never lifts a mute the whole Glurff has put on them.
+  =/  at=@ud  `@ud`(sham [place target op now.bowl])
+  =/  out=(list card)
+    ?.  =(%boot op)  ~
+    :~  %-  calls-poke
+        [%evict (call-req place at %evict target) (room-key place) target]
+    ==
+  =^  enforce  done  (call-reconcile place done note)
+  :_  state(calls (~(put by calls) place done))
+  ;:  weld  out  enforce
+    (call-publish place done note ?:(=(%boot op) ~[target] ~))
+  ==
+::  A HUDDLE'S ROSTER, from the member it elected -- the one ship whose name
+::  its place is made from. Only those on it may be in its call; anybody in
+::  the call who is not on it any more has left it. An empty roster ends it.
+++  call-roster
+  |=  [who=@p =place:g ships=(set @p)]
+  ^-  (quip card state-11)
+  ?.  ?&((gte place huddle-base:g) (lth place call-top:g))  `state
+  ?.  =(place (huddle-place who))  `state
+  ?:  (gth ~(wyt in ships) 32)  `state
+  =/  gn  glurff-note
+  ?~  gn  `state
+  ?.  =(creator.u.gn our.bowl)  `state
+  =/  members=(set @p)  (~(put in members.u.gn) our.bowl)
+  ?.  (~(has in members) who)  `state
+  =/  kept=(set @p)  (~(int in ships) members)
+  =/  c0=host-call:g  (~(gut by calls) place *host-call:g)
+  =/  c=host-call:g
+    %+  call-succeed
+      %+  call-drop  c0(roster ?~(kept ~ `kept), touched now.bowl)
+      ~(tap in (~(dif in ~(key by seen.c0)) kept))
+    mods.u.gn
+  :_  state(calls (call-prune (~(put by calls) place c)))
+  ?:  =(rev.c rev.c0)  ~
+  (call-publish place c u.gn ~)
+::  PUT SOMEBODY'S STANDING INTO EFFECT NOW (2026-10-31), asked by the
+::  Glurff's host or one of its moderators after changing it in the note.
+::  Every call is reconciled with the note as it stands -- mutes applied or
+::  lifted, anybody no longer in the Glurff put out -- and somebody removed is
+::  put out of the world room too. Every call's record goes out again, so an
+::  admin made or unmade is heard in calls already going. Nothing is decided
+::  here that the note does not already say.
+++  call-recheck
+  |=  [actor=@p who=@p]
+  ^-  (quip card state-11)
+  =/  gn  glurff-note
+  ?~  gn  `state
+  ?.  =(creator.u.gn our.bowl)  `state
+  ?.  |(=(actor our.bowl) (~(has in mods.u.gn) actor))  `state
+  =/  places=(list place:g)  ~(tap in ~(key by calls))
+  =|  cards=(list card)
+  |-  ^-  (quip card state-11)
+  ?~  places
+    :_  state
+    ?.  (~(has in removed.u.gn) who)  cards
+    :_  cards
+    %-  calls-poke
+    :*  %evict
+        (call-req world-place:g `@ud`(sham [who %world now.bowl]) %evict who)
+        (room-key world-place:g)
+        who
+    ==
+  =/  c=host-call:g  (~(got by calls) i.places)
+  ?:  =(~ seen.c)  $(places t.places)
+  =/  was=@ud  rev.c
+  =^  more  c  (call-reconcile i.places c u.gn)
+  =?  c  =(rev.c was)  c(rev +(rev.c))
+  =/  told=(list card)  (call-publish i.places c u.gn ~)
+  %=  $
+    places  t.places
+    calls   (~(put by calls) i.places c)
+    cards   :(weld cards more told)
+  ==
+::  What became of a request about one of our calls, kept as +world-heard
+::  keeps the world room's.
+++  call-heard
+  |=  res=call-result:gc
+  ^-  state-11
+  =/  at=(unit place:g)  (ctx-place context.res)
+  ?~  at  state
+  ?.  (call-place u.at)  state
+  =/  c=(unit host-call:g)  (~(get by calls) u.at)
+  ?~  c  state
+  ?-    -.res
+      %granted  state(calls (~(put by calls) u.at u.c(failing ~)))
+  ::
+      %failed
+    ?.  ?=(?(%room-unavailable %room-ended %expired) err.res)  state
+    ?^  failing.u.c  state
+    state(calls (~(put by calls) u.at u.c(failing `now.bowl)))
+  ==
+::  The place a correlation is about: +call-ctx starts with it.
+++  ctx-place
+  |=  ctx=@t
+  ^-  (unit place:g)
+  =/  txt=tape  (trip ctx)
+  =/  cut=(unit @ud)  (find "/" txt)
+  ?~  cut  ~
+  (slaw %ud (crip (scag u.cut txt)))
 ::
 ::  Route one completed grant. A failure carries no secret and goes to our own
 ::  browser; a credential goes to exactly one ship and never to a fact anyone
@@ -926,7 +1558,7 @@
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-9)
+  ^-  (quip card state-11)
   ?-    -.act
       %move
     :_  state
@@ -1054,7 +1686,7 @@
     ?:  =(0 (met 3 tab.act))  `state
     =/  mint
       |=  prev=@ud
-      ^-  (quip card state-9)
+      ^-  (quip card state-11)
       =/  ms=@ud  (div (sub now.bowl ~1970.1.1) (div ~s1 1.000))
       =/  gen=@ud  (max +(prev) ms)
       :_  state(live `[tab.act gen now.bowl])
@@ -1068,17 +1700,34 @@
       [~[(fact [%session tab.u.live gen.u.live])] state]
     (mint gen.u.live)
   ::
-    ::  HOST-SHIP ADMISSION: who our browser has let into our call at a place.
-    ::  Bounded, like the call itself.
-      %admits
-    ?~  ships.act  `state(admits (~(del by admits) place.act))
-    ?:  (gth (lent ships.act) 64)  `state
-    `state(admits (~(put by admits) place.act (silt ships.act)))
-  ::
+    ::  EVERY CALL ON THE GLURFF'S HOST: ours to decide when we are that host,
+    ::  carried to its ship when we are not.
       %call-knock
-    ?:  =(host.act our.bowl)  `state
+    ?:  =(host.act our.bowl)  (call-knock our.bowl place.act attempt.act mode.act)
     :_  state
     ~[(tell host.act [%call-knock place.act attempt.act mode.act])]
+  ::
+      %call-leave
+    ?:  =(host.act our.bowl)  (call-leave our.bowl place.act)
+    :_  state
+    ~[(tell host.act [%call-leave place.act])]
+  ::
+      %call-mod
+    ?:  =(host.act our.bowl)
+      (call-mod our.bowl place.act inc.act target.act op.act)
+    :_  state
+    ~[(tell host.act [%call-mod place.act inc.act target.act op.act])]
+  ::
+      %call-roster
+    ?:  (gth (lent ships.act) 32)  `state
+    ?:  =(host.act our.bowl)  (call-roster our.bowl place.act (silt ships.act))
+    :_  state
+    ~[(tell host.act [%call-roster place.act (silt ships.act)])]
+  ::
+      %call-recheck
+    ?:  =(host.act our.bowl)  (call-recheck our.bowl who.act)
+    :_  state
+    ~[(tell host.act [%call-recheck who.act])]
   ::
     ::  THE DOOR of the room we lease. Members new to it are told which note it
     ::  is; members dropped from it are told the lease is over for them.
@@ -1103,11 +1752,6 @@
     ?:  =(host.act our.bowl)  `state
     :_  state
     ~[(tell host.act [%lease-ask place.act])]
-  ::
-      %lock
-    ?.  (~(has by hosting) place.act)  `state
-    :_  state(hosting (~(put by hosting) place.act mode.act))
-    (spray peers.act [%hosting place.act mode.act])
   ::
       %knock
     ::  Ames does not care about pals: knowing a host's @p is enough to ask.
@@ -1144,7 +1788,7 @@
 ::  poked once cannot make it grow without bound.
 ++  meter
   |=  who=@p
-  ^-  [? state-9]
+  ^-  [? state-11]
   =/  cur=meter:g  (~(gut by meters) who [now.bowl 0])
   =?  cur  (gte now.bowl (add at.cur remote-window:g))  [now.bowl 0]
   =.  n.cur  +(n.cur)
@@ -1158,12 +1802,6 @@
   ::  Said once per window, not once per dropped poke.
   ~?  =(n.cur +(remote-burst:g))  [%glurff-over-allowance who]
   [ok state(meters (~(put by kept) who cur))]
-::  Is some browser of ours watching this path?
-++  watched
-  |=  =path
-  ^-  ?
-  %+  lien  ~(val by sup.bowl)
-  |=([=ship p=^path] =(p path))
 ::  No text from another ship bigger than our own browser would send.
 ++  fits
   |=  rem=remote:g
@@ -1173,10 +1811,12 @@
     %room-event      (lte (met 3 body.rem) remote-body:g)
     %wearing         (lte (met 3 (jam look.rem)) remote-body:g)
     %lease-info      (lte (met 3 note.rem) 256)
+    %call-roster     (lte ~(wyt in ships.rem) 32)
+    %call-mod-snap   (lte (met 3 (jam snap.rem)) remote-body:g)
   ==
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-9)
+  ^-  (quip card state-11)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])
@@ -1208,36 +1848,17 @@
       %lease-gone
     :_(state ~[(fact [%lease-gone who place.rem gen.rem])])
   ::
-    ::  A guest's ship asking for our call. Somebody our browser already let in
-    ::  is let in again here, with nobody's browser involved -- which is what
-    ::  keeps a call alive through a host's slow or sleeping tab. Anybody else
-    ::  is put to our browser, which applies the room's rules; with no browser
-    ::  to ask, and no record of them, the answer is no.
-      %call-knock
-    ?.  ?|(=(%access mode.rem) =(%renew-access mode.rem))  `state
-    =/  ok=(unit (set @p))  (~(get by admits) place.rem)
-    ?:  ?&(?=(^ ok) (~(has in u.ok) who))
-      :_  state
-      ::  Each tagged action built on its own: a computed tag inside one tuple
-      ::  does not nest in the calls action union (see %knock).
-      :~  ?:  =(%renew-access mode.rem)
-            %-  calls-poke
-            :*  %renew-access
-                (call-req place.rem attempt.rem %renew-access who)
-                (room-key place.rem)  who  %glurff
-                (call-ctx place.rem who attempt.rem)
-            ==
-          %-  calls-poke
-          :*  %access
-              (call-req place.rem attempt.rem %access who)
-              (room-key place.rem)  who  %glurff
-              (call-ctx place.rem who attempt.rem)
-          ==
-          (fact [%admitted who place.rem attempt.rem])
-      ==
-    ?:  (watched /world)
-      :_(state ~[(fact [%call-knocked who place.rem attempt.rem mode.rem])])
-    :_(state ~[(tell who [%call-refused place.rem attempt.rem %not-hosting])])
+    ::  EVERY CALL ON THE GLURFF'S HOST: somebody asking for a call, leaving
+    ::  one, moderating one or registering a huddle -- decided here with no
+    ::  browser involved -- and the host's answers to us.
+      %call-knock   (call-knock who place.rem attempt.rem mode.rem)
+      %call-leave   (call-leave who place.rem)
+      %call-mod     (call-mod who place.rem inc.rem target.rem op.rem)
+      %call-roster  (call-roster who place.rem ships.rem)
+      %call-recheck  (call-recheck who who.rem)
+  ::
+      %call-mod-snap
+    :_(state ~[(fact [%call-mod-snap who place.rem snap.rem])])
   ::
       %call-refused
     :_(state ~[(fact [%call-refused who place.rem attempt.rem why.rem])])
@@ -1269,60 +1890,48 @@
   ::
       %knock
     ?:  =(place.rem world-place:g)  (world-knock who)
-    ::  Someone is asking to be let into a room we hold. `%ask` is the browser's
-    ::  decision, so it is surfaced rather than answered here; every other mode
-    ::  is answered immediately, and a refusal is a value, never silence.
-    =/  mode  (~(get by hosting) place.rem)
-    ?~  mode
+    ::  Someone is asking to be let into a room we hold: a movement session's.
+    ::  Every one is open -- there are no locks (2026-10-31) -- and a refusal
+    ::  is a value, never silence.
+    ?.  (~(has by hosting) place.rem)
       :_(state ~[(tell who [%refused place.rem %not-hosting])])
-    ?-    u.mode
-        %locked  :_(state ~[(tell who [%refused place.rem %locked])])
-        %ask     :_(state ~[(fact [%knocked who place.rem])])
-    ::
-        ?(%open %pals)
-      ::  %pals is decided by the browser too -- the pal graph is Noltbook's and
-      ::  this agent cannot see it. Surfacing the knock lets the client apply
-      ::  the rule and mint, which keeps the graph where it belongs.
-      ?:  ?=(%pals u.mode)
-        :_(state ~[(fact [%knocked who place.rem])])
-      ::  Admit the knocker to the existing room. Construct each tagged action
-      ::  separately: a computed tag inside one tuple does not nest in the
-      ::  calls action union.
-      :_  state
-      %+  weld
-        :~  ?:  ?&((gth place.rem movement-base:g) (lth place.rem 1.000.000))
-              %-  calls-poke
-              :*  %renew-access
-                  (call-req place.rem `@ud`(shas %glurff-admit now.bowl) %access who)
-                  (room-key place.rem)  who  %glurff
-                  (call-ctx place.rem who 0)
-              ==
+    ::  Admit the knocker to the existing room. Construct each tagged action
+    ::  separately: a computed tag inside one tuple does not nest in the calls
+    ::  action union.
+    :_  state
+    %+  weld
+      :~  ?:  ?&((gth place.rem movement-base:g) (lth place.rem 1.000.000))
             %-  calls-poke
-            :*  %access
+            :*  %renew-access
                 (call-req place.rem `@ud`(shas %glurff-admit now.bowl) %access who)
                 (room-key place.rem)  who  %glurff
                 (call-ctx place.rem who 0)
             ==
-        ==
-      ::  A MOVEMENT room is kept alive by the people still using it, not by
-      ::  whoever opened it. Every knock asks our broker to extend the lease,
-      ::  which is how the room outlives the host's browser without that browser
-      ::  -- or a timer here -- keeping anything alive.
-      ::
-      ::  The request id is bucketed by the minute, so however many participants
-      ::  knock, the Warden performs at most one renewal per minute per room and
-      ::  answers the rest as duplicates. When the last participant leaves, the
-      ::  knocks stop and the lease lapses on its own.
-      ::
-      ::  The renewal's answer goes to %noltbook-calls, never back here.
-      ?.  ?&((gth place.rem movement-base:g) (lth place.rem 1.000.000))  ~
-      :~  %-  calls-poke
-          :*  %renew
-              (call-req place.rem `@ud`(div now.bowl ~m1) %renew our.bowl)
-              (room-key place.rem)
-              movement-ttl:g
+          %-  calls-poke
+          :*  %access
+              (call-req place.rem `@ud`(shas %glurff-admit now.bowl) %access who)
+              (room-key place.rem)  who  %glurff
+              (call-ctx place.rem who 0)
           ==
       ==
+    ::  A MOVEMENT room is kept alive by the people still using it, not by
+    ::  whoever opened it. Every knock asks our broker to extend the lease,
+    ::  which is how the room outlives the host's browser without that browser
+    ::  -- or a timer here -- keeping anything alive.
+    ::
+    ::  The request id is bucketed by the minute, so however many participants
+    ::  knock, the Warden performs at most one renewal per minute per room and
+    ::  answers the rest as duplicates. When the last participant leaves, the
+    ::  knocks stop and the lease lapses on its own.
+    ::
+    ::  The renewal's answer goes to %noltbook-calls, never back here.
+    ?.  ?&((gth place.rem movement-base:g) (lth place.rem 1.000.000))  ~
+    :~  %-  calls-poke
+        :*  %renew
+            (call-req place.rem `@ud`(div now.bowl ~m1) %renew our.bowl)
+            (room-key place.rem)
+            movement-ttl:g
+        ==
     ==
   ==
 --
