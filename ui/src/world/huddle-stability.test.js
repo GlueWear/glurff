@@ -1,3 +1,4 @@
+import './test-world.js';   //  the world, set before anything reads it
 import test from 'node:test';
 import assert from 'node:assert/strict';
 

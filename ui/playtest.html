@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-visual" />
+  <meta name="theme-color" content="#141820" />
+  <title>Glurff playtest</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/apps/glurff/favicon.png?v=3704137cf220" />
+  <link rel="stylesheet" href="/apps/glurff/style.css" />
+</head>
+<body>
+  <!-- The real app (src/main.js) on the host's draft, announced to nobody:
+       see src/playtest/playtest.js. -->
+  <div id="loading" class="loading" data-name="Glurff playtest" data-plain aria-busy="true">
+    <canvas class="loading-sky" aria-hidden="true"></canvas>
+    <div class="loading-card">
+      <h1 class="loading-name">Glurff</h1>
+      <p class="loading-host"></p>
+      <div class="loading-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+      <p class="loading-say" role="status">Opening the playtest…</p>
+      <div class="loading-notice" role="alert" hidden>
+        <p class="loading-title"></p>
+        <p class="loading-detail"></p>
+        <button type="button" class="loading-act" hidden></button>
+      </div>
+    </div>
+  </div>
+  <script src="/apps/glurff/loading.js"></script>
+  <div id="stage"></div>
+  <div id="hud"></div>
+  <script src="/session.js"></script>
+  <script src="/apps/glurff/desk.js"></script>
+  <script type="module" src="/src/playtest/playtest.js"></script>
+</body>
+</html>

@@ -236,9 +236,10 @@
   ==
 ::
 ::  OUR SETTINGS. Owner-local JSON the agent keeps and never reads: which
-::  clocks we have in the sky and where, and our time zone. Capped, since a
-::  browser writes it.
-++  prefs-max  8.192
+::  clocks we have in the sky and where, and our time zone; our Glurffs; and
+::  what we have collected in them (2026-11-08, when it grew from 8 KB).
+::  Capped, since a browser writes it.
+++  prefs-max  32.768
 ::
 ::  THE WORLD'S SPOTS. A spot is a patch of the painted map that opens an app
 ::  -- a ping pong table, a TV, the boardroom table. The patch is painted in;
@@ -286,7 +287,7 @@
       [%room-event peers=(list @p) =place body=@t]
       [%presence-event peers=(list @p) body=@t]
       ::  take a room for one of our own notes, or give it back. One at a time.
-      [%lease peers=(list @p) =place note=@ta]
+      [%lease peers=(list @p) =place note=@ta world=(unit @p)]
       [%unlease peers=(list @p) ~]
       ::  Take, keep or give up a seat in somebody's leased room. `host` is the
       ::  lease owner; our own agent forwards it to theirs. gen 0 on an enter
@@ -329,6 +330,14 @@
       [%spot peers=(list @p) id=@tas app=(unit spot-app)]
       ::  ...or a website, or `~` to give the spot back to the map.
       [%spot-web peers=(list @p) id=@tas web=(unit spot-web)]
+      ::  As a world's host, after its note's visibility changed: tell every
+      ::  ship watching our card what it may now see of it (see `card-for`).
+      [%card-again peers=(list @p) ~]
+      ::  SIGNS: change what a sign in `host`'s world says (our own agent, if
+      ::  that is us; else it asks the host's), or, as the host, put one back
+      ::  to what the world was published with.
+      [%sign-set peers=(list @p) host=@p item=@t text=@t]
+      [%sign-reset peers=(list @p) item=@t]
   ==
 ::  How a host answers a knock on a movement session's room. Only %open is
 ::  ever set now: room locks are gone (2026-10-31) -- a room that should be
@@ -466,7 +475,135 @@
       [%lease-ask =place]
       [%lease-info =place note=@ta vis=@tas gen=@ud]
       [%lease-private =place gen=@ud]
+      ::  THE WORLD AS DATA, by poke: a visitor asking a host for one of its
+      ::  world's assets, and the host's answer -- the bytes, or why not.
+      [%asset-ask =hash]
+      [%asset-give =hash mime=@t data=octs]
+      [%asset-deny =hash why=@tas]
+      ::  SIGNS (2026-11-07): somebody in the world changing what a sign says.
+      ::  The host decides: a member, a sign the live release lets people
+      ::  change, and not too long. Refused by crashing, which the sender's
+      ::  agent hears as a nack.
+      [%sign-set item=@t text=@t]
+      ::  LISTED (2026-11-08): a host that has published, telling the ship
+      ::  its Glurffs are listed with (`listing-host`) that its note is one.
+      ::  Its Publish also makes that ship a member of the note.
+      [%listed note=@ta]
+      ::  UNLISTED (2026-11-09): the same host, taken down (release 0): off
+      ::  that ship's list until it is live again.
+      [%unlisted note=@ta]
   ==
+::
+::  ------------------------------------------------------ the world as data
+::
+::  THE WORLD AS DATA (2026-11-04). A Glurff is no longer painted into the
+::  app: its host keeps it -- the maps, their walls and rooms, everything on
+::  them -- as a JSON document and the images it names, and every visitor's
+::  page fetches them from the host through its own agent. One app, any host.
+::
+::  hash: an asset's content id, the SHA-256 of its bytes read as one
+::  big-endian number -- the same hex the browser's crypto.subtle gives.
++$  hash  @ux
+::  asset: some bytes the host keeps, as an atom (byte 0 lowest, as octs).
+::  `at`: when they were sent or last wanted (see `let-go`).
++$  asset  [mime=@t size=@ud data=@ at=@da]
+::  draft: the world being edited, the host's alone. `doc` is the hash of its
+::  JSON document; `rev` moves on every save, so a stale save is refused.
++$  draft  [rev=@ud doc=hash at=@da]
+::  release: a world as published, never changed after. `doc` is its JSON
+::  document, `rev` the draft revision it was published from, `schema` the
+::  document's version.
++$  release  [doc=hash rev=@ud schema=@ud at=@da]
+::  home: the Glurff this ship hosts, when it hosts one.
+::
+::    note      the Noltbook note it is: its members are who may visit, its
+::              admins its moderators. The world is [our note].
+::    edit      whether this ship may edit it. Off unless its operator turns
+::              it on from Dojo (%glurff-operator): an install never edits.
+::    assets    every image and document, by hash, kept once, while the
+::              draft or a release names it (see `let-go`)
+::    draft     the world being edited
+::    releases  every world published, numbered from 1
+::    live      the release visitors are given
+::    shown     what visitors may fetch: every release's document and every
+::              asset one names. A draft's own images stay the host's.
++$  home
+  $:  note=@ta
+      edit=?
+      assets=(map hash asset)
+      draft=(unit draft)
+      releases=(map @ud release)
+      live=(unit @ud)
+      shown=(set hash)
+  ==
+::  sign: what a sign in our world says now, when somebody changed it from
+::  what the live release says, and who and when. By item id; anybody in the
+::  world may change a sign its release marks `editable` (2026-11-07).
++$  sign  [text=@t by=@p at=@da]
+::  As much as a sign may say: 4.000 characters, as the document allows, of
+::  up to four bytes each.
+++  sign-max   16.000
+++  signs-max  256
+::  card: what anybody may know about a host's world, to decide to visit it:
+::  its note, its name, and the live release. Its contents are for members.
++$  world-card
+  $:  note=@ta
+      name=@t
+      live=(unit [n=@ud doc=hash size=@ud])
+  ==
+::  How a visitor's agent fetches an asset from a host: by encrypted remote
+::  scry, which the host's agent authorises ship by ship and then serves
+::  with no event of its own, or by a poke answered with the bytes.
++$  via  ?(%scry %poke)
+::  fetch: browsers waiting on one asset from one host, kept until it comes.
++$  fetch  [=via ids=(set @ta) at=@da]
+::  The limits a host's store keeps to. Checked here, not only in the editor.
+++  asset-max     20.971.520
+::  Many: a painted map is kept in tiles (2026-11-08); `store-max` is what
+::  bounds the memory.
+++  assets-max    2.048
+::  All of them together (2026-11-08): what a ship's memory can spare -- a
+::  ship on the usual 2 GB has room for it, with its other apps. Ten maps at
+::  their very largest would not fit; ten as people make them do.
+++  store-max     209.715.200
+::  Bytes nothing uses -- a picture taken off the map, the cropped copy of
+::  an import, an abandoned upload -- are let go a day after anything last
+::  wanted them, so Undo still finds them; sooner when the store needs the
+::  room, though never one sent in the last few minutes, which its draft may
+::  be about to name.
+++  let-go        ~d1
+++  in-flight     ~m3
+++  fetch-wait    ~s60
+::  The encrypted namespace a host publishes its world's assets under.
+++  world-coop    /world
+::
+::  Only from Dojo on the ship itself: a noun mark with no JSON, so no
+::  browser -- not even our own -- can reach it. This is what makes a ship a
+::  world's host and lets it edit; the page only ever reads the result.
++$  operator
+  $%  [%host note=@ta]
+      [%unhost ~]
+      [%edit on=?]
+      ::  Where our Publish lists our Glurff (2026-11-08); ~ for nowhere.
+      [%listing ship=(unit @p)]
+      ::  A Glurff listed with us, taken off our list. (Its host's next
+      ::  Publish lists it again; to keep it off, block that ship in Noltbook.)
+      [%unlist who=@p]
+  ==
+::
+::  LISTING (2026-11-08), for now: a host's Publish makes `listing-host` a
+::  member of its world's note and tells it so (%listed), and that ship's
+::  Glurff shows every Glurff it is in -- the official world as the place
+::  to find the others. A host may point it elsewhere, or nowhere, through
+::  its own API or from Dojo.
+++  listing-host  ~nolset
+::  A Glurff that told us it is one: its note, and when.
++$  listing  [note=@ta at=@da]
+::  How many we keep, and tell anybody about.
+++  listing-max  1.000
+::  One Glurff a ship is in, as it has the note: its host, note, name and
+::  how many are in it.
++$  glurff-entry  [host=@p note=@ta name=@t members=@ud]
 ::
 ::  agent -> our own client, as facts on /world.
 +$  update
@@ -483,7 +620,7 @@
       [%room-event who=@p =place body=@t]
       [%presence-event who=@p body=@t]
       ::  the lease we hold, on startup and whenever it changes. `~` is none.
-      [%our-lease lease=(unit lease)]
+      [%our-lease lease=(unit lease) world=(unit @p)]
       ::  the generation our seat was actually admitted to, so renewals and the
       ::  eventual leave are about the lease we joined and no other.
       [%seat-ok =place gen=@ud]
@@ -507,5 +644,22 @@
       ::  ...and the websites on them. A fact of its own, so a page or agent
       ::  from before websites still reads %spots as it always did.
       [%spot-webs webs=(map @tas spot-web)]
+      ::  A host's world card, on /card to anybody watching and passed on to
+      ::  our page on /card/~host. `~` when that ship hosts no world.
+      [%world-card host=@p card=(unit world-card)]
+      ::  SIGNS PEOPLE CHANGED in a host's world, on /signs to its members'
+      ::  agents and passed on to our page on /signs/~host; whenever one
+      ::  changes. A new path, so no agent from before signs is ever sent it.
+      [%signs host=@p signs=(map @t sign)]
+      ::  ...that host keeps none for us: not a member, or an older Glurff.
+      [%signs-shut host=@p]
+      ::  ...or would not take what we wrote on one.
+      [%sign-refused host=@p item=@t]
+      ::  THE GLURFFS A SHIP IS IN (2026-11-08), on /glurffs to anybody
+      ::  watching and passed on to our page on /glurffs/~host: the public
+      ::  ones, by their notes as that ship has them.
+      [%glurff-list host=@p glurffs=(list glurff-entry)]
+      ::  ...that ship does not say: a Glurff from before this.
+      [%glurff-list-shut host=@p]
   ==
 --

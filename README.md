@@ -7,6 +7,23 @@ you, and walking through a doorway into one of the rooms joins that room's call.
 Chat, direct messages, pals and the call service all come from
 [Noltbook](https://github.com/GlueWear/noltbook), which Glurff runs on top of.
 
+Anybody can build a Glurff of their own and publish it for people to visit.
+The official one is published by `~nolset`.
+
+## Building your own Glurff
+
+**EDIT GLURFF** on your own profile card opens the map editor:
+- maps from a picture of your own, or in space;
+- walls, foreground, areas with their own chat and calls;
+- doors between maps and to other Glurffs;
+- pictures, signs, characters, collectibles and drawing.
+
+Until you first publish, your Glurff is only a draft on your ship: nothing of it
+is anywhere else. The first **Publish** makes its Noltbook note, whose members
+are its members, and lists it with `~nolset` so people can find it. Visitors
+fetch its map from your ship through their own. Your ship is its host: when
+your ship is down, your Glurff is offline.
+
 ## Requirements
 
 - An Urbit ship with **Noltbook** installed. Glurff uses its notes, pals, DMs
@@ -21,33 +38,24 @@ Chat, direct messages, pals and the call service all come from
 
 ### The artwork is not in this repository
 
-Glurff's characters and its map are drawn from **Minifantasy** by **Krishna
-Palacio**, whose licence permits using the art in a game but **not
-redistributing it**. A public repository is redistribution, so these are left
-out of it deliberately:
+Glurff's characters are drawn from **Minifantasy** by **Krishna Palacio**, whose
+licence permits using the art in a game but **not redistributing it**. A public
+repository is redistribution, so they are left out of it deliberately:
 
 ```
 lib/glurff/site/characters/   the packed character atlases the game loads
-lib/glurff/site/map/          the painted world and its over-layer
 ui/public/characters/         where the build writes those atlases
-ui/public/map/
-ui/map/                       the drawn layers the map is built from
 ```
 
-**A checkout of this repository therefore runs without characters or a map.**
-Everything else works; people are invisible and the world is blank. To build a
-complete copy you need your own licensed copy of the art:
+**A checkout of this repository therefore runs without characters.** Everything
+else works; people are invisible. To build a complete copy you need your own
+licensed copy of the art: buy the [Minifantasy](https://krishna-palacio.itch.io/)
+packs Glurff uses, put the character sheets where `ui/tools/build_characters.py`
+expects them, and run it. It packs them into `ui/public/characters/` and writes
+`ui/src/world/character-data.js`.
 
-1. buy the [Minifantasy](https://krishna-palacio.itch.io/) packs Glurff uses;
-2. put the character sheets where `ui/tools/build_characters.py` expects them
-   and run it — it packs them into `ui/public/characters/` and writes
-   `ui/src/world/character-data.js`;
-3. put your map's four layers in `ui/map/source/` and run
-   `ui/tools/build_map.py` — it writes `ui/public/map/` and
-   `ui/src/world/map-data.js`.
-
-Both tools are here, and both are the whole recipe: nothing about the world is
-written down twice.
+The app carries no map. Every Glurff's map, the official one's included, is
+published by its host from the editor.
 
 ## Installing from this repository
 
@@ -60,8 +68,8 @@ In your ship's dojo:
 
 Copy everything from this repository into the mounted `glurff` folder **except**
 `ui/`, `README.md`, `LICENSE` and `.gitignore`. Add your own built
-`lib/glurff/site/characters/` and `lib/glurff/site/map/` (see above) — without
-them the world has no art. Then:
+`lib/glurff/site/characters/` (see above). Without it, characters have no art.
+Then:
 
 ```
 |commit %glurff
@@ -86,7 +94,7 @@ the desk at `lib/glurff/site/` and rewrites the asset manifest,
 Glurff is released under the MIT License. See [LICENSE](LICENSE).
 
 - **Art: Minifantasy by [Krishna Palacio](https://krishna-palacio.itch.io/).**
-  Glurff's characters and map are built from it under its licence, which allows
+  Glurff's characters are built from it under its licence, which allows
   use but not redistribution — so the art is **not** in this repository and is
   not covered by Glurff's MIT licence. See "The artwork is not in this
   repository" above. If you run Glurff, credit Krishna Palacio.

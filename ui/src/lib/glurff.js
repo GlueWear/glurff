@@ -7,7 +7,7 @@
 import { latestSender } from 'lib/motion';
 import { api, poke, subscribe, our } from 'lib/api';
 import { glurffAudience } from 'lib/noltbook';
-import { WORLD_ID } from 'lib/world-config';
+import { WORLD_ID, WORLD_HOST } from 'lib/world-config';
 import { trafficStart, recordCallQuota, diagnostic } from 'lib/diagnostics';
 import { CONTROL_ACK_MS } from 'lib/connection';
 
@@ -86,7 +86,8 @@ export const claimRoom = (place) => act('claim', { place });
 export const releaseRoom = (place) => act('release', { place });
 /* THE LEASE. One room, held for one of our own Noltbook notes, until we give
  * it back. It lives in the agent so it outlives the tab. */
-export const takeLease = (place, note) => act('lease', { place, note });
+/* Taken in the world we are visiting, which the agent remembers. */
+export const takeLease = (place, note) => act('lease', { place, note, world: WORLD_HOST });
 /* EVERY CALL ON THE GLURFF'S HOST (2026-10-31). Every room's call and every
  * huddle's is held on the ship that created the Glurff's note, and its agent
  * decides everything about them. These reach it through our own agent -- or
@@ -136,6 +137,9 @@ export const splash = (target) => act('splash', { target });
  * clocks in the sky, our time zone. Nobody else is sent them. */
 export const savePrefs = (text) =>
   tracked('settings', poke('glurff', 'glurff-action', { op: 'prefs', text, peers: [] }));
+/* As a world's host: our note's visibility changed, so our agent tells every
+ * ship watching our card what it may now see (a secret one, nothing). */
+export const cardAgain = () => poke('glurff', 'glurff-action', { op: 'card-again', peers: [] });
 export const roll = (place, stage) => act('roll', { place, ...stage });
 
 /* Movement sessions. `peers` is empty on purpose: a movement room is found
@@ -156,6 +160,19 @@ export const watchWorld = (onFact) => subscribe('glurff', '/world', onFact);
  * facts from another ship's agent itself. */
 export const watchSpots = (host, onSpots) =>
   subscribe('glurff', `/spots/${host}`, (name, p) => { if (name === 'spots' || name === 'spot-webs') onSpots(name, p); });
+/* SIGNS PEOPLE CHANGED in a host's world (2026-11-07), through our own agent
+ * as the spots are: what each says now, that host keeping none for us, or a
+ * change it would not take. Writing goes through our agent too. */
+const SIGN_FACTS = ['signs', 'signs-shut', 'sign-refused'];
+export const watchSigns = (host, onFact) =>
+  subscribe('glurff', `/signs/${host}`, (name, p) => { if (SIGN_FACTS.includes(name)) onFact(name, p); });
+/* Answered: done when our agent takes it, refused when it does not -- which,
+ * for a sign in our own world, is our agent's own no. */
+const answered = (json) => new Promise((resolve, reject) => {
+  Promise.resolve(api.poke({ app: 'glurff', mark: 'glurff-action', json, onSuccess: resolve, onError: () => reject(new Error('it was refused')) })).catch(reject);
+});
+export const setSign = (host, item, text) => answered({ op: 'sign-set', peers: [], host, item, text });
+export const resetSign = (item) => answered({ op: 'sign-reset', peers: [], item });
 export const watchCallAccess = (onFact) => subscribe('glurff', '/call-access', (name,p) => {
   // Diagnostics share the existing owner-local channel but never reach either
   // call controller: a late quota detail must not change media or retry state.

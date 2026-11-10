@@ -23,7 +23,7 @@ import { displayName, visiblePeers, palStatus, worldMember, worldBanned, noteCre
 import { subscribeRaw } from 'lib/api';
 import { createRoommates } from 'lib/roommates';
 import { SfuSession } from 'lib/sfu';
-import { regionAt, COMMONS } from 'world/places';
+import { regionAt, COMMONS, placeIn, leasable, MAIN_SCENE, roomById, callsAt, commonsHuddles } from 'world/places';
 import { clusterPeers, agreedMembers, electHost, huddleKey, huddlePlace, HUDDLE_BASE } from 'lib/huddle';
 import { micConstraints, camConstraints, refreshDevices } from 'lib/devices';
 import { createModeration } from 'lib/moderation-session';
@@ -179,9 +179,8 @@ export const forgetPeerRoom=(who)=>peerRooms.delete(who);
 function settledRoomOfPeer(who,peer){
   const spot=peer?.spot??peer;
   const place=peer?.chatPlace;
-  const scene=spot?.scene??'main';
-  const valid=Number.isSafeInteger(place) && place>=COMMONS &&
-    (scene==='vatican'?place===900:place<=15);
+  const scene=spot?.scene??MAIN_SCENE;
+  const valid=Number.isSafeInteger(place) && place>=COMMONS && placeIn(scene,place);
   if(valid){peerRooms.set(who,place);return place;}
   return roomOfPeer(who,spot);
 }
@@ -398,10 +397,22 @@ function republishLease() {
    * here and on everybody else's copy of the list. */
   mates?.keepOnly?.((who) => admitsToRoom(who, rooms.here));
 }
+/* AN AREA THAT IS A NOTE (2026-11-05): the world's document binds it to a
+ * Noltbook note for good. It is that note the way a leased room is -- its
+ * chat, its call, its door -- but nobody holds it: there is no lease to keep
+ * alive and no seat to take, and its list is kept by whoever is in it, like
+ * any room's. `noteHost` is the note's own ship, asked about the note by
+ * those not yet in it. */
+const boundArea = (place) => { const a = roomById(place)?.area; return a?.mode === 'note' && a.note ? a : null; };
+export const boundNote = (place) => boundArea(place)?.note ?? null;
+const boundHost = (place) => { const a = boundArea(place); return a ? a.noteHost ?? noteCreator(a.note) ?? null : null; };
+
 /* The note a room is leased to, from where we are standing: our own lease, or
  * the lease of the copy we are following. Null means an ordinary room. */
 export function leaseNote(place = rooms.here, host = rooms.host) {
   if (!isRoom(place)) return null;
+  const fixed = boundNote(place);
+  if (fixed) return fixed;
   if (rooms.lease?.place === place && host === our) return rooms.lease.note;
   return mates?.noteOf?.(place, host) ?? null;
 }
@@ -410,6 +421,8 @@ export function leaseNote(place = rooms.here, host = rooms.host) {
  * nothing else, because its id never travels. */
 export function leaseAt(place = rooms.here, host = null) {
   if (!isRoom(place)) return { note: null, vis: null };
+  const fixed = boundNote(place);
+  if (fixed) return { note: fixed, vis: noteVisibility(fixed) ?? null, gen: 0, fixed: true };
   if (rooms.lease?.place === place)
     /* WITH ITS GENERATION. Without it our own seat entered as generation 0 --
      * which the agent allows only for an enter -- so every renewal afterwards
@@ -466,6 +479,7 @@ function closedNow(place) {
 }
 /* Whoever we can see holding a lease on that room. */
 function hostSeenIn(place) {
+  if (boundNote(place)) return boundHost(place);
   for (const [host, r] of mates?.instances?.(place) ?? new Map())
     if (host !== our && (r.vis || r.note)) return host;
   /* A room we have been handed the list for. Its host may be invisible to us
@@ -524,7 +538,8 @@ export const noteCallOf=()=>noteCall?.note()??null;
 
 /* Can we take this room? Only a room, only for a note we made ourselves, and
  * only one at a time -- taking a second asks first, in the UI. */
-export const canLease = (place = rooms.here) => isRoom(place);
+/* Only an area its world's document lets be leased (world/places). */
+export const canLease = (place = rooms.here) => !playtest && isRoom(place) && leasable(place);
 export async function takeLease(note) {
   const place = rooms.here;
   if (!isRoom(place) || noteCreator(note) !== our) return false;
@@ -600,7 +615,7 @@ export const receiveRoomEvent=(who,event)=>{
   if(event?.kind==='room-roster' && event.host===who)reach?.answered(who);
   return mates?.receive(who,event);
 };
-export const tickRoom=()=>{mates?.tick();pushDoor();askUnknownLeases();};
+export const tickRoom=()=>{if(playtest)return;mates?.tick();pushDoor();askUnknownLeases();};
 /* A SECRET LEASE WE CAN SEE BUT NOT READ: somebody's room is leased, and how
  * open it is rides the relay, but a secret note's id does not. Ask its owner's
  * ship -- well inside the life of the answer, so a member standing there keeps
@@ -966,13 +981,15 @@ function selectCall(place,host,{preserve=false}={}) {
     rooms.host=noteHostOf(bound)??host;
     rooms.timings={requested:performance.now(),role:noteCreator(bound)===our?'host':'guest'};
     if(isListPlace(place) && host)mates?.follow(place,host);
+    /* An area that IS a note has no lease to carry or keep alive. */
+    const fixed=!!boundNote(place);
     /* Hosting our own leased room: the list carries the lease, so anybody who
      * can see us knows which note this room is. */
-    if(host===our)republishLease();
+    if(host===our && !fixed)republishLease();
     /* Being in the room is what keeps the lease alive; see takeSeat. This runs
      * for the owner too -- they are an occupant like anybody else, and the
      * lease must not depend on their browser in particular. */
-    takeSeat(place,rooms.host??host);
+    if(!fixed)takeSeat(place,rooms.host??host);
     noteCall?.enter(bound);
     refreshStage();return;
   }
@@ -1195,7 +1212,10 @@ function recheckHuddle(ms) {
 }
 export function updateHuddle(self,peers) {
   huddleSelf={x:self.x,y:self.y};
+  if(playtest)return;
   if(rooms.here!==COMMONS || !worldMember(our))return;
+  /* A main area whose calls are off has no huddles either. */
+  if(self.scene && !commonsHuddles(self.scene)){if(huddle){huddle=null;huddlePending=null;releaseMedia();controller?.select(null);changed();}return;}
   peers=new Map([...peers].filter(([who])=>worldMember(who)));
   /* Never START a call from positions we cannot trust. Right after startup the
    * movement relay is not carrying positions yet and each browser's picture of
@@ -1307,7 +1327,7 @@ function roomHost(room) {
    * until their list arrives. Picking a visible occupant instead is how two
    * members ended up hosting two separate copies of the same room. */
   if(rooms.lease?.place===room)return our;
-  const holder=leaseHolder(room);
+  const holder=boundNote(room)?null:leaseHolder(room);
   if(holder && leaseAt(room,holder).note)return holder;
   const occupants=occupantsIn(room);
   const announced=[...lastPeers].filter(([who,p])=>settledRoomOfPeer(who,p)===room).map(([,p])=>p.host).filter(h=>occupants.includes(h));
@@ -1337,10 +1357,18 @@ export function refresh(peers) {
   /* Somebody walking in is somebody the call should now have. */
   if(!same)watchAlone();
 }
+/* A PLAYTEST (2026-11-06; lib/world-config WORLD_PREVIEW): a room is only
+ * where we stand -- its name and its chat. No call, huddle, claim or lease. */
+let playtest=false;
+export function setPreview(on){playtest=!!on;}
 export function enterRoom(room) {
+  if(playtest){rooms.here=room;rooms.host=null;changed();return;}
   if(!worldMember(our))return;
   if(room===rooms.here)return;
   if(room===COMMONS){leaveRoom();return;}
+  /* A PLACE WITH NO CALLS (2026-11-06): the quiet floor between areas, or an
+   * area whose calls are off. Whatever call we were in, we leave it here. */
+  if(!callsAt(room)){leaveRoom();rooms.here=room;changed();return;}
   if(rooms.here!==COMMONS && rooms.host===our)G.releaseRoom(rooms.here).catch(()=>{});
   mates?.leave();booted=null;
   if(rooms.privateRoom)clearPrivate();

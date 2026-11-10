@@ -7,7 +7,9 @@ import { nb, COMMONS_NOTE, RUMORS_NOTE, RUMORS_ROOM, messagesFor, postMessage,
   hasEarlierMessages, loadEarlierMessages, onChange, editMessage, deleteMessage, glurffMuted } from 'lib/noltbook';
 import { messageActions, openMenu, closeMenu, paintText, aboutLine, paintSendState } from 'ui/messages';
 import { ask } from 'ui/ask';
-import { roomById, GAME_ROOM } from 'world/places';
+import { roomById, chatAt, placeName } from 'world/places';
+import { parseRoll, rollDice, rollText } from 'lib/dice';
+import { parsePoll, resultText } from 'lib/polls';
 import { leaseNote, onRooms, onRoommates, chatBar } from 'lib/rooms';
 import { esc } from 'ui/html';
 
@@ -15,7 +17,17 @@ import { esc } from 'ui/html';
 const CALL_BAR = { muted: 'You are muted in this room’s call,', removed: 'You were removed from this room’s call,' };
 
 export class Hud {
-  constructor(root, { events, secret, send } = {}) {
+  /* preview: a playtest's chat, which shows what is said and sends nothing --
+   * only a phrase that does something here works (2026-11-06). */
+  constructor(root, { events, secret, send, polls = null, name = (s) => s, preview = false, scene = () => undefined } = {}) {
+    this.preview = preview;
+    /* POLLS in the chat we are in (lib/polls), and who started them. */
+    this.polls = polls; this.nameOf = name;
+    polls?.onChange((poll) => {
+      if (poll && poll.place === this.room && poll.by !== our && !this.chatOpen) this.unread.receive(`poll:${poll.id}`, poll.by);
+      this.paintPolls(); this.invalidate();
+    });
+    this.scene = scene;
     this.root = root;
     this.events = events;
     /* (ship, at): a message's SEND -- the send box, and the payment message
@@ -77,7 +89,13 @@ export class Hud {
 
   async setRoom(room) {
     this.unread.reset();
+    /* Walking out of a chat ends our polls in it. */
+    for (const p of this.polls?.mine() ?? []) if (p.place !== room) this.endPoll(p.id, { leaving: true });
     this.room = room;
+    this.paintPolls();
+    /* Somewhere with no chat -- the quiet floor between areas, a quiet area. */
+    const say = this.root.querySelector('.say input');
+    if (say) { say.disabled = !chatAt(room); say.placeholder = say.disabled ? 'No chat here' : this.preview ? 'Try a phrase (nothing is sent)' : 'say something'; }
     this.historySize = CHAT_LINES;
     this.replyTo = null; this.editing = null; closeMenu();
     const note = this.noteFor(room);
@@ -167,13 +185,14 @@ export class Hud {
         <button class="chat-toggle" aria-expanded="false">${CHAT_ICON}<span class="chat-toggle-label">Open chat</span><span class="chat-unread" hidden></span></button>
         <div class="chat-content" hidden>
         <div class="where"></div>
-        <div class="game-controls"><button type="button">Roll 3 dice</button></div>
         <div class="error" role="status"></div>
         <div class="rumors-note" hidden><strong>Rumors</strong> No name is on anything said here. It goes from pal to pal:
           you hear what your pals pass on, and they pass on what you say. With no pals, nobody hears you and nothing
           reaches you; add pals from their profile cards.</div>
+        <div class="polls"></div>
         <div class="stream"></div>
         <div class="replying"></div>
+        <div class="commands" hidden></div>
         <form class="say"><input placeholder="say something" enterkeyhint="send" /></form>
         </div>
       </div>`;
@@ -281,6 +300,16 @@ export class Hud {
       const v = input.value.trim();
       if (!v) return;
       input.value = '';
+      const roll = !this.editing && parseRoll(v), poll = !this.editing && parsePoll(v);
+      const error = this.root.querySelector('.error');
+      /* A command that will not do stays in the box, saying why. */
+      if (roll?.error || poll?.error) { input.value = v; error.textContent = roll?.error ?? poll.error; return; }
+      if (this.preview) {
+        if (roll) error.textContent = `${rollText(roll, rollDice(roll))} (nothing is sent in a playtest)`;
+        else if (poll) this.startPoll(poll);
+        else if (!this.secret(v, this.room)) error.textContent = 'Nothing said in a playtest is sent.';
+        return;
+      }
       /* AN EDIT: the same line, new words. */
       if (this.editing) {
         const target = this.editing, note = this.noteFor(this.room);
@@ -298,19 +327,45 @@ export class Hud {
       const parent = this.replyTo?.sendEid ?? this.replyTo?.eid ?? null;
       this.replyTo = null;
       this.root.querySelector('.error').textContent='';
+      /* /ROLL (2026-11-08): our own app rolls, and the chat says what came
+       * up -- a line of text in a saved chat, a roll in a session one. */
+      if (roll) {
+        const dice = rollDice(roll);
+        if (note) this.sendToNote(note, rollText(roll, dice), parent);
+        else this.events.roll(roll, dice, parent).catch(() => { this.root.querySelector('.error').textContent = 'The roll could not be shared. Try again.'; });
+        return;
+      }
+      if (poll) { this.startPoll(poll); return; }
       if (note) { this.sendToNote(note, v, parent); return; }
       this.events.chat(v,parent).catch(() => {
         if(!input.value)input.value = v; this.root.querySelector('.error').textContent = 'Message could not be sent. Try again.';
       });
     };
-    this.root.querySelector('.game-controls button').onclick = async (e) => {
-      if (glurffMuted(our)) { this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot roll for the room.'; return; }
-      const bar = chatBar(our, this.room);
-      if (bar) { this.root.querySelector('.error').textContent = CALL_BAR[bar] + ' so you cannot roll for the room.'; return; }
-      e.target.disabled = true;
-      try { await this.events.roll(); } catch { this.root.querySelector('.error').textContent = 'Roll could not be shared. Try again.'; }
-      finally { e.target.disabled = false; }
+    /* THE COMMANDS (2026-11-08): typing "/" shows what there is. */
+    const commands = this.root.querySelector('.commands');
+    const hint = () => {
+      const word = input.value.startsWith('/') ? input.value.split(/\s/)[0].toLowerCase() : null;
+      const shown = word == null ? [] : COMMANDS.filter((c) => c.name.startsWith(word) || word === c.name);
+      commands.hidden = !shown.length || (input.value.includes(' ') && !shown.some((c) => c.name === word));
+      commands.innerHTML = shown.map((c) => `<button type="button" data-fill="${esc(c.fill)}"><strong>${esc(c.name)}</strong> <span class="dim">${esc(c.about)}</span></button>`).join('');
     };
+    input.addEventListener('input', hint);
+    input.addEventListener('blur', () => setTimeout(() => { commands.hidden = true; }, 150));
+    commands.addEventListener('pointerdown', (e) => e.preventDefault());
+    commands.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-fill]'); if (!b) return;
+      input.value = b.dataset.fill; input.focus({ preventScroll: true }); hint();
+    });
+    /* A poll's choices, and its creator's End. */
+    this.root.querySelector('.polls').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      const card = b.closest('.poll'); if (!card) return;
+      if (b.dataset.choice != null) {
+        if (glurffMuted(our)) { this.root.querySelector('.error').textContent = 'You are muted in this Glurff, so you cannot vote.'; return; }
+        this.polls?.vote(card.dataset.id, Number(b.dataset.choice));
+      }
+      if (b.matches('.poll-end')) this.endPoll(card.dataset.id);
+    });
     this.paint();
   }
 
@@ -323,11 +378,11 @@ export class Hud {
       badge.textContent = String(count);
       this.root.querySelector('.chat-toggle').setAttribute('aria-label', this.chatOpen ? 'Close chat' : `Open chat${count ? `, ${count} unread messages` : ''}`);
     }
-    const r = this.room === 0 ? {name: 'The Commons'} : roomById(this.room);
+    const r = { name: placeName(this.room, this.scene()) };
     const note = this.noteFor(this.room);
     const leased = this.room !== 0 && note !== RUMORS_NOTE && !!note;
     const title = leased ? noteName(note) ?? r?.name ?? '' : r?.name ?? '';
-    const kind = note === RUMORS_NOTE ? 'anonymous'
+    const kind = !chatAt(this.room) ? 'no chat here' : note === RUMORS_NOTE ? 'anonymous'
       : leased ? 'chat saved to noltbook'
       : note ? 'saved' : 'chat is not saved';
     /* The title can be a note's name, which its creator chose: escaped. */
@@ -336,7 +391,6 @@ export class Hud {
       : `<span class="dim">${esc(kind)}</span>`;
     const label = `${esc(title)} ${saved}`;
     if (this.label !== label) { this.where.innerHTML = label; this.label = label; }
-    this.root.querySelector('.game-controls').hidden = this.room !== GAME_ROOM;
     this.root.querySelector('.rumors-note').hidden = note !== RUMORS_NOTE;
     /* CLOSED IS CLOSED (2026-10-31): no line of anybody's shows while the chat
      * is shut -- not one just arrived, not one of ours still sending, not a
@@ -402,6 +456,41 @@ export class Hud {
     }
   }
 
+  /* /POLL (2026-11-08): one of ours in this chat, which our app keeps. */
+  startPoll(poll) {
+    const error = this.root.querySelector('.error');
+    if (!this.polls) return;
+    try { this.polls.start(this.room, poll); error.textContent = ''; this.setOpen(true); }
+    catch (e) { error.textContent = e.message; }
+  }
+  /* Ending one of ours: everybody told, and the result a line of its chat
+   * -- saved, where the chat is; a session chat's only while we are in it. */
+  endPoll(id, { leaving = false } = {}) {
+    const p = this.polls?.end(id);
+    if (p) this.postResult(p, { leaving });
+  }
+  postResult(p, { leaving = false } = {}) {
+    if (this.preview) return;
+    const note = this.noteFor(p.place);
+    if (note) this.sendToNote(note, resultText(p), null);
+    else if (!leaving && p.place === this.room) this.events.chat(resultText(p)).catch(() => {});
+  }
+  paintPolls() {
+    const box = this.root.querySelector('.polls'); if (!box) return;
+    const polls = this.polls?.in(this.room) ?? [];
+    const html = polls.map((p) => {
+      const total = p.counts.reduce((a, b) => a + b, 0);
+      const who = p.by === our ? 'your poll' : `poll by ${this.nameOf(p.by)}`;
+      return `<div class="poll${p.open ? '' : ' ended'}" data-id="${esc(p.id)}">
+        <div class="poll-q"><span>📊 ${esc(p.question)}</span><span class="dim">${esc(who)}${p.open ? '' : ' · ended'}</span></div>
+        <div class="poll-options">${p.options.map((o, i) => `<button type="button" data-choice="${i}"${p.open ? '' : ' disabled'}
+          class="${p.mine === i ? 'on' : ''}" style="--share:${total ? Math.round(p.counts[i] / total * 100) : 0}%"><span>${esc(o)}</span><b>${p.counts[i]}</b></button>`).join('')}</div>
+        ${p.open && p.by === our ? '<button type="button" class="poll-end">End poll</button>' : ''}</div>`;
+    }).join('');
+    if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+    box.hidden = !polls.length;
+  }
+
   /* A POST TO A NOTE (2026-10-22): on screen at once, and kept there however
    * it goes -- grey, amber if our ship is slow to confirm it (or, in a note
    * another ship hosts, slow to come back), red with Retry if it was refused.
@@ -437,3 +526,9 @@ const CHAT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" s
 const touchy = () => typeof document !== 'undefined' && document.documentElement.classList.contains('touch');
 
 const timeFormat = new Intl.DateTimeFormat([], {hour: '2-digit', minute: '2-digit'});
+
+/* What "/" offers (2026-11-08). */
+const COMMANDS = [
+  { name: '/roll', fill: '/roll ', about: 'roll dice: /roll, /roll 2d20, /roll d100+3' },
+  { name: '/poll', fill: '/poll ', about: 'a poll: /poll Pizza or tacos? | Pizza | Tacos' },
+];

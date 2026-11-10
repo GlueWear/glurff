@@ -67,6 +67,7 @@
       :~  ['place' (numb place.u.lease.upd)]
           ['note' s+(crip (trip note.u.lease.upd))]
           ['gen' (numb gen.u.lease.upd)]
+          ['world' ?~(world.upd ~ s+(scot %p u.world.upd))]
       ==
     ::
         %seat-ok
@@ -117,6 +118,73 @@
       %-  pairs
       :~  ['tab' s+tab.upd]
           ['gen' (numb gen.upd)]
+      ==
+    ::
+    ::  Signs people changed in a host's world: {"signs": {host, signs:
+    ::  {"<item>": {text, by, at}}}}, `at` in Unix milliseconds.
+        %signs
+      %+  frond  'signs'
+      %-  pairs
+      :~  ['host' s+(scot %p host.upd)]
+          :-  'signs'
+          %-  pairs
+          %+  turn  ~(tap by signs.upd)
+          |=  [item=@t s=sign:g]
+          ^-  [@t ^json]
+          :-  item
+          %-  pairs
+          :~  ['text' s+text.s]
+              ['by' s+(scot %p by.s)]
+              ['at' (numb (div (sub at.s ~1970.1.1) (div ~s1 1.000)))]
+          ==
+      ==
+    ::
+        %signs-shut
+      (frond 'signs-shut' (pairs ~[['host' s+(scot %p host.upd)]]))
+    ::
+    ::  The Glurffs a ship is in (2026-11-08): {"glurff-list": {host,
+    ::  glurffs: [{host, note, name, members}]}}.
+        %glurff-list
+      %+  frond  'glurff-list'
+      %-  pairs
+      :~  ['host' s+(scot %p host.upd)]
+          :-  'glurffs'
+          :-  %a
+          %+  turn  glurffs.upd
+          |=  e=glurff-entry:g
+          %-  pairs
+          :~  ['host' s+(scot %p host.e)]
+              ['note' s+(crip (trip note.e))]
+              ['name' s+name.e]
+              ['members' (numb members.e)]
+          ==
+      ==
+    ::
+        %glurff-list-shut
+      (frond 'glurff-list-shut' (pairs ~[['host' s+(scot %p host.upd)]]))
+    ::
+        %sign-refused
+      (frond 'sign-refused' (pairs ~[['host' s+(scot %p host.upd)] ['item' s+item.upd]]))
+    ::
+    ::  A host's world card: {"world-card": {host, card: null | {note, name,
+    ::  live: null | {release, doc, size}}}}. `doc` is the hex of its hash.
+        %world-card
+      %+  frond  'world-card'
+      %-  pairs
+      :~  ['host' s+(scot %p host.upd)]
+          :-  'card'
+          ?~  card.upd  ~
+          %-  pairs
+          :~  ['note' s+(crip (trip note.u.card.upd))]
+              ['name' s+name.u.card.upd]
+              :-  'live'
+              ?~  live.u.card.upd  ~
+              %-  pairs
+              :~  ['release' (numb n.u.live.u.card.upd)]
+                  ['doc' s+(en:base16:mimes:html [32 doc.u.live.u.card.upd])]
+                  ['size' (numb size.u.live.u.card.upd)]
+              ==
+          ==
       ==
     ::
         %call-refused

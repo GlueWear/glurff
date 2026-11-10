@@ -14,22 +14,29 @@ import { our } from 'lib/api';
 import { rooms, onRooms, moderate, mayActOn, rankFor, canModerate,
          roleFor, mutedShip, canLease, takeLease, releaseLease, leaseNote, leaseAt, learnLease,
          leaseHolder, onRoommates } from 'lib/rooms';
-import { roomById, COMMONS } from 'world/places';
+import { roomById, COMMONS, placeName } from 'world/places';
 import { ask } from 'ui/ask';
 import { esc } from 'ui/html';
 import { avatarHtml } from 'ui/avatar';
 
 
 export class Members {
-  constructor(root, { people, here, onShowProfile = () => {}, onGlurffMembers = null }) {
-    Object.assign(this, { root, people, here, onShowProfile, onGlurffMembers });
+  /* scene(): the map we are on, which names the floor between its areas. */
+  constructor(root, { people, here, scene = () => undefined, onShowProfile = () => {}, onGlurffMembers = null }) {
+    Object.assign(this, { root, people, here, scene, onShowProfile, onGlurffMembers });
     this.open = false;
     root.className = 'members';
+    /* ONE SIZE, whatever the room is called (2026-11-08): a long name is cut
+     * short, and shows whole on hover; how many are here always shows. */
     root.innerHTML = `
-      <button class="members-btn" aria-expanded="false" aria-haspopup="true"></button>
+      <button class="members-btn" aria-expanded="false" aria-haspopup="true"><span class="mb-name"></span><span class="mb-here"></span></button>
       <div class="members-panel" hidden></div>`;
     this.btn = root.querySelector('.members-btn');
+    this.nameEl = root.querySelector('.mb-name');
+    this.hereEl = root.querySelector('.mb-here');
     this.panel = root.querySelector('.members-panel');
+    window.addEventListener('resize', () => this.tipIfCut());
+    document.fonts?.ready.then(() => this.tipIfCut());
 
     /* Taking a room, and giving it back: in the room's own menu, with the rest
      * of what this room is. */
@@ -79,6 +86,15 @@ export class Members {
         const go = await ask(`Release ${where} and take this room?`, {
           yes: 'Take this room', no: 'Keep ' + where,
           detail: `You are holding ${where} for ${what}. You can hold one room at a time, so taking this one gives that one back.`,
+        });
+        if (!go) return;
+      }
+      /* ...and one held in another Glurff is given up just the same. */
+      const away = rooms.elsewhere;
+      if (!held && away) {
+        const go = await ask('Give up your room in another Glurff?', {
+          yes: 'Take this room', no: 'Keep it',
+          detail: `You are holding a room in ${away.world ?? 'another'}'s Glurff. You can hold one room at a time, so taking this one gives that one back.`,
         });
         if (!go) return;
       }
@@ -190,6 +206,12 @@ export class Members {
     </select></div>`;
   }
 
+  /* The whole name on hover, when it does not fit. */
+  tipIfCut() {
+    const cut = this.nameEl.scrollWidth > this.nameEl.clientWidth;
+    if (cut) this.btn.dataset.tip = this.nameEl.textContent; else delete this.btn.dataset.tip;
+  }
+
   toggle(open) {
     this.open = open;
     this.btn.setAttribute('aria-expanded', String(open));
@@ -200,7 +222,7 @@ export class Members {
   /* Cheap to call often: nothing is rebuilt unless what it shows changed. */
   paint() {
     const place = this.here();
-    const physicalName = place === COMMONS ? 'The Commons' : roomById(place)?.name ?? 'Room';
+    const physicalName = placeName(place, this.scene());
     const bound = leaseNote(place);
     const name = bound
       ? noteName(bound) ?? noteFacts(leaseHolder(place) ?? rooms.host, bound)?.name ?? physicalName
@@ -221,7 +243,10 @@ export class Members {
     this.signature = signature;
 
     /* How many are here, said as that: "· 1" alone read as a page number. */
-    this.btn.textContent = `${name} · ${people.length} here ▾`;
+    this.nameEl.textContent = name;
+    this.hereEl.textContent = `${people.length} here ▾`;
+    this.btn.setAttribute('aria-label', `${name}, ${people.length} here`);
+    this.tipIfCut();
     this.panel.hidden = !this.open;
     if (this.open) {
       const everybody = this.onGlurffMembers

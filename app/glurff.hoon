@@ -22,7 +22,7 @@
 ::  and their direct live presence. The transport authenticates the sending
 ::  ship; it does not prove that a member's claimed position is physically true.
 /-  g=glurff, gc=glurff-calls
-/+  default-agent, dbug, verb, server, glurff-site
+/+  default-agent, dbug, verb, server, glurff-site, gw=glurff-world
 /$  c1  %json  %glurff-action
 /$  c2  %json  %glurff-room
 /$  c3  %json  %glurff-commons
@@ -207,10 +207,101 @@
       webs=(map @tas spot-web:g)
       calls=(map place:g host-call:g)
   ==
+::  state-12 adds THE WORLD AS DATA (2026-11-04): the world this ship hosts,
+::  if it hosts one -- its document, its images, what it has published -- and
+::  the browsers waiting on assets from other hosts. See `home` in /sur.
++$  state-12
+  $:  %12
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+      home=(unit home:g)
+      fetches=(map [@p hash:g] fetch:g)
+  ==
+::  state-13 remembers WHICH WORLD our lease was taken in (2026-11-05). One
+::  lease at a time still; but a room's number means something only in its
+::  own world, so a browser visiting another must not take that world's room
+::  of the same number for ours. `~` is the official world's, where every
+::  lease before this one was taken.
++$  state-13
+  $:  %13
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+      home=(unit home:g)
+      fetches=(map [@p hash:g] fetch:g)
+      lease-world=(unit @p)
+  ==
+::  state-14 keeps the SIGNS PEOPLE CHANGED in the world we host
+::  (2026-11-07): see `sign` in /sur.
++$  state-14
+  $:  %14
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+      home=(unit home:g)
+      fetches=(map [@p hash:g] fetch:g)
+      lease-world=(unit @p)
+      signs=(map @t sign:g)
+  ==
+::  state-15 LISTS GLURFFS (2026-11-08): where our Publish lists ours
+::  (`listing-host` to start with), and the Glurffs listed with us.
++$  state-15
+  $:  %15
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+      home=(unit home:g)
+      fetches=(map [@p hash:g] fetch:g)
+      lease-world=(unit @p)
+      signs=(map @t sign:g)
+      listing=(unit @p)
+      listed=(map @p listing:g)
+  ==
 +$  card  card:agent:gall
 --
 ::
-=|  state-11
+=|  state-15
 =*  state  -
 ^-  agent:gall
 =<
@@ -221,7 +312,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, door ~, world ~, prefs '', spots ~, webs ~, calls ~)
+  :_  this(look *look:g, rev 0, hosting ~, lease ~, sprite-lab %.n, live ~, meters ~, door ~, world ~, prefs '', spots ~, webs ~, calls ~, home ~, fetches ~, lease-world ~, signs ~, listing `listing-host:g, listed ~)
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-save  !>(state)
@@ -234,11 +325,68 @@
   ::
   ::  state-0 IS recognised and upgraded: it holds the character somebody built,
   ::  and adding a field is our business, not theirs.
+  ::  Browsers waiting on an asset are kept: their requests, and the fetches
+  ::  answering them, outlive a reload of this agent.
+  =/  fifteen=(unit state-15)
+    =/  res  (mule |.(!<(state-15 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  fifteen
+    :_  this(state u.fifteen)
+    [(bind:glurff-site) calls-watch:hc]
+  ::  Listed where Glurffs are listed for now, and nothing listed with us.
+  =/  lift-15
+    |=  w=state-14
+    ^-  state-15
+    :*  %15  look.w  rev.w  hosting.w  lease.w  sprite-lab.w  live.w  meters.w
+        door.w  world.w  prefs.w  spots.w  webs.w  calls.w  home.w  fetches.w
+        lease-world.w  signs.w  `listing-host:g  ~
+    ==
+  =/  fourteen=(unit state-14)
+    =/  res  (mule |.(!<(state-14 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  fourteen
+    :_  this(state (lift-15 u.fourteen))
+    [(bind:glurff-site) calls-watch:hc]
+  ::  No sign changed yet.
+  =/  lift-14
+    |=  w=state-13
+    ^-  state-14
+    :*  %14  look.w  rev.w  hosting.w  lease.w  sprite-lab.w  live.w  meters.w
+        door.w  world.w  prefs.w  spots.w  webs.w  calls.w  home.w  fetches.w
+        lease-world.w  ~
+    ==
+  =/  thirteen=(unit state-13)
+    =/  res  (mule |.(!<(state-13 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  thirteen
+    :_  this(state (lift-15 (lift-14 u.thirteen)))
+    [(bind:glurff-site) calls-watch:hc]
+  ::  A lease held from before is the official world's.
+  =/  lift-13
+    |=  w=state-12
+    ^-  state-13
+    :*  %13  look.w  rev.w  hosting.w  lease.w  sprite-lab.w  live.w  meters.w
+        door.w  world.w  prefs.w  spots.w  webs.w  calls.w  home.w  fetches.w  ~
+    ==
+  =/  twelve=(unit state-12)
+    =/  res  (mule |.(!<(state-12 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  twelve
+    :_  this(state (lift-15 (lift-14 (lift-13 u.twelve))))
+    [(bind:glurff-site) calls-watch:hc]
+  ::  No world hosted, and nothing being fetched: a ship hosts a world only
+  ::  once its operator says so (see `home` in /sur).
+  =/  lift-12
+    |=  w=state-11
+    ^-  state-12
+    :*  %12  look.w  rev.w  hosting.w  lease.w  sprite-lab.w  live.w  meters.w
+        door.w  world.w  prefs.w  spots.w  webs.w  calls.w  ~  ~
+    ==
   =/  eleven=(unit state-11)
     =/  res  (mule |.(!<(state-11 old)))
     ?:(?=(%| -.res) ~ `p.res)
   ?^  eleven
-    :_  this(state u.eleven)
+    :_  this(state (lift-15 (lift-14 (lift-13 (lift-12 u.eleven)))))
     [(bind:glurff-site) calls-watch:hc]
   =/  ten=(unit state-10)
     =/  res  (mule |.(!<(state-10 old)))
@@ -338,7 +486,7 @@
   =/  calls=(map place:g host-call:g)
     %-  ~(run by calls.was)
     |=(c=host-call-10:g `host-call:g`[inc rev seen admins muted booted recording roster asked failing touched muted]:c)
-  :_  this(state [%11 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was door.was world.was prefs.was spots.was webs.was calls])
+  :_  this(state (lift-15 (lift-14 (lift-13 (lift-12 [%11 look.was rev.was hosting.was lease.was sprite-lab.was live.was meters.was door.was world.was prefs.was spots.was webs.was calls])))))
   [(bind:glurff-site) calls-watch:hc]
 ::
 ++  on-poke
@@ -347,7 +495,20 @@
   ?+    mark  (on-poke:def mark vase)
       %handle-http-request
     =/  req  !<([eyre-id=@ta =inbound-request:eyre] vase)
-    [(serve:glurff-site bowl req) this]
+    ::  THE WORLD AS DATA: a host's editing API, and the assets of any host's
+    ::  world. Everything else is the static frontend.
+    ?.  (world-url:hc url.request.inbound-request.req)
+      [(serve:glurff-site bowl req) this]
+    =^  cards  state  (world-http:hc req)
+    [cards this]
+  ::
+  ::  ---- from Dojo on this ship, and nowhere else ----
+  ::
+  ::  Hosting a world, and editing it. See /mar/glurff-operator.
+      %glurff-operator
+    ?>  =(src.bowl our.bowl)
+    =^  cards  state  (operate:hc !<(operator:g vase))
+    [cards this]
   ::
   ::  ---- from our own browser ----
   ::
@@ -507,7 +668,7 @@
       :~  [%give %fact ~ %glurff-update !>(`update:g`[%our-look look rev sprite-lab])]
           ::  The lease outlives the tab, so a fresh page is told about it at
           ::  once rather than finding out when somebody walks in.
-          [%give %fact ~ %glurff-update !>(`update:g`[%our-lease (shown:hc lease)])]
+          [%give %fact ~ %glurff-update !>(`update:g`[%our-lease (shown:hc lease) lease-world])]
           ::  Our settings, so the page draws our clocks from the start.
           [%give %fact ~ %glurff-update !>(`update:g`[%our-prefs prefs])]
       ==
@@ -533,6 +694,57 @@
     ?:  =(host our.bowl)
       (spots-facts:hc ~ spots webs)
     (spots-follow:hc host)
+  ::
+      [%card ~]
+    ::  OUR WORLD'S CARD: its note, its name, and the live release. Anybody
+    ::  may watch, as with /spots -- it is what anybody needs to decide to
+    ::  visit -- and the release itself is fetched only by members.
+    ::  A secret world's card is given only to its members (`card-for`).
+    :_  this
+    ~[[%give %fact ~ %glurff-update !>(`update:g`[%world-card our.bowl (card-for:hc src.bowl)])]]
+  ::
+      [%card @ ~]
+    ::  OUR PAGE, reading a host's card, the way it reads a host's spots.
+    ?>  =(our.bowl src.bowl)
+    =/  host=@p  (slav %p i.t.path)
+    :_  this
+    ?:  =(host our.bowl)
+      ~[[%give %fact ~ %glurff-update !>(`update:g`[%world-card our.bowl card-of:hc])]]
+    (card-follow:hc host)
+  ::
+      [%signs ~]
+    ::  THE SIGNS PEOPLE CHANGED in our world: for its members' agents only,
+    ::  since what a sign says is the world's, as its release is.
+    ?>  (visitor-ok:hc src.bowl)
+    :_  this
+    ~[[%give %fact ~ %glurff-update !>(`update:g`[%signs our.bowl signs])]]
+  ::
+      [%signs @ ~]
+    ::  OUR PAGE, reading a host's signs, the way it reads a host's card.
+    ?>  =(our.bowl src.bowl)
+    =/  host=@p  (slav %p i.t.path)
+    :_  this
+    ?:  =(host our.bowl)
+      ~[[%give %fact ~ %glurff-update !>(`update:g`[%signs our.bowl signs])]]
+    (signs-follow:hc host)
+  ::
+      [%glurffs ~]
+    ::  THE GLURFFS WE ARE IN (2026-11-08): anybody may ask, as anybody may
+    ::  read our card -- each is public. Answered once, then let go.
+    :_  this
+    :~  [%give %fact ~ %glurff-update !>(`update:g`[%glurff-list our.bowl glurff-list:hc])]
+        [%give %kick ~ ~]
+    ==
+  ::
+      [%glurffs @ ~]
+    ::  OUR PAGE, asking which Glurffs a ship is in, the way it reads a
+    ::  host's card. Our own, if it is us.
+    ?>  =(our.bowl src.bowl)
+    =/  host=@p  (slav %p i.t.path)
+    :_  this
+    ?:  =(host our.bowl)
+      ~[[%give %fact ~ %glurff-update !>(`update:g`[%glurff-list our.bowl glurff-list:hc])]]
+    ~[[%pass /glurffs/(scot %p host)/(scot %da now.bowl) %agent [host %glurff] %watch /glurffs]]
   ::
       [%call-access ~]
     ::  Credential delivery. Owner-local only: this path carries a Galene join
@@ -584,8 +796,88 @@
       ?~  p.sign  `this
       ((slog leaf+"glurff: {<host>} keeps no spots for us to show" ~) `this)
     ==
+  ::  A HOST'S WORLD CARD, for our page, kept as the spots are. A host with
+  ::  no world, or none of this kind, has no card.
+  ?:  ?=([%card @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  page=path  /card/(scot %p host)
+    =/  none=card  [%give %fact ~[page] %glurff-update !>(`update:g`[%world-card host ~])]
+    ?+    -.sign  `this
+        %fact
+      ?.  =(%glurff-update p.cage.sign)  `this
+      =/  upd  (mule |.(!<(update:g q.cage.sign)))
+      ?:  ?=(%| -.upd)  `this
+      ?.  ?=(%world-card -.p.upd)  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(`update:g`p.upd(host host))]]
+    ::
+        %kick
+      ?.  (~(any by sup.bowl) |=([=ship =path] =(path page)))  `this
+      [(card-follow:hc host) this]
+    ::
+        %watch-ack
+      ?~  p.sign  `this
+      [~[none] this]
+    ==
+  ::  WHICH GLURFFS A SHIP IS IN, for our page (2026-11-08). A ship from
+  ::  before this does not say: our page is told so.
+  ?:  ?=([%glurffs @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  page=path  /glurffs/(scot %p host)
+    ?+    -.sign  `this
+        %fact
+      ?.  =(%glurff-update p.cage.sign)  `this
+      =/  upd  (mule |.(!<(update:g q.cage.sign)))
+      ?:  ?=(%| -.upd)  `this
+      ?.  ?=(%glurff-list -.p.upd)  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(`update:g`p.upd(host host))]]
+    ::
+        %watch-ack
+      ?~  p.sign  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(`update:g`[%glurff-list-shut host])]]
+    ==
+  ::  A HOST'S SIGNS, for our page, kept as its card is. A host that will
+  ::  not show us any -- we are not in its world, or it is from before signs
+  ::  -- is said to keep none.
+  ?:  ?=([%signs @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  page=path  /signs/(scot %p host)
+    ?+    -.sign  `this
+        %fact
+      ?.  =(%glurff-update p.cage.sign)  `this
+      =/  upd  (mule |.(!<(update:g q.cage.sign)))
+      ?:  ?=(%| -.upd)  `this
+      ?.  ?=(%signs -.p.upd)  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(`update:g`p.upd(host host))]]
+    ::
+        %kick
+      ?.  (~(any by sup.bowl) |=([=ship =path] =(path page)))  `this
+      [(signs-follow:hc host) this]
+    ::
+        %watch-ack
+      ?~  p.sign  `this
+      :_  this
+      ~[[%give %fact ~[page] %glurff-update !>(`update:g`[%signs-shut host])]]
+    ==
   ?.  ?=(%poke-ack -.sign)  `this
   ?~  p.sign  `this
+  ::  A host that would not take what we wrote on a sign: our page is told.
+  ?:  ?=([%sign-set @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  item=@t  (slav %t i.t.t.wire)
+    :_  this
+    ~[[%give %fact ~[/signs/(scot %p host)] %glurff-update !>(`update:g`[%sign-refused host item])]]
+  ::  A host that would not take our ask for an asset -- an older Glurff, or
+  ::  none -- will not send it: the browsers waiting are told now.
+  ?:  ?=([%fetch @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  h=(unit hash:g)  (unhex:gw i.t.t.wire)
+    ?~  h  `this
+    =^  cards  state  (asset-came:hc host u.h |+%refused)
+    [cards this]
   ?+    wire  `this
       [%glurff-out *]
     ::  A peer that is offline or has no %glurff is ordinary, not an error.
@@ -604,8 +896,44 @@
   ?:  ?=([%eyre %bound *] sign-arvo)
     ~?  !accepted.sign-arvo  [%glurff-eyre-bind-rejected binding.sign-arvo]
     `this
+  ::  AN ASSET FROM ANOTHER HOST, by remote scry: the bytes, or -- an empty
+  ::  answer -- the host would not let us read them.
+  ?:  ?=([%fetch @ @ ~] wire)
+    ?.  ?=([%ames %sage *] sign-arvo)  `this
+    =/  host=@p  (slav %p i.t.wire)
+    =/  h=(unit hash:g)  (unhex:gw i.t.t.wire)
+    ?~  h  `this
+    =/  =gage:mess:ames  q.sage.sign-arvo
+    =/  got=(each [mime=@t =octs] @tas)
+      ?~  gage  |+%denied
+      =/  a  ((soft ,[mime=@t size=@ud data=@]) q.gage)
+      ?~  a  |+%garbled
+      &+[mime.u.a [size.u.a data.u.a]]
+    =^  cards  state  (asset-came:hc host u.h got)
+    [cards this]
+  ::  ...or it has not come in time.
+  ?:  ?=([%fetch-wait @ @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  h=(unit hash:g)  (unhex:gw i.t.t.wire)
+    =/  at=@da  (slav %da i.t.t.t.wire)
+    ?~  h  `this
+    =/  f  (~(get by fetches) [host u.h])
+    ?.  ?&(?=(^ f) =(at at.u.f))  `this
+    =/  stop=(list card)
+      ?.  ?=(%scry via.u.f)  ~
+      ~[[%pass /fetch/(scot %p host)/(hex:gw u.h) %arvo %a %yawn host (asset-spur:hc u.h)]]
+    =^  cards  state  (asset-came:hc host u.h |+%timeout)
+    [(weld stop cards) this]
   ::  THE LEASE CLOCK. This is what makes a lease end when the room empties even
   ::  though the owner's browser is shut: nobody has to be watching for it.
+  ::  THE STORE'S CLOCK (2026-11-08): let go what nothing has wanted for a
+  ::  day, and look again in a day if anything is still waiting its turn.
+  ?:  ?&(?=([%store-tidy ~] wire) ?=([%behn %wake *] sign-arvo))
+    ?~  home  `this
+    =.  u.home  (tidy:hc u.home let-go:g ~)
+    =/  keep  (fall (kept:hc u.home ~) ~)
+    =/  waiting=?  (lien ~(tap in ~(key by assets.u.home)) |=(k=hash:g !(~(has in keep) k)))
+    [?.(waiting ~ tidy-cards:hc) this]
   ?:  ?&(?=([%lease ~] wire) ?=([%behn %wake *] sign-arvo))
     ?~  lease  ((slog leaf+"glurff: lease wake with no lease" ~) `this)
     =/  h=held:g  u.lease(armed ~)
@@ -622,7 +950,7 @@
       :_  this(lease ~, door ~)
       %+  weld
         (spray:hc (told:hc h) [%lease-gone place.h gen.h])
-      ~[(fact:hc [%our-lease ~])]
+      ~[(fact:hc [%our-lease ~ ~])]
     =^  cards  h  (arm:hc h (due:hc h))
     [cards this(lease `h)]
   (on-arvo:def wire sign-arvo)
@@ -637,12 +965,39 @@
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
+  ::  WHO MAY READ OUR WORLD'S ASSETS by encrypted remote scry. Gall asks
+  ::  this, ship by ship, before handing a visitor the key to /world: the
+  ::  world's members, and nobody else.
+  ?:  ?=([%c %world @ ~] path)
+    =/  who=(unit @p)  (slaw %p i.t.t.path)
+    ?~  who  [~ ~]
+    ``noun+!>(`?`(visitor-ok:hc u.who))
   ::  THE CALLS, READABLE, on the Glurff's host (see `host-call` in /sur):
   ::
   ::    > .^(json %gx /=glurff=/calls/json)
   ::
   ::  Each call's run, who is in it and when we last heard from them, and its
   ::  moderation. Ships and times only.
+  ::  OUR SETTINGS, for a page to read before it has a channel open:
+  ::
+  ::    GET /~/scry/glurff/prefs.json
+  ::
+  ::  The client's own JSON, as a string; '' for none.
+  ?:  ?=([%x %prefs ~] path)
+    ``json+!>(`json`s+prefs)
+  ::  THE GLURFFS LISTED WITH US (2026-11-09), as their hosts said -- what
+  ::  `/glurffs` answers adds our own memberships to these:
+  ::
+  ::    > .^(json %gx /=glurff=/listed/json)
+  ::
+  ::  Ships, notes and times only; anybody may see them listed anyway.
+  ?:  ?=([%x %listed ~] path)
+    :^  ~  ~  %json
+    !>  ^-  json
+    %-  pairs:enjs:format
+    %+  turn  ~(tap by listed)
+    |=  [h=@p l=listing:g]
+    [(scot %p h) (pairs:enjs:format ~[['note' s+note.l] ['at' s+(scot %da at.l)]])]
   ?:  ?=([%x %calls ~] path)
     =/  ships
       |=  s=(set @p)
@@ -795,7 +1150,7 @@
 ::  its OWN seat: no guest can release a lease, and no guest can evict another.
 ++  seat-change
   |=  [who=@p =place:g gen=@ud tab=@t what=?(%enter %renew %leave)]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?~  lease  `state
   =/  h=held:g  u.lease
   ?.  =(place place.h)  `state
@@ -934,7 +1289,7 @@
 ::  room is noticed within world-window, not at once.
 ++  world-knock
   |=  who=@p
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   =/  =place:g  world-place:g
   ::  ONLY THE GLURFF'S MEMBERS (2026-10-31): somebody blocked -- removed from
   ::  its note -- is not let back into the world room. With Noltbook unable to
@@ -983,7 +1338,7 @@
 ::  nobody-has-asked reopen in +world-knock never came either.
 ++  world-heard
   |=  res=call-result:gc
-  ^-  state-11
+  ^-  state-15
   ?~  world  state
   ?-    -.res
       %granted
@@ -1030,11 +1385,20 @@
 ::  Noltbook cannot say, and then we host no calls. Read through Noltbook's
 ::  published API, as a browser would; nothing in Noltbook changes.
 +$  gnote  [creator=@p members=(set @p) mods=(set @p) muted=(set @p) removed=(set @p)]
-++  glurff-note
+::  It is the note of the world we host, if we host one (`home`); else the
+::  official world's, whose host is whoever created it.
+::  An area's place: a room of any world's map (1-999), below the huddles.
+::  The official map's are 1-15 and Vatican City 900; a world's document
+::  numbers its own (world/world-doc.js), keeping 13 for Rumors.
+++  area-place  |=(p=@ud ?&((gth p 0) (lth p huddle-base:g)))
+++  glurff-note  (note-read ?~(home world-note:g note.u.home))
+::  ...and the same of any note: the note a world we host is (see `home`).
+++  note-read
+  |=  id=@ta
   ^-  (unit gnote)
   =/  base=path
     :~  (scot %p our.bowl)  %noltbook  (scot %da now.bowl)
-        %api  %notes  world-note:g
+        %api  %notes  id
     ==
   =/  meta  (mule |.(.^(json %gx (weld base /meta/json))))
   ?:  ?=(%| -.meta)  ~
@@ -1207,7 +1571,7 @@
 ::  answered from a record made before it would hand back the ones it revoked.
 ++  call-knock
   |=  [who=@p =place:g attempt=@ud mode=@tas]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?.  (call-place place)  `state
   ?.  ?|(=(%access mode) =(%renew-access mode))  `state
   =/  gn  glurff-note
@@ -1337,7 +1701,7 @@
 ::  admin of its own gets the next one.
 ++  call-leave
   |=  [who=@p =place:g]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?.  (call-place place)  `state
   =/  c0=(unit host-call:g)  (~(get by calls) place)
   ?~  c0  `state
@@ -1360,7 +1724,7 @@
 ::  call's admins, where Noltbook ranks a note's admins and a call's together.
 ++  call-mod
   |=  [actor=@p =place:g inc=@ud target=@p op=@tas]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?.  (call-place place)  `state
   =/  c0=(unit host-call:g)  (~(get by calls) place)
   ?~  c0  `state
@@ -1444,7 +1808,7 @@
 ::  the call who is not on it any more has left it. An empty roster ends it.
 ++  call-roster
   |=  [who=@p =place:g ships=(set @p)]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?.  ?&((gte place huddle-base:g) (lth place call-top:g))  `state
   ?.  =(place (huddle-place who))  `state
   ?:  (gth ~(wyt in ships) 32)  `state
@@ -1472,14 +1836,14 @@
 ::  here that the note does not already say.
 ++  call-recheck
   |=  [actor=@p who=@p]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   =/  gn  glurff-note
   ?~  gn  `state
   ?.  =(creator.u.gn our.bowl)  `state
   ?.  |(=(actor our.bowl) (~(has in mods.u.gn) actor))  `state
   =/  places=(list place:g)  ~(tap in ~(key by calls))
   =|  cards=(list card)
-  |-  ^-  (quip card state-11)
+  |-  ^-  (quip card state-15)
   ?~  places
     :_  state
     ?.  (~(has in removed.u.gn) who)  cards
@@ -1505,7 +1869,7 @@
 ::  keeps the world room's.
 ++  call-heard
   |=  res=call-result:gc
-  ^-  state-11
+  ^-  state-15
   =/  at=(unit place:g)  (ctx-place context.res)
   ?~  at  state
   ?.  (call-place u.at)  state
@@ -1557,11 +1921,787 @@
     ==
   ==
 ::
+::  ---- THE WORLD AS DATA (see `home` in /sur) ----
+::
+::  A request for the world API or for a host's assets, not for the page.
+++  world-url
+  |=  url=@t
+  ^-  ?
+  ?|  =('/apps/glurff/api/' (end [3 17] url))
+      =('/apps/glurff/world/' (end [3 19] url))
+  ==
+::  An answer to a browser: some JSON with a status, or a list of errors.
+++  answer
+  |=  [id=@ta p=simple-payload:http]
+  ^-  (list card)
+  (give-simple-payload:app:server id p)
+++  json-out
+  |=  [code=@ud j=json]
+  ^-  simple-payload:http
+  :_  `(json-to-octs:server j)
+  [code ~[['content-type' 'application/json'] ['cache-control' 'no-store']]]
+++  error-out
+  |=  [code=@ud why=(list @t)]
+  ^-  simple-payload:http
+  (json-out code (pairs:enjs:format ~[['errors' a+(turn why |=(t=@t s+t))]]))
+::  An asset's bytes. Its URL is its hash, so it can never change.
+++  asset-payload
+  |=  [mime=@t =octs]
+  ^-  simple-payload:http
+  :_  `octs
+  :-  200
+  :~  ['content-type' mime]
+      ['cache-control' 'private, max-age=31536000, immutable']
+      ['x-content-type-options' 'nosniff']
+  ==
+++  get-arg
+  |=  [args=(list [key=@t value=@t]) k=@t]
+  ^-  (unit @t)
+  =/  hit  (skim args |=([key=@t value=@t] =(key k)))
+  ?~(hit ~ `value.i.hit)
+++  get-num
+  |=  [args=(list [key=@t value=@t]) k=@t]
+  ^-  (unit @ud)
+  (biff (get-arg args k) (curr rush dem))
+::  The type of a body, without its parameters.
+++  content-type
+  |=  heads=header-list:http
+  ^-  @t
+  =/  hit
+    %+  skim  heads
+    |=([key=@t value=@t] =('content-type' (crip (cass (trip key)))))
+  ?~  hit  ''
+  =/  v=tape  (cass (trip value.i.hit))
+  =/  semi  (find ";" v)
+  (crip (scag ?~(semi (lent v) u.semi) v))
+::
+::  OUR OWN BROWSER, and nobody else's: the host's API, and assets of any
+::  host's world. A visitor's page fetches another host's assets through its
+::  own agent, never through the host's.
+++  world-http
+  |=  [id=@ta req=inbound-request:eyre]
+  ^-  (quip card state-15)
+  ?.  ?&(authenticated.req =(src.bowl our.bowl))
+    [(answer id (login-redirect:gen:server request.req)) state]
+  =/  line  (parse-request-line:server url.request.req)
+  =/  =method:http  method.request.req
+  ?+    site.line  [(answer id not-found:gen:server) state]
+      [%apps %glurff %api *]
+    (api-http id method t.t.t.site.line args.line request.req)
+  ::
+      [%apps %glurff %world @ %asset @ ~]
+    ?.  ?=(?(%'GET' %'HEAD') method)  [(answer id [[405 ~] ~]) state]
+    =/  host=(unit @p)  (slaw %p i.t.t.t.site.line)
+    =/  h=(unit hash:g)  (unhex:gw i.t.t.t.t.t.site.line)
+    ?.  ?&(?=(^ host) ?=(^ h))  [(answer id not-found:gen:server) state]
+    ::  By poke, unless asked otherwise: over classic Ames the host's
+    ::  answer in one message measured two to four times faster than
+    ::  encrypted remote scry (2026-11-05). Scry stays, for when it isn't.
+    =/  =via:g  ?:(=(`'scry' (get-arg args.line 'via')) %scry %poke)
+    (asset-get id u.host u.h via)
+  ==
+::  THE HOST'S API. What it hosts is readable once it hosts a world; the
+::  rest only once its operator has turned editing on (see `operate`).
+::
+::    GET  /apps/glurff/api/home            hosting? its note, draft, live
+::    PUT  /apps/glurff/api/asset           keep some bytes; their hash
+::    GET  /apps/glurff/api/draft           the draft's revision and document
+::    PUT  /apps/glurff/api/draft?base=N    save a document over revision N
+::    POST /apps/glurff/api/publish?rev=N   check draft N and make it live
+::    POST /apps/glurff/api/live?release=N  give visitors release N again
+::                                          (0: none -- see `api-http`)
+::    GET  /apps/glurff/api/releases        every release
+::    POST /apps/glurff/api/forget?release=N  delete release N, not the live
+::                                          one (see `forget`)
+++  api-http
+  |=  [id=@ta =method:http rest=(list @t) args=(list [key=@t value=@t]) =request:http]
+  ^-  (quip card state-15)
+  =/  out  |=(p=simple-payload:http [(answer id p) state])
+  ?:  =(~['home'] rest)
+    ?.  ?=(%'GET' method)  (out [[405 ~] ~])
+    (out (json-out 200 home-json))
+  ::  EVERYBODY BUILDS (2026-11-10): EDIT GLURFF on our own profile card
+  ::  makes us a host and turns editing on, from our own browser, with no
+  ::  note yet -- nothing of it anywhere but here until it is first
+  ::  published, when the editor makes its note and gives it to us (`note`).
+  ::  As `%host` from Dojo does, the first time; Dojo's is still the way to
+  ::  host a note that exists already.
+  ?:  =(~['start'] rest)
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    =/  was=?  ?=(^ home)
+    =.  home  ?~(home `[*@ta & ~ ~ ~ ~ ~] `u.home(edit &))
+    :_  state
+    %+  weld  (answer id (json-out 200 home-json))
+    ^-  (list card)
+    ?:  was  ~
+    ~[[%pass /world-coop %germ world-coop:g]]
+  ?~  home  (out (error-out 404 ~['this ship hosts no world']))
+  ?.  edit.u.home  (out (error-out 403 ~['editing is not turned on for this world']))
+  ?+    rest  (out not-found:gen:server)
+      [%listing ~]
+    ::  WHERE OUR PUBLISH LISTS OUR GLURFF (2026-11-08): ?ship=~x, or
+    ::  ?ship=none for nowhere.
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    =/  arg  (get-arg args 'ship')
+    ?~  arg  (out (error-out 400 ~['which ship?']))
+    =/  to=(unit (unit @p))  ?:(=('none' u.arg) `~ (bind (slaw %p u.arg) some))
+    ?~  to  (out (error-out 400 ~['not a ship']))
+    =.  listing  u.to
+    [(answer id (json-out 200 home-json)) state]
+  ::
+      [%note ~]
+    ::  ITS NOTE, made by the editor at its first publish: a note of ours,
+    ::  given once, to a world that has none yet.
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    ?.  =('' note.u.home)  (out (error-out 409 ~['this world has its note already']))
+    =/  arg  (get-arg args 'id')
+    ?~  arg  (out (error-out 400 ~['which note?']))
+    ?.  ((sane %ta) u.arg)  (out (error-out 400 ~['that is not a note']))
+    =/  nid=@ta  ;;(@ta u.arg)
+    =/  gn  (note-read nid)
+    ?.  ?&(?=(^ gn) =(creator.u.gn our.bowl))
+      (out (error-out 422 ~['that is not a note of ours']))
+    =.  note.u.home  nid
+    :_  state
+    (weld card-facts (answer id (json-out 200 home-json)))
+  ::
+      [%asset ~]
+    ?.  ?=(?(%'PUT' %'POST') method)  (out [[405 ~] ~])
+    (asset-put id request)
+  ::
+      [%draft ~]
+    ?:  ?=(%'GET' method)  (out (json-out 200 (draft-json draft.u.home)))
+    ?.  ?=(%'PUT' method)  (out [[405 ~] ~])
+    (draft-put id (get-num args 'base') request)
+  ::
+      [%publish ~]
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    (publish id (get-num args 'rev'))
+  ::
+      [%live ~]
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    =/  n=(unit @ud)  (get-num args 'release')
+    ::  Release 0 is none: visitors are given no release of ours -- the
+    ::  official world's fall back to the copy their app carries. The way
+    ::  back, should a published world misbehave (2026-11-05).
+    ?:  =(`0 n)
+      =.  live.u.home  ~
+      :_  state
+      ;:  weld
+        (list-cards |)
+        card-facts
+        (answer id (json-out 200 (pairs:enjs:format ~[['release' ~]])))
+      ==
+    ?.  ?&(?=(^ n) (~(has by releases.u.home) u.n))
+      (out (error-out 404 ~['no such release']))
+    =.  live.u.home  n
+    :_  state
+    ;:  weld
+      (list-cards &)
+      card-facts
+      (answer id (json-out 200 (pairs:enjs:format ~[['release' (numb:enjs:format u.n)]])))
+    ==
+  ::
+      [%releases ~]
+    (out (json-out 200 releases-json))
+  ::
+      [%forget ~]
+    ?.  ?=(%'POST' method)  (out [[405 ~] ~])
+    (forget id (get-num args 'release'))
+  ==
+::  KEEP SOME BYTES: an image a browser can draw but not run, or a JSON
+::  document, within the store's limits -- checked here, whatever the editor
+::  checked. The same bytes twice are kept once.
+++  asset-put
+  |=  [id=@ta =request:http]
+  ^-  (quip card state-15)
+  ?>  ?=(^ home)
+  =/  out  |=(p=simple-payload:http [(answer id p) state])
+  ?~  body.request  (out (error-out 400 ~['no bytes']))
+  =/  =octs  u.body.request
+  ?:  =(0 p.octs)  (out (error-out 400 ~['no bytes']))
+  ?:  (gth p.octs asset-max:g)  (out (error-out 413 ~['too big for a world']))
+  =/  mime=@t  (content-type header-list.request)
+  ?.  (~(has in mimes:gw) mime)
+    (out (error-out 415 ~[(rap 3 'not a kind of file a world keeps: ' mime ~)]))
+  =/  pic=?  (image:gw mime)
+  ::  a sound (2026-11-08): small, and what it says it is
+  =/  snd=?  (audio:gw mime)
+  ?:  ?&(snd (gth p.octs sound-max:gw))  (out (error-out 413 ~['a sound is at most 2 MB']))
+  ?:  ?&(snd !(sound-ok:gw mime octs))  (out (error-out 415 ~['not a readable sound']))
+  =/  dims=(unit [w=@ud h=@ud])  ?.(pic ~ (image-size:gw mime octs))
+  ?:  ?&(pic ?=(~ dims))  (out (error-out 415 ~['not a readable image']))
+  ?:  ?&  ?=(^ dims)
+          ?|  =(0 w.u.dims)  =(0 h.u.dims)
+              (gth w.u.dims side-max:gw)  (gth h.u.dims side-max:gw)
+              (gth (mul w.u.dims h.u.dims) pixels-max:gw)
+          ==
+      ==
+    (out (error-out 413 ~['the image is too large']))
+  ?:  ?&(!pic !snd ?=(~ (de:json:html q.octs)))  (out (error-out 400 ~['not JSON']))
+  =/  h=hash:g  (hash-of:gw octs)
+  =/  had=?  (~(has by assets.u.home) h)
+  ::  Room for it (2026-11-08): what nothing has wanted lately goes first.
+  =?  u.home  ?&(!had (crowded u.home p.octs))  (tidy u.home in-flight:g ~)
+  ?:  ?&(!had (gte ~(wyt by assets.u.home) assets-max:g))
+    (out (error-out 507 ~['the store is full']))
+  ?:  ?&(!had (gth (add (stored u.home) p.octs) store-max:g))
+    (out (error-out 507 ~['this world is full: it keeps at most 200 MB of pictures and sounds']))
+  ::  The same bytes again are wanted again: their day starts over.
+  =.  assets.u.home
+    ?:  had  (~(jab by assets.u.home) h |=(a=asset:g a(at now.bowl)))
+    (~(put by assets.u.home) h [mime p.octs q.octs now.bowl])
+  :_  state
+  %+  weld  ?:(had ~ tidy-cards)
+  %+  answer  id
+  %+  json-out  200
+  %-  pairs:enjs:format
+  :~  ['hash' s+(hex:gw h)]
+      ['mime' s+mime]
+      ['size' (numb:enjs:format p.octs)]
+      ['w' ?~(dims ~ (numb:enjs:format w.u.dims))]
+      ['h' ?~(dims ~ (numb:enjs:format h.u.dims))]
+  ==
+::  SAVE THE DRAFT. A save from an older revision than ours would throw away
+::  what was saved since, so it is refused with the revision it missed. The
+::  document it replaces is let go unless a release still uses it.
+++  draft-put
+  |=  [id=@ta base=(unit @ud) =request:http]
+  ^-  (quip card state-15)
+  ?>  ?=(^ home)
+  =/  out  |=(p=simple-payload:http [(answer id p) state])
+  =/  rev=@ud  ?~(draft.u.home 0 rev.u.draft.u.home)
+  ?.  =(base `rev)  (out (stale rev))
+  ?~  body.request  (out (error-out 400 ~['no document']))
+  =/  =octs  u.body.request
+  ?:  (gth p.octs asset-max:g)  (out (error-out 413 ~['the document is too big']))
+  =/  doc=(unit json)  (de:json:html q.octs)
+  ?~  doc  (out (error-out 400 ~['not JSON']))
+  ?~  (schema-of:gw u.doc)  (out (error-out 422 ~['the document says no schema']))
+  =/  h=hash:g  (hash-of:gw octs)
+  =?  assets.u.home
+      ?&  ?=(^ draft.u.home)
+          !=(h doc.u.draft.u.home)
+          !(~(has in shown.u.home) doc.u.draft.u.home)
+      ==
+    (~(del by assets.u.home) doc:(need draft.u.home))
+  =.  assets.u.home  (~(put by assets.u.home) h ['application/json' p.octs q.octs now.bowl])
+  =.  draft.u.home  `[+(rev) h now.bowl]
+  ::  What the draft no longer names starts its day (see `let-go`).
+  =.  u.home  (tidy u.home let-go:g doc)
+  :_  state
+  %+  weld  tidy-cards
+  %+  answer  id
+  %+  json-out  200
+  %^  room-json  u.home  doc
+  (draft-json draft.u.home)
+::  THE GLURFFS WE ARE IN (2026-11-08), for anybody to see: those listed
+::  with us, then those our own page has learnt of (`glurffs` in our
+::  settings), as our Noltbook has their notes -- each a public group of its
+::  host's that we may read -- but our own; one a host, at most
+::  `listing-max`.
+++  glurff-list
+  ^-  (list glurff-entry:g)
+  =/  known=(list [@p @ta])
+    (weld (turn ~(tap by listed) |=([h=@p l=listing:g] [h note.l])) pref-glurffs)
+  =|  seen=(set @p)
+  =|  out=(list glurff-entry:g)
+  =|  n=@ud
+  |-  ^-  (list glurff-entry:g)
+  ?~  known  (flop out)
+  ?:  (gte n listing-max:g)  (flop out)
+  =/  h=@p  -.i.known
+  ?:  ?|(=(h our.bowl) (~(has in seen) h))  $(known t.known)
+  =/  e=(unit glurff-entry:g)  (note-entry h +.i.known)
+  ?~  e  $(known t.known)
+  $(known t.known, seen (~(put in seen) h), out [u.e out], n +(n))
+::  The Glurffs our page has learnt we are in, as our settings keep them.
+++  pref-glurffs
+  ^-  (list [@p @ta])
+  =/  j=(unit json)  (de:json:html prefs)
+  ?.  ?=([~ %o *] j)  ~
+  =/  g  (~(get by p.u.j) 'glurffs')
+  ?.  ?=([~ %a *] g)  ~
+  %+  murn  p.u.g
+  |=  e=json
+  ^-  (unit [@p @ta])
+  ?.  ?=([%o *] e)  ~
+  =/  h  (~(get by p.e) 'host')
+  =/  t  (~(get by p.e) 'note')
+  ?.  ?&(?=([~ %s *] h) ?=([~ %s *] t))  ~
+  =/  who=(unit @p)  (slaw %p p.u.h)
+  ?~  who  ~
+  ?.  ((sane %ta) p.u.t)  ~
+  `[u.who p.u.t]
+::  A note of ours, as a Glurff anybody may be told of: a public group of
+::  `host`'s, still there, that we may read.
+++  note-entry
+  |=  [host=@p id=@ta]
+  ^-  (unit glurff-entry:g)
+  =/  base=path
+    :~  (scot %p our.bowl)  %noltbook  (scot %da now.bowl)
+        %api  %notes  id  %meta  %json
+    ==
+  =/  meta  (mule |.(.^(json %gx base)))
+  ?:  ?=(%| -.meta)  ~
+  ?.  ?=([%o *] p.meta)  ~
+  =/  m  p.p.meta
+  =/  text  |=(k=@t ^-(@t =/(v (~(get by m) k) ?.(?=([~ %s *] v) '' p.u.v))))
+  ?.  ?&  =('group' (text 'type'))  =('public' (text 'visibility'))
+          =(`host (slaw %p (text 'creator')))
+      ==
+    ~
+  =/  caps  (~(get by m) 'capabilities')
+  =/  cap  |=(k=@t ^-(? ?.(?=([~ %o *] caps) | =(`[%b &] (~(get by p.u.caps) k)))))
+  ?.  ?&((cap 'canRead') !(cap 'isRemoved') !(cap 'isHostDeleted'))  ~
+  =/  count  (~(get by m) 'userCount')
+  `[host id (text 'name') ?.(?=([~ %n *] count) 0 (fall (rush p.u.count dem) 0))]
+::  THE STORE'S ROOM (2026-11-08). It keeps the draft, everything the draft
+::  names and everything a release still kept names -- visitors may be given
+::  any of them again -- until that version is deleted (`forget`), though what
+::  it named cannot be taken back from the namespace it was published under
+::  (this kernel's %snip does nothing). The rest is let go once nothing has
+::  wanted it for `grace`; what is kept is wanted now. `doc` is the draft's
+::  document when the caller has it already read. A draft that cannot be
+::  read says nothing (~), and then nothing is let go.
+++  kept
+  |=  [h=home:g doc=(unit json)]
+  ^-  (unit (set hash:g))
+  ?~  draft.h  `shown.h
+  =/  j=(unit json)
+    ?^  doc  doc
+    =/  a  (~(get by assets.h) doc.u.draft.h)
+    ?~(a ~ (de:json:html data.u.a))
+  ?~  j  ~
+  `(~(uni in (~(put in shown.h) doc.u.draft.h)) (hashes-in:gw u.j))
+++  tidy
+  |=  [h=home:g grace=@dr doc=(unit json)]
+  ^-  home:g
+  =/  keep=(unit (set hash:g))  (kept h doc)
+  ?~  keep  h
+  =-  h(assets -)
+  %-  ~(gas by *(map hash:g asset:g))
+  %+  murn  ~(tap by assets.h)
+  |=  [k=hash:g a=asset:g]
+  ^-  (unit [hash:g asset:g])
+  ?:  (~(has in u.keep) k)  `[k a(at now.bowl)]
+  ?:  (gth (add at.a grace) now.bowl)  `[k a]
+  ~
+::  All the store holds, and whether one more of `n` bytes would need room.
+++  stored
+  |=  h=home:g
+  ^-  @ud
+  (roll (turn ~(val by assets.h) |=(a=asset:g size.a)) add)
+++  crowded
+  |=  [h=home:g n=@ud]
+  ^-  ?
+  ?|  (gte ~(wyt by assets.h) assets-max:g)
+      (gth (add (stored h) n) store-max:g)
+  ==
+::  What is kept, in bytes, and the most there may be: the editor's
+::  measure of how full the world is.
+++  room-json
+  |=  [h=home:g doc=(unit json) j=json]
+  ^-  json
+  ?.  ?=([%o *] j)  j
+  =/  used=@ud
+    %+  roll  ~(tap in (fall (kept h doc) ~))
+    |=  [k=hash:g n=@ud]
+    (add n ?~(a=(~(get by assets.h) k) 0 size.u.a))
+  :-  %o
+  %-  ~(gas by p.j)
+  :~  ['used' (numb:enjs:format used)]
+      ['max' (numb:enjs:format store-max:g)]
+  ==
+::  The clock that lets go what nothing wants, set again whenever there may
+::  be something: one clock for every ten minutes, however many saves.
+++  tidy-cards
+  ^-  (list card)
+  =/  at=@da  (add now.bowl let-go:g)
+  =.  at  (add (sub at (mod at ~m10)) ~m10)
+  :~  [%pass /store-tidy %arvo %b %rest at]
+      [%pass /store-tidy %arvo %b %wait at]
+  ==
+++  stale
+  |=  rev=@ud
+  ^-  simple-payload:http
+  %+  json-out  409
+  %-  pairs:enjs:format
+  :~  ['rev' (numb:enjs:format rev)]
+      ['errors' a+~[s+'the draft has been saved since']]
+  ==
+::  PUBLISH: the draft revision the editor last saw -- what was tried is
+::  what goes out -- checked whole, then made live in one step. Visitors on
+::  the release before keep it until they come back.
+++  publish
+  |=  [id=@ta rev=(unit @ud)]
+  ^-  (quip card state-15)
+  ?>  ?=(^ home)
+  =/  out  |=(p=simple-payload:http [(answer id p) state])
+  ?~  draft.u.home  (out (error-out 409 ~['there is no draft to publish']))
+  ?:  =('' note.u.home)  (out (error-out 409 ~['it needs its note first']))
+  =/  d=draft:g  u.draft.u.home
+  ?.  =(rev `rev.d)  (out (stale rev.d))
+  =/  a=(unit asset:g)  (~(get by assets.u.home) doc.d)
+  ?~  a  (out (error-out 500 ~['the draft document is missing']))
+  =/  doc=(unit json)  (de:json:html data.u.a)
+  ?~  doc  (out (error-out 500 ~['the draft document is not JSON']))
+  =/  ok  (check:gw u.doc assets.u.home)
+  ?:  ?=(%| -.ok)  (out (error-out 422 p.ok))
+  =/  n=@ud  +((roll ~(tap in ~(key by releases.u.home)) max))
+  =/  named=(set hash:g)  (~(put in p.ok) doc.d)
+  =/  fresh=(set hash:g)  (~(dif in named) shown.u.home)
+  =.  releases.u.home
+    (~(put by releases.u.home) n [doc.d rev.d (need (schema-of:gw u.doc)) now.bowl])
+  =.  live.u.home  `n
+  =.  shown.u.home  (~(uni in shown.u.home) named)
+  :_  state
+  ;:  weld
+    (tend-cards fresh)
+    ::  Listed where Glurffs are (2026-11-08); the editor makes that ship a
+    ::  member of our note.
+    (list-cards &)
+    card-facts
+    %+  answer  id
+    %+  json-out  200
+    (pairs:enjs:format ~[['release' (numb:enjs:format n)] ['doc' s+(hex:gw doc.d)]])
+  ==
+::  DELETE A VERSION (2026-11-09): any but the one visitors are given. What
+::  only it named is kept no longer: it goes like anything nothing wants, a
+::  day on (or at once when an upload needs the room), and a visitor can no
+::  longer ask us for it. What it published under our world's namespace
+::  stays there: this kernel cannot take that back (see `kept`).
+++  forget
+  |=  [id=@ta n=(unit @ud)]
+  ^-  (quip card state-15)
+  ?>  ?=(^ home)
+  =/  out  |=(p=simple-payload:http [(answer id p) state])
+  ?~  n  (out (error-out 400 ~['which version?']))
+  ?.  (~(has by releases.u.home) u.n)  (out (error-out 404 ~['no such release']))
+  ?:  =(live.u.home n)
+    (out (error-out 409 ~['visitors are given this version: publish or choose another first']))
+  =/  rest=(map @ud release:g)  (~(del by releases.u.home) u.n)
+  =/  named=(unit (set hash:g))  (named-by rest assets.u.home)
+  ?~  named  (out (error-out 500 ~['a version that stays could not be read']))
+  ::  Only ever smaller: never more than was shown before.
+  =/  still=(set hash:g)  (~(int in shown.u.home) u.named)
+  =/  dropped=(set hash:g)  (~(dif in shown.u.home) still)
+  =.  releases.u.home  rest
+  =.  shown.u.home  still
+  ::  Their day starts now.
+  =.  assets.u.home
+    %-  ~(urn by assets.u.home)
+    |=  [k=hash:g a=asset:g]
+    ?.((~(has in dropped) k) a a(at now.bowl))
+  :_  state
+  %+  weld  tidy-cards
+  (answer id (json-out 200 releases-json))
+::  Everything some release names: each one's document and every hash in it.
+::  ~ if a release's document cannot be read.
+++  named-by
+  |=  [rs=(map @ud release:g) have=(map hash:g asset:g)]
+  ^-  (unit (set hash:g))
+  =/  l=(list release:g)  ~(val by rs)
+  =|  out=(set hash:g)
+  |-  ^-  (unit (set hash:g))
+  ?~  l  `out
+  =/  a  (~(get by have) doc.i.l)
+  ?~  a  ~
+  =/  j  (de:json:html data.u.a)
+  ?~  j  ~
+  $(l t.l, out (~(uni in (~(put in out) doc.i.l)) (hashes-in:gw u.j)))
+::  Telling the ship our Glurff is listed with that it is live (&), or taken
+::  down (|). Never ourselves: a host does not list with itself.
+++  list-cards
+  |=  on=?
+  ^-  (list card)
+  ?~  home  ~
+  ?:  =('' note.u.home)  ~
+  ?~  listing  ~
+  ?:  =(u.listing our.bowl)  ~
+  ~[(tell u.listing ?:(on [%listed note.u.home] [%unlisted note.u.home]))]
+::  Published assets, under our world's encrypted namespace: each one once,
+::  since its path is its hash.
+++  tend-cards
+  |=  hs=(set hash:g)
+  ^-  (list card)
+  ?~  home  ~
+  %+  murn  ~(tap in hs)
+  |=  h=hash:g
+  ^-  (unit card)
+  =/  a  (~(get by assets.u.home) h)
+  ?~  a  ~
+  `[%pass /world-tend %tend world-coop:g /asset/(hex:gw h) [%noun [mime size data]:u.a]]
+++  home-json
+  ^-  json
+  =,  enjs:format
+  ?~  home  (pairs ~[['hosting' b+|]])
+  %-  pairs
+  :~  ['hosting' b+&]
+      ['note' s+note.u.home]
+      ['edit' b+edit.u.home]
+      ['live' ?~(live.u.home ~ (numb u.live.u.home))]
+      ['draft' (draft-json draft.u.home)]
+      ['assets' (numb ~(wyt by assets.u.home))]
+      ['bytes' (numb (stored u.home))]
+      ['listing' ?~(listing ~ s+(scot %p u.listing))]
+      ['room' (room-json u.home ~ o+~)]
+  ==
+++  draft-json
+  |=  d=(unit draft:g)
+  ^-  json
+  ?~  d  ~
+  %-  pairs:enjs:format
+  :~  ['rev' (numb:enjs:format rev.u.d)]
+      ['doc' s+(hex:gw doc.u.d)]
+      ['at' (sect:enjs:format at.u.d)]
+  ==
+++  releases-json
+  ^-  json
+  ?~  home  ~
+  %-  pairs:enjs:format
+  :~  ['live' ?~(live.u.home ~ (numb:enjs:format u.live.u.home))]
+      :-  'releases'
+      :-  %a
+      %+  turn
+        (sort ~(tap by releases.u.home) |=([a=[n=@ud *] b=[n=@ud *]] (gth n.a n.b)))
+      |=  [n=@ud r=release:g]
+      %-  pairs:enjs:format
+      :~  ['release' (numb:enjs:format n)]
+          ['doc' s+(hex:gw doc.r)]
+          ['rev' (numb:enjs:format rev.r)]
+          ['schema' (numb:enjs:format schema.r)]
+          ['at' (sect:enjs:format at.r)]
+      ==
+  ==
+::
+::  AN ASSET OF A HOST'S WORLD, for our page. Our own world's from our own
+::  store, drafts included; any other host's fetched from it -- once, however
+::  many of our browsers are waiting -- and never kept here.
+++  asset-spur
+  |=  h=hash:g
+  ^-  path
+  ~[%g %x '1' %glurff %$ '1' %world %asset (hex:gw h)]
+++  asset-get
+  |=  [id=@ta host=@p h=hash:g =via:g]
+  ^-  (quip card state-15)
+  ?:  =(host our.bowl)
+    =/  a=(unit asset:g)  ?~(home ~ (~(get by assets.u.home) h))
+    ?~  a  [(answer id not-found:gen:server) state]
+    [(answer id (asset-payload mime.u.a [size.u.a data.u.a])) state]
+  =/  key=[@p hash:g]  [host h]
+  =/  f=(unit fetch:g)  (~(get by fetches) key)
+  ?^  f
+    `state(fetches (~(put by fetches) key u.f(ids (~(put in ids.u.f) id))))
+  =/  =wire  /fetch/(scot %p host)/(hex:gw h)
+  :_  state(fetches (~(put by fetches) key [via (silt ~[id]) now.bowl]))
+  :~  ?-  via
+        %scry  [%pass wire %keen & host (asset-spur h)]
+        %poke  [%pass wire %agent [host %glurff] %poke %glurff-remote !>(`remote:g`[%asset-ask h])]
+      ==
+      [%pass /fetch-wait/(scot %p host)/(hex:gw h)/(scot %da now.bowl) %arvo %b %wait (add now.bowl fetch-wait:g)]
+  ==
+::  An asset came from a host, or will not: every browser waiting on it is
+::  answered. The bytes must be the ones the hash names, so neither a host
+::  nor a fault can put anything else on a page under its name.
+++  asset-came
+  |=  [host=@p h=hash:g got=(each [mime=@t =octs] @tas)]
+  ^-  (quip card state-15)
+  =/  f=(unit fetch:g)  (~(get by fetches) [host h])
+  ?~  f  `state
+  =/  pay=simple-payload:http
+    ?:  ?=(%| -.got)
+      ?+  p.got  (error-out 502 ~[p.got])
+        %denied   (error-out 403 ~['the host did not let us read it'])
+        %timeout  (error-out 504 ~['the host did not answer in time'])
+      ==
+    ?.  =(h (hash-of:gw octs.p.got))  (error-out 502 ~['the bytes are not what was asked for'])
+    ?.  (~(has in mimes:gw) mime.p.got)  (error-out 502 ~['not a kind of file a world keeps'])
+    (asset-payload mime.p.got octs.p.got)
+  :_  state(fetches (~(del by fetches) [host h]))
+  (zing (turn ~(tap in ids.u.f) |=(id=@ta (answer id pay))))
+::  Whether `who` may visit the world we host: a member of its note, or
+::  ourselves. Nobody else, nor anybody while Noltbook cannot say.
+++  visitor-ok
+  |=  who=@p
+  ^-  ?
+  ?~  home  %.n
+  ?:  =(who our.bowl)  %.y
+  =/  gn  (note-read note.u.home)
+  ?~  gn  %.n
+  (~(has in members.u.gn) who)
+::  OUR WORLD'S CARD (see `world-card` in /sur), and everybody watching it
+::  told that it changed.
+++  card-of
+  ^-  (unit world-card:g)
+  ?~  home  ~
+  ::  Not published yet, and no note: nothing for anybody to see.
+  ?:  =('' note.u.home)  ~
+  =/  on=(unit [n=@ud doc=hash:g size=@ud])
+    ?~  live.u.home  ~
+    =/  r=(unit release:g)  (~(get by releases.u.home) u.live.u.home)
+    ?~  r  ~
+    =/  a=(unit asset:g)  (~(get by assets.u.home) doc.u.r)
+    `[u.live.u.home doc.u.r ?~(a 0 size.u.a)]
+  `[note.u.home (note-name note.u.home) on]
+::  OUR CARD AS `who` MAY SEE IT. A secret world is nothing at all to anybody
+::  outside its note -- no name, no release -- as Noltbook never lists a
+::  secret note to anybody outside it.
+++  card-for
+  |=  who=@p
+  ^-  (unit world-card:g)
+  ?~  home  ~
+  ?:  ?&(=(%secret (note-vis note.u.home)) !(visitor-ok who))  ~
+  card-of
+::  ...and everybody watching it told: our own page as it is, and other
+::  ships' agents what each of them may see. A secret world's watchers are
+::  sent away to watch again, which answers each of them alone (/card in
+::  +on-watch); any other world's are all told the same.
+++  card-facts
+  ^-  (list card)
+  =/  ours=card
+    [%give %fact ~[/card/(scot %p our.bowl)] %glurff-update !>(`update:g`[%world-card our.bowl card-of])]
+  ?:  ?&(?=(^ home) =(%secret (note-vis note.u.home)))
+    ~[ours [%give %kick ~[/card] ~]]
+  :~  :*  %give  %fact  ~[/card /card/(scot %p our.bowl)]
+          %glurff-update  !>(`update:g`[%world-card our.bowl card-of])
+  ==  ==
+::  How open a note is, as Noltbook has it. Only a note Noltbook says is
+::  secret is: one it cannot describe is shown as it always was.
+++  note-vis
+  |=  id=@ta
+  ^-  ?(%public %private %secret)
+  =/  =path
+    :~  (scot %p our.bowl)  %noltbook  (scot %da now.bowl)
+        %api  %notes  id  %meta  %json
+    ==
+  =/  meta  (mule |.(.^(json %gx path)))
+  ?:  ?=(%| -.meta)  %public
+  =/  v=(unit @t)  (str:gw (get:gw p.meta 'visibility'))
+  ?:  =(`'secret' v)  %secret
+  ?:  =(`'private' v)  %private
+  %public
+::  A note's name, as Noltbook has it.
+++  note-name
+  |=  id=@ta
+  ^-  @t
+  =/  =path
+    :~  (scot %p our.bowl)  %noltbook  (scot %da now.bowl)
+        %api  %notes  id  %meta  %json
+    ==
+  =/  meta  (mule |.(.^(json %gx path)))
+  ?:  ?=(%| -.meta)  'Glurff'
+  (fall (str:gw (get:gw p.meta 'name')) 'Glurff')
+::  Watch a host's card afresh, dropping our older watch of that host's.
+++  card-follow
+  |=  host=@p
+  ^-  (list card)
+  %+  snoc
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] [acked=? =path]]
+    ^-  (unit card)
+    ?.  ?&(?=([%card @ *] wire) =(ship host))  ~
+    `[%pass wire %agent [ship term] %leave ~]
+  [%pass /card/(scot %p host)/(scot %da now.bowl) %agent [host %glurff] %watch /card]
+::
+::  SIGNS (2026-11-07). A sign changed by `who`, if they may: somebody in
+::  our world, writing within a sign's length, on a sign the live release
+::  lets people change. Otherwise the poke crashes, and its sender hears no.
+++  sign-put
+  |=  [who=@p item=@t text=@t]
+  ^-  (quip card state-15)
+  ?>  (visitor-ok who)
+  ?>  (lte (met 3 text) sign-max:g)
+  ?>  ?|((~(has by signs) item) (lth ~(wyt by signs) signs-max:g))
+  ?>  (sign-ok item)
+  =.  signs  (~(put by signs) item [text who now.bowl])
+  [sign-facts state]
+::  Whether the live release has a sign `item` that people may change: an
+::  item that shows text, marked `editable`.
+++  sign-ok
+  |=  item=@t
+  ^-  ?
+  ?~  home  %.n
+  ?~  live.u.home  %.n
+  =/  r=(unit release:g)  (~(get by releases.u.home) u.live.u.home)
+  ?~  r  %.n
+  =/  a=(unit asset:g)  (~(get by assets.u.home) doc.u.r)
+  ?~  a  %.n
+  =/  doc=(unit json)  (de:json:html `@t`data.u.a)
+  ?~  doc  %.n
+  %+  lien  (fall (many:gw (get:gw u.doc 'maps')) ~)
+  |=  m=json
+  %+  lien  (fall (many:gw (get:gw m 'items')) ~)
+  |=  it=json
+  =/  d=json  (fall (get:gw it 'do') ~)
+  ?&  =(`item (str:gw (get:gw it 'id')))
+      =(`'text' (str:gw (get:gw d 'kind')))
+      =(`%.y (flag:gw (get:gw d 'editable')))
+  ==
+::  Everybody reading our signs told what they say now: our page, and every
+::  member's agent watching for its page.
+++  sign-facts
+  ^-  (list card)
+  :~  :*  %give  %fact  ~[/signs /signs/(scot %p our.bowl)]
+          %glurff-update  !>(`update:g`[%signs our.bowl signs])
+  ==  ==
+::  Watch a host's signs afresh, dropping our older watch of that host's.
+++  signs-follow
+  |=  host=@p
+  ^-  (list card)
+  %+  snoc
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] [acked=? =path]]
+    ^-  (unit card)
+    ?.  ?&(?=([%signs @ *] wire) =(ship host))  ~
+    `[%pass wire %agent [ship term] %leave ~]
+  [%pass /signs/(scot %p host)/(scot %da now.bowl) %agent [host %glurff] %watch /signs]
+::
+::  FROM DOJO: hosting a world, and editing it. See /mar/glurff-operator.
+++  operate
+  |=  op=operator:g
+  ^-  (quip card state-15)
+  ?-    -.op
+      %host
+    ::  Only a note of our own can be a world we host: its creator is the
+    ::  ship that admits its members.
+    =/  gn  (note-read note.op)
+    ?.  ?&(?=(^ gn) =(creator.u.gn our.bowl))
+      ((slog leaf+"glurff: {<note.op>} is not a note of ours" ~) `state)
+    =/  was=?  ?=(^ home)
+    =.  home  ?~(home `[note.op | ~ ~ ~ ~ ~] `u.home(note note.op))
+    :_  state
+    %+  weld  card-facts
+    ^-  (list card)
+    ?:  was  ~
+    ~[[%pass /world-coop %germ world-coop:g]]
+  ::
+      %listing
+    `state(listing ship.op)
+  ::
+      %unlist
+    `state(listed (~(del by listed) who.op))
+  ::
+      %unhost
+    ?~  home  `state
+    ::  A world somebody may be visiting is not thrown away from here.
+    ?.  =(~ releases.u.home)
+      ((slog leaf+"glurff: this world has releases, and is still hosted" ~) `state)
+    :_  state(home ~)
+    :~  :*  %give  %fact  ~[/card /card/(scot %p our.bowl)]
+            %glurff-update  !>(`update:g`[%world-card our.bowl ~])
+    ==  ==
+  ::
+      %edit
+    ?~  home  ((slog leaf+"glurff: host a world before editing it" ~) `state)
+    `state(edit.u.home on.op)
+  ==
+::
 ::  ---- from our own client ----
 ::
 ++  do-action
   |=  act=action:g
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?-    -.act
       %move
     :_  state
@@ -1595,7 +2735,7 @@
     ::  The note id is Noltbook's own and is stored as given -- we cannot check
     ::  it from here, and the client only ever offers notes this ship created.
       %lease
-    ?.  ?&((gth place.act 0) (lte place.act last-room:g))  `state
+    ?.  (area-place place.act)  `state
     ?:  =(0 (met 3 note.act))  `state
     ::  A NEW GENERATION, always. Taking a lease -- even re-pointing this room
     ::  at a different note -- makes every seat and every message still in
@@ -1610,12 +2750,12 @@
     =/  over=(list card)
       ?~  lease  ~
       (spray (told u.lease) [%lease-gone place.u.lease gen.u.lease])
-    :_  state(lease `h, door ~)
-    (weld over (snoc cards (fact [%our-lease (shown `h)])))
+    :_  state(lease `h, door ~, lease-world world.act)
+    (weld over (snoc cards (fact [%our-lease (shown `h) world.act])))
   ::
       %unlease
     ?~  lease  `state
-    :_  state(lease ~, door ~)
+    :_  state(lease ~, door ~, lease-world ~)
     ;:  weld
       ?~  armed.u.lease  ~
       ~[[%pass /lease %arvo %b %rest u.armed.u.lease]]
@@ -1623,13 +2763,13 @@
       ::  used to rely on our own browser republishing the roster, which is no
       ::  use to anybody once that browser is closed.
       (spray (told u.lease) [%lease-gone place.u.lease gen.u.lease])
-      ~[(fact [%our-lease ~])]
+      ~[(fact [%our-lease ~ ~])]
     ==
   ::
     ::  Our own tab, or a guest's, sitting in a leased room. Ours is handled
     ::  here; a guest's is carried to the owner's agent, which is the authority.
       %seat
-    ?.  ?&((gth place.act 0) (lte place.act last-room:g))  `state
+    ?.  (area-place place.act)  `state
     ?:  =(0 (met 3 tab.act))  `state
     ?:  =(host.act our.bowl)
       (seat-change our.bowl place.act gen.act tab.act what.act)
@@ -1682,6 +2822,27 @@
     :_  state(webs next, spots apps)
     (spots-facts ~[/spots /spots/(scot %p our.bowl)] apps next)
   ::
+    ::  OUR CARD, TOLD AGAIN: our page says our note's visibility changed.
+      %card-again
+    [card-facts state]
+  ::
+    ::  SIGNS: what a sign says -- in our own world, here; in another's, asked
+    ::  of its host, whose refusal comes back as a nack (see +on-agent).
+      %sign-set
+    ?:  =(host.act our.bowl)  (sign-put our.bowl item.act text.act)
+    ?.  (lte (met 3 text.act) sign-max:g)  `state
+    :_  state
+    :~  :*  %pass  /sign-set/(scot %p host.act)/(scot %t item.act)
+            %agent  [host.act %glurff]  %poke
+            %glurff-remote  !>(`remote:g`[%sign-set item.act text.act])
+    ==  ==
+  ::
+    ::  ...and, as the host, one put back to what the world was published with.
+      %sign-reset
+    ?.  (~(has by signs) item.act)  `state
+    =.  signs  (~(del by signs) item.act)
+    [sign-facts state]
+  ::
     ::  THE SESSION LEASE. See `live` in /sur. The same session renewing keeps
     ::  its generation; a new one taking over gets a new, larger one; a session
     ::  that is not live and does not `take` is told who is, and stands down.
@@ -1689,7 +2850,7 @@
     ?:  =(0 (met 3 tab.act))  `state
     =/  mint
       |=  prev=@ud
-      ^-  (quip card state-11)
+      ^-  (quip card state-15)
       =/  ms=@ud  (div (sub now.bowl ~1970.1.1) (div ~s1 1.000))
       =/  gen=@ud  (max +(prev) ms)
       :_  state(live `[tab.act gen now.bowl])
@@ -1774,7 +2935,7 @@
     (spray peers.act [%presence-event body.act])
   ::
       %room-event
-    ?.  ?&((gth place.act 0) ?|((lte place.act last-room:g) =(place.act vatican-room:g)) !=(rumors-room:g place.act) (lte (met 3 body.act) 8.192))
+    ?.  ?&((area-place place.act) !=(rumors-room:g place.act) (lte (met 3 body.act) 8.192))
       `state
     :_  state
     (spray peers.act [%room-event place.act body.act])
@@ -1791,7 +2952,7 @@
 ::  poked once cannot make it grow without bound.
 ++  meter
   |=  who=@p
-  ^-  [? state-11]
+  ^-  [? state-15]
   =/  cur=meter:g  (~(gut by meters) who [now.bowl 0])
   =?  cur  (gte now.bowl (add at.cur remote-window:g))  [now.bowl 0]
   =.  n.cur  +(n.cur)
@@ -1816,10 +2977,14 @@
     %lease-info      (lte (met 3 note.rem) 256)
     %call-roster     (lte ~(wyt in ships.rem) 32)
     %call-mod-snap   (lte (met 3 (jam snap.rem)) remote-body:g)
+    %asset-give      ?&((lte p.data.rem asset-max:g) (lte (met 3 q.data.rem) p.data.rem))
+    %sign-set        ?&((lte (met 3 text.rem) sign-max:g) (lte (met 3 item.rem) 64))
+    %listed          (lte (met 3 note.rem) 256)
+    %unlisted        (lte (met 3 note.rem) 256)
   ==
 ++  do-remote
   |=  [who=@p rem=remote:g]
-  ^-  (quip card state-11)
+  ^-  (quip card state-15)
   ?-    -.rem
       %here     :_(state ~[(fact [%peer-here who spot.rem rev.rem host.rem])])
       %gone     :_(state ~[(fact [%peer-gone who])])
@@ -1883,8 +3048,60 @@
       %lease-private
     :_(state ~[(fact [%lease-private who place.rem gen.rem])])
   ::
+    ::  THE WORLD AS DATA, by poke. A visitor asking us, a world's host, for
+    ::  one of its assets: a member, for one some release names.
+      %asset-ask
+    =/  no
+      |=  why=@tas
+      ^-  (quip card state-15)
+      [~[(tell who [%asset-deny hash.rem why])] state]
+    ?~  home  (no %no-world)
+    ?.  (visitor-ok who)  (no %not-a-member)
+    ?.  (~(has in shown.u.home) hash.rem)  (no %not-published)
+    =/  a=(unit asset:g)  (~(get by assets.u.home) hash.rem)
+    ?~  a  (no %missing)
+    ::  On a flow of their own, one per visitor, never the presence flow: a
+    ::  megabyte queued ahead of somebody's next step would hold it for
+    ::  seconds. One flow, not one per asset: separate flows were measured
+    ::  no faster (2026-11-04) -- the ships' packet handling is the limit --
+    ::  and each would be kept by Ames for good.
+    :_  state
+    :~  :*  %pass  /asset-out/(scot %p who)
+            %agent  [who %glurff]  %poke
+            %glurff-remote  !>(`remote:g`[%asset-give hash.rem mime.u.a [size.u.a data.u.a]])
+    ==  ==
+  ::
+    ::  ...and a host's answer to us. Only an asset we asked that host for.
+      %asset-give
+    =/  f=(unit fetch:g)  (~(get by fetches) [who hash.rem])
+    ?.  ?&(?=(^ f) ?=(%poke via.u.f))  `state
+    (asset-came who hash.rem [%& mime.rem data.rem])
+  ::
+      %asset-deny
+    =/  f=(unit fetch:g)  (~(get by fetches) [who hash.rem])
+    ?.  ?&(?=(^ f) ?=(%poke via.u.f))  `state
+    (asset-came who hash.rem [%| ?:(=(%not-a-member why.rem) %denied why.rem)])
+  ::
+    ::  Somebody in our world changing what a sign says. See `sign-put`.
+      %sign-set
+    (sign-put who item.rem text.rem)
+  ::
+    ::  A host that published, saying its note is its Glurff (2026-11-08).
+    ::  Kept, up to so many; shown only while we are in that note and it is
+    ::  public (`glurff-list`).
+      %listed
+    ?.  ?|((~(has by listed) who) (lth ~(wyt by listed) listing-max:g))  `state
+    `state(listed (~(put by listed) who [note.rem now.bowl]))
+  ::
+    ::  ...and taken down again (2026-11-09): off the list, if that is the
+    ::  note it listed.
+      %unlisted
+    =/  l  (~(get by listed) who)
+    ?.  ?&(?=(^ l) =(note.u.l note.rem))  `state
+    `state(listed (~(del by listed) who))
+  ::
       %room-event
-    ?.  ?&((gth place.rem 0) ?|((lte place.rem last-room:g) =(place.rem vatican-room:g)) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
+    ?.  ?&((area-place place.rem) !=(rumors-room:g place.rem) (lte (met 3 body.rem) 8.192))
       `state
     :_(state ~[(fact [%room-event who place.rem body.rem])])
   ::

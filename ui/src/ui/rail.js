@@ -23,8 +23,11 @@ const screenPublication=label=>String(label??'').startsWith('screen');
 const REFUSED = { booted: 'Removed from this call', 'not-a-member': "You aren't in this Glurff" };
 
 export class Rail {
-  constructor(root, strip, {stage=null, notify=()=>{}} = {}) {
+  constructor(root, strip, {stage=null, notify=()=>{}, placeSound=null} = {}) {
     this.root = root;
+    /* The sound of places, on or off (lib/area-sound): {on(), set(on)}, or
+     * null in a world with none. */
+    this.placeSound = placeSound;
     this.strip = strip;
     this.stage = stage;
     this.notify = notify;
@@ -35,6 +38,10 @@ export class Rail {
      * still heard. Popped-out players come and go without the rail hearing of
      * it, so it counts what the column holds whenever that changes. */
     this.videosHidden = false;
+    /* ON THE STAGE (2026-11-06): the members go while something has the
+     * stage, and come back when it goes -- unless we showed or hid them
+     * ourselves meanwhile. See forStage. */
+    this.stageHid = false;
     this.counted = 0;
     this.screensSeen = new Set();
     new MutationObserver(() => { if (this.videoCount() !== this.counted) this.paint(); })
@@ -137,7 +144,7 @@ export class Rail {
      * not shown. */
     for (const v of vids) if (v.screen && !v.mine && !this.screensSeen.has(v.key)) {
       this.screensSeen.add(v.key);
-      if (this.videosHidden) this.notify(`${displayName(v.ship)} is sharing a screen. Show videos to see it.`);
+      if (this.videosHidden) this.notify(`${displayName(v.ship)} is sharing a screen. Show members to see it.`);
     }
     for (const key of this.screensSeen) if (!wanted.has(key)) this.screensSeen.delete(key);
     for (const [key,el] of this.tiles) if(!wanted.has(key)) {
@@ -315,7 +322,7 @@ export class Rail {
     q('.cam').onclick = () => toggleCam().catch((e) => console.error('cam', e));
     if (q('.scr')) q('.scr').onclick = () => toggleScreen().catch((e) => console.error('share', e));
     q('.set').onclick = () => this.toggleSettings();
-    if (q('.vids')) q('.vids').onclick = () => this.toggleVideos();
+    if (q('.vids')) q('.vids').onclick = () => { this.stageHid = false; this.toggleVideos(); };
     /* ADMIN and REC sit with the other call controls, but their PANELS are
      * built once and live outside this markup -- the rail replaces all of it
      * several times a second. The panels listen for these. */
@@ -335,6 +342,10 @@ export class Rail {
     this.videosHidden = hide;
     document.documentElement.classList.toggle('videos-off', hide);
     this.paint();
+  }
+  forStage(on) {
+    if (on && !this.videosHidden) { this.stageHid = true; this.toggleVideos(true); }
+    if (!on && this.stageHid) { this.stageHid = false; this.toggleVideos(false); }
   }
 
   toggleSettings() {
@@ -359,6 +370,7 @@ export class Rail {
      * withholds them, so say so instead of showing a list of "Microphone 2". */
     const unnamed = [...devices.mic, ...devices.cam].some((d) => !d.label || /^(Microphone|Camera) \d+$/.test(d.label));
     this.settings.innerHTML =
+      (this.placeSound ? `<label class="noise-option"><input type="checkbox" class="place-sound" ${this.placeSound.on()?'checked':''}> Play the sound of places</label>` : '') +
       `<label class="noise-option"><input type="checkbox" class="noise" ${noiseReduction()?'checked':''}> Reduce background noise</label>` +
       row('mic', 'Microphone', devices.mic) +
       row('cam', 'Camera', devices.cam) +
@@ -370,6 +382,7 @@ export class Rail {
       const s=this.settings.querySelector('.diag-status');if(s)s.textContent=ok?'copied':'could not copy';
     };
     this.settings.querySelector('.noise').onchange=e=>{setNoiseReduction(e.target.checked);reopenCapture('mic').catch(e=>console.error('noise switch',e));};
+    const sound=this.settings.querySelector('.place-sound');if(sound)sound.onchange=e=>this.placeSound.set(e.target.checked);
     this.settings.querySelectorAll('select').forEach((sel) => {
       sel.onchange = () => {
         const kind = sel.dataset.kind;
@@ -416,10 +429,11 @@ const CALL_ERRORS = { quota: 'Call limit reached', 'rate-limited': 'Too many tri
 /* Full screen: four corners pointing out. */
 const FULL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 
-/* The call's videos, as a picture in a picture: struck through while they
- * are hidden, with how many are. Its name says what pressing it does. */
+/* The call's members -- their faces, screens and players -- as a picture in
+ * a picture: struck through while they are hidden, with how many are. Its
+ * name says what pressing it does. */
 function videosButton(hidden,count) {
- const label=hidden?`Show videos${count?` (${count} hidden)`:''}`:'Hide videos';
+ const label=hidden?`Show members${count?` (${count} hidden)`:''}`:'Hide members';
  return `<button class="vids${hidden?' hidden-vids':''}" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/>${hidden?'<path d="M2 2 22 22"/>':''}</svg>${hidden&&count?`<b class="vids-count" aria-hidden="true">${count}</b>`:''}</button>`;
 }
 

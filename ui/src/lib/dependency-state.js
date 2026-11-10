@@ -11,6 +11,20 @@ export function dependencyFromCharge(charge) {
   return { status: 'installing' };
 }
 
+/* EVERY APP ON OUR SHIP (2026-11-09): the same facts, kept whole -- docket's
+ * initial map, then each add or delete -- so what the apps button lists needs
+ * no request of its own. A new map each time; `map` is never changed. */
+export function applyCharges(map, fact) {
+  if (!fact || typeof fact !== 'object') return map;
+  if (owns(fact, 'initial')) return { ...(fact.initial ?? {}) };
+  if (!map) return map;
+  const added = fact['add-charge'];
+  if (added?.desk) return { ...map, [added.desk]: added.charge };
+  const gone = fact['del-charge'];
+  if (typeof gone === 'string' && owns(map, gone)) { const next = { ...map }; delete next[gone]; return next; }
+  return map;
+}
+
 /* Docket sends one initial map, then tagged add/delete deltas. Ignore updates
  * for every other desk so an unrelated app install cannot repaint our prompt. */
 export function reduceDependency(state, fact, desk = NOLTBOOK_DESK) {

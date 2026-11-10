@@ -63,10 +63,12 @@ export const allowedSite = (sites, host) =>
   ({ ...sites, allowed: [host, ...sites.allowed.filter((h) => h !== host)].slice(0, ALLOWED_MAX) });
 
 /* WHAT WE ARE DOING, for the bubble over our head: everybody in the world sees
- * it. A website shows its address. */
+ * it. A website shows its address; the editor says so (2026-11-09; it used to
+ * say nothing). */
 export function activityText(source) {
   const cut = (s) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 40);
   if (!source) return null;
+  if (source.kind === 'editor') return 'in the Glurff editor';
   if (source.kind === 'media') return 'watching a movie';
   const what = cut(source.kind === 'web' ? source.host : source.title);
   return what ? `playing ${what}` : null;

@@ -27,7 +27,7 @@
 import { api, poke as pokeShip } from 'lib/api';
 import { esc } from 'ui/html';
 
-import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
+import { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, tileColor, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
   appRoot, INSTALLED_GRANTS, bigSize } from 'lib/app-spots';
 import { WEB_SANDBOX, WEB_ALLOW } from 'lib/sites';
 export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex, frameSandbox, frameGrants, manifestPerm, launchHref, frameSize,
@@ -35,7 +35,7 @@ export { PLUGIN_PROTOCOL, FRAME_ALLOW, deskOk, shipOk, chadOf, running, colorHex
 /* The title bar's enlarge and restore buttons. */
 const ENLARGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 const RESTORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
-const TREATY_WAIT_MS = 10000, TREATY_STEP_MS = 1200;
+const TREATY_WAIT_MS = 10000, TREATY_STEP_MS = 1200, CHARGES_WAIT_MS = 8000;
 const INSTALL_CHECKS = [1000, 3000, 6000, 10000, 16000, 25000, 40000, 60000, 90000, 120000];
 
 export class AppPanel {
@@ -53,8 +53,11 @@ export class AppPanel {
      * screen behind Glurff's interface instead of sitting in this window. */
     stage = null,
     world = '',
+    /* Every app on our ship as docket last said, kept up to date since the
+     * page opened (lib/dependency-watch); null until it has said. */
+    charges = () => null,
   } = {}) {
-    Object.assign(this, { root, scry, poke, fetchJson, wait, trace, world, stage });
+    Object.assign(this, { root, scry, poke, fetchJson, wait, trace, world, stage, charges });
     this.staged = false;
     this.spot = null; this.state = 'closed'; this.session = null; this.frame = null; this.run = 0;
     root.className = 'app-panel'; root.hidden = true;
@@ -125,8 +128,29 @@ export class AppPanel {
     this.frame.style.width = size.width + 'px'; this.frame.style.height = size.height + 'px';
   }
 
+  /* Docket's apps, asked afresh -- but never waited on for longer than
+   * CHARGES_WAIT_MS: a browser with all its connections to our ship busy
+   * holds a request back without failing it (2026-11-09). null if not had. */
+  async askCharges() {
+    let timer;
+    const late = new Promise((r) => { timer = setTimeout(() => r(null), CHARGES_WAIT_MS); });
+    try { return await Promise.race([this.scry('docket', '/charges').then((r) => r?.initial ?? null, () => null), late]); }
+    finally { clearTimeout(timer); }
+  }
   async charge(desk) {
-    try { return (await this.scry('docket', '/charges'))?.initial?.[desk] ?? null; } catch { return null; }
+    const all = (await this.askCharges()) ?? this.charges();
+    return all?.[desk] ?? null;
+  }
+  /* THE APPS ON OUR SHIP (2026-11-08): every one with a tile that is running,
+   * as docket has it -- {desk, title, color, image} -- but Glurff itself;
+   * null if our ship could not be asked just now. What the page has kept is
+   * used first, so opening the list asks nothing (2026-11-09). */
+  async installed() {
+    const all = this.charges() ?? (await this.askCharges());
+    if (!all) return null;
+    return Object.entries(all).filter(([desk, c]) => desk !== 'glurff' && running(c) && deskOk(desk))
+      .map(([desk, c]) => ({ desk, title: c.title || desk, color: tileColor(c.color), image: c.image || '' }))
+      .sort((a, b) => a.title.localeCompare(b.title));
   }
 
   /* ---- installed: the app, in a frame ---- */
@@ -155,7 +179,7 @@ export class AppPanel {
     this.body.appendChild(frame);
     if (this.wantStage) this.toStage({ kind: 'app', title: app.title || app.desk,
       /* Its own icon, for when it is hidden away (ui/stage). */
-      icon: { image: typeof charge?.image === 'string' ? charge.image : null, color: colorHex(charge?.color) || null } });
+      icon: { image: typeof charge?.image === 'string' ? charge.image : null, color: tileColor(charge?.color) || null } });
     this.trace('app-spot', { reason: 'frame', detail: `${app.desk}:${!manifest ? 'installed' : media ? 'media' : 'plain'}${pointerLock ? '+pointer-lock' : ''}` });
   }
 
@@ -231,7 +255,7 @@ export class AppPanel {
     if (run !== this.run) return;
     const chad = chadOf(charge);
     const title = info.title || app.title || app.desk;
-    const col = colorHex(info.color), img = typeof info.image === 'string' ? info.image : '';
+    const col = tileColor(info.color), img = typeof info.image === 'string' ? info.image : '';
     this.state = 'card';
     this.maxBtn.hidden = true;
     const why = chad === 'install' ? 'Installing…' : chad === 'suspend' ? `${title} is installed but suspended. Resume it in Landscape.`
@@ -253,6 +277,18 @@ export class AppPanel {
 
   async treaty(pub, desk) {
     try { return await this.scry('treaty', `/treaty/${pub}/${desk}`); } catch { return null; }
+  }
+  /* An app's picture (2026-11-09): its tile's, if it is on our ship, else
+   * what its publisher's listing says, if our ship has heard it; '' if
+   * neither says in CHARGES_WAIT_MS. */
+  async picture(pub, desk) {
+    const own = this.charges()?.[desk]?.image;
+    if (typeof own === 'string' && own) return own;
+    if (!shipOk(pub)) return '';
+    let timer;
+    const late = new Promise((r) => { timer = setTimeout(() => r(null), CHARGES_WAIT_MS); });
+    try { const t = await Promise.race([this.treaty(pub, desk), late]); return typeof t?.image === 'string' ? t.image : ''; }
+    finally { clearTimeout(timer); }
   }
 
   /* Learn of it from its publisher, install it, and open it once it runs. */

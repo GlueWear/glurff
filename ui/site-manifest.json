@@ -2,30 +2,93 @@
   {
     "url": "/apps/glurff/",
     "spur": "/lib/glurff/site/index/html",
-    "size": 727,
+    "size": 1979,
     "mime": "text/html; charset=utf-8",
-    "sha256": "fe5f7f60346ec585c11e4a13f5ad4b56a4cde96679be1038fa691b3a5231e481"
+    "sha256": "6468d833fd530f458c88b5628009f426e5d9abb40361b50d8899a19a93d06e3c"
   },
   {
-    "url": "/apps/glurff/assets/index-6b209a69.js",
-    "spur": "/lib/glurff/site/assets/index-6b209a69/js",
-    "size": 1225001,
+    "url": "/apps/glurff/assets/___vite-browser-external_commonjs-proxy-6f37d1bc.js",
+    "spur": "/lib/glurff/site/assets/asset-vite-browser-externalcommonjs-proxy-6f37d1bc/js",
+    "size": 10877,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "bddd0ca0bebfc8a9695ac568f45216a7f39e0410672fbe2624a5833c124fb141"
+    "sha256": "4991ef746f8560b28457182a25a6595edb348a1a2dec717f9f1d461ec24fd343"
   },
   {
-    "url": "/apps/glurff/assets/index-ad673ab6.js",
-    "spur": "/lib/glurff/site/assets/index-ad673ab6/js",
-    "size": 63423,
-    "mime": "application/javascript; charset=utf-8",
-    "sha256": "f83dea08bba745a7e9c40fe2d4ccdd2356180e83cad434289621b84cb5ed0756"
+    "url": "/apps/glurff/assets/edit-7ad2a158.css",
+    "spur": "/lib/glurff/site/assets/edit-7ad2a158/css",
+    "size": 10348,
+    "mime": "text/css; charset=utf-8",
+    "sha256": "7ad2a1584e0104370e4f793f8065de71f9934fef3919c0d54434348cab04ae82"
   },
   {
-    "url": "/apps/glurff/assets/search-2672d126.js",
-    "spur": "/lib/glurff/site/assets/search-2672d126/js",
-    "size": 1634,
+    "url": "/apps/glurff/assets/edit-d91efa47.js",
+    "spur": "/lib/glurff/site/assets/edit-d91efa47/js",
+    "size": 124022,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "90d0a2ef550e6f1ca67d3bfca03ebf0db67778828307a5ba91d24bacc2e16506"
+    "sha256": "2cb5d415b6a1df2a218588e205751cccb05fccd25e3e5e797cf252282fc1dd77"
+  },
+  {
+    "url": "/apps/glurff/assets/host-api-1775b0ad.js",
+    "spur": "/lib/glurff/site/assets/host-api-1775b0ad/js",
+    "size": 1998,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "5ce7ae80f5ceeb5ce60d524b4708dab1a438a28b5a1baa08d50cf4762ceba5ed"
+  },
+  {
+    "url": "/apps/glurff/assets/index-141a4dd2.js",
+    "spur": "/lib/glurff/site/assets/index-141a4dd2/js",
+    "size": 63457,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "2ed7af19cf141b8929d787cdbbe070090b50bd45f79fdda87b4e2c51887633b7"
+  },
+  {
+    "url": "/apps/glurff/assets/main-5efba70f.js",
+    "spur": "/lib/glurff/site/assets/main-5efba70f/js",
+    "size": 4045,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "abfb65d19b8a42f47f19f16c4d0a042a02f1a85f95e2f801c969c59567cdb03b"
+  },
+  {
+    "url": "/apps/glurff/assets/main-cbe7bb7a.js",
+    "spur": "/lib/glurff/site/assets/main-cbe7bb7a/js",
+    "size": 993216,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "289640bd8224ecc39fe6a4f21123408524663e3e1eea5fb4964d5f460de32505"
+  },
+  {
+    "url": "/apps/glurff/assets/note-link-e64acf9c.js",
+    "spur": "/lib/glurff/site/assets/note-link-e64acf9c/js",
+    "size": 223093,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "e53ef96cc35966ae25b2928d9067d9015ce4e52a9092339c69c20004fad70c90"
+  },
+  {
+    "url": "/apps/glurff/assets/playtest-a66bb5a3.js",
+    "spur": "/lib/glurff/site/assets/playtest-a66bb5a3/js",
+    "size": 1113,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "1a035787a7e81ab17e4c376261a9e033686dab3f0a71a6ea8daf3bc3a0a0e30e"
+  },
+  {
+    "url": "/apps/glurff/assets/search-7769d753.js",
+    "spur": "/lib/glurff/site/assets/search-7769d753/js",
+    "size": 1825,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "6c71c3401bd44c474bf64941c33f711d3e70f2daffb62a19c7f35fe0333b1cdc"
+  },
+  {
+    "url": "/apps/glurff/assets/world-config-310068fd.js",
+    "spur": "/lib/glurff/site/assets/world-config-310068fd/js",
+    "size": 1234,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "eb536533accfd4cb3cd7dfa94bc3eefa56096e5fcdb513b58cf17ba87ea6faf8"
+  },
+  {
+    "url": "/apps/glurff/assets/world-doc-aaa7d85d.js",
+    "spur": "/lib/glurff/site/assets/world-doc-aaa7d85d/js",
+    "size": 21521,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "23449cfe989f6085cd47870d830ddcc66e9769babc8ef5a50cb23d1ea0daa361"
   },
   {
     "url": "/apps/glurff/characters/beard.png",
@@ -4634,25 +4697,32 @@
     "sha256": "2b113bfcf4f43a614cf06eef75b05fd70f16540de52cbb027ae41ffb69911380"
   },
   {
+    "url": "/apps/glurff/edit.html",
+    "spur": "/lib/glurff/site/edit/html",
+    "size": 752,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "0ed6bb80ffe96938e0426273ada9e541534e09c1a6f2cebd86741f1f8a3e0476"
+  },
+  {
     "url": "/apps/glurff/favicon.png",
     "spur": "/lib/glurff/site/favicon/png",
-    "size": 2784,
+    "size": 2722,
     "mime": "image/png",
-    "sha256": "79bdba1a9b82583b9b4515903ab0da46e7cbc3d2d7301965886361cc0fff4472"
+    "sha256": "bab173fc77ff4924d1e779078ec2d3377a0e5a1c1194122626a0c9eeaee2142b"
   },
   {
     "url": "/apps/glurff/glurff-icon.png",
     "spur": "/lib/glurff/site/glurff-icon/png",
-    "size": 26830,
+    "size": 282310,
     "mime": "image/png",
-    "sha256": "e16b240e2b4ade156db6b1edf0dda497ef642056b3c5122c2e2e0f7aab0ea356"
+    "sha256": "17a83c04699693d5653417b0f0058b778a727c35207aade20bf19f9e89c9425d"
   },
   {
     "url": "/apps/glurff/index.html",
     "spur": "/lib/glurff/site/index/html",
-    "size": 727,
+    "size": 1979,
     "mime": "text/html; charset=utf-8",
-    "sha256": "fe5f7f60346ec585c11e4a13f5ad4b56a4cde96679be1038fa691b3a5231e481"
+    "sha256": "6468d833fd530f458c88b5628009f426e5d9abb40361b50d8899a19a93d06e3c"
   },
   {
     "url": "/apps/glurff/licenses/jitsi-license.html",
@@ -4676,38 +4746,24 @@
     "sha256": "c57d4d3aa15d242cf1a1391207b11da617b924b214ed91e0258fb3b7e117cd62"
   },
   {
-    "url": "/apps/glurff/map/over.png",
-    "spur": "/lib/glurff/site/map/over/png",
-    "size": 53223,
-    "mime": "image/png",
-    "sha256": "91c894ddcc30c8d5fbfd8179dfd05f93b8a0aa390acd8a3f5a6a28f21364717f"
+    "url": "/apps/glurff/loading.js",
+    "spur": "/lib/glurff/site/loading/js",
+    "size": 17361,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "57a426985513dfcb2c0b3fcb1ce887fb3aaae2fd45c5ed030eb5ebee535bd3f1"
   },
   {
-    "url": "/apps/glurff/map/vatican-over.png",
-    "spur": "/lib/glurff/site/map/vatican-over/png",
-    "size": 11062,
-    "mime": "image/png",
-    "sha256": "dee70a61b4d685d7bf0078cad995c0a6908c641d1f8b13a6477062793b22131b"
-  },
-  {
-    "url": "/apps/glurff/map/vatican.jpg",
-    "spur": "/lib/glurff/site/map/vatican/jpg",
-    "size": 308256,
-    "mime": "image/jpeg",
-    "sha256": "1884f8a680a7e35825e27b2a37ef49aa51c8a1b449ee2f3746152348fca943e8"
-  },
-  {
-    "url": "/apps/glurff/map/world.jpg",
-    "spur": "/lib/glurff/site/map/world/jpg",
-    "size": 478785,
-    "mime": "image/jpeg",
-    "sha256": "58df7c2c5f1bcd0c81a026e73af8307681fb5a5c4b3289359a1c37ee2d704477"
+    "url": "/apps/glurff/playtest.html",
+    "spur": "/lib/glurff/site/playtest/html",
+    "size": 1893,
+    "mime": "text/html; charset=utf-8",
+    "sha256": "05c158f8b3653889c16ae21d154ff6cd2c3599179201a2d64c201db0b476bc8a"
   },
   {
     "url": "/apps/glurff/style.css",
     "spur": "/lib/glurff/site/style/css",
-    "size": 93689,
+    "size": 109029,
     "mime": "text/css; charset=utf-8",
-    "sha256": "7962b523c4c04e80f2365df11e33646a934e9a8779b419a0fa1299ab79d515c8"
+    "sha256": "e2a660580c4169150f79bf34cc9d6c2eacc5e903004d57f5f6fc67c897a1342c"
   }
 ]

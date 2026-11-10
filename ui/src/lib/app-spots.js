@@ -29,6 +29,31 @@ export function colorHex(col) {
   c = c.replace(/\./g, '');
   return /^[0-9a-fA-F]{1,6}$/.test(c) ? '#' + c.padStart(6, '0') : '';
 }
+/* AN APP'S TILE COLOUR ON A DARK PAGE (2026-11-09), as Landscape's dark theme
+ * draws it: the docket colour with its lightness turned over, after nothing
+ * past 95%. A publisher picks the colour for that, so it is what belongs at a
+ * picture's rounded corners -- Glurff's own light 0xe7.e7e7 comes out almost
+ * black. '' for none. */
+export function tileColor(col) {
+  const hex = colorHex(col);
+  if (!hex) return '';
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const lit = (max + min) / 2;
+  const sat = d === 0 ? 0 : lit > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const hue = d === 0 ? 0 : (max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) / 6;
+  const l = 1 - Math.min(lit, 0.95);
+  const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q;
+  const part = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  const hx = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+  return '#' + hx(part(hue + 1 / 3)) + hx(part(hue)) + hx(part(hue - 1 / 3));
+}
+/* Dark letters on a light tile, white on a dark one. */
+export function tileInk(hex) {
+  const n = /^#[0-9a-fA-F]{6}$/.test(hex ?? '') ? parseInt(hex.slice(1), 16) : 0;
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? '#1a1d24' : '#fff';
+}
 /* Does one part of a manifest declare a permission? Noltbook's rule exactly:
  * `media: true` or `pointerLock: true` on it, or the name in its `permissions`. */
 export function manifestPerm(src, perm) {

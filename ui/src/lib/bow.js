@@ -1,5 +1,6 @@
 /* One action packet, local flight/strike check, and a victim-owned response.
  * No damage/health/score state is saved or sent. Scene is part of each action. */
+import { isScene } from '../world/places.js';
 export const FIRE_COOLDOWN = 600;
 /* EVERY SHOT ALIKE (2026-10-12): an arrow, a stone and a spell fly at one
  * speed, a little faster than arrows did, and keep going until they hit a
@@ -74,7 +75,7 @@ export function createBow({our, self, visible, blocked=()=>false, send, solid,
     if (!e || typeof e.id!=='string' || !e.id.length || e.id.length>100)return false;
     const t=now();
     if (e.kind==='arrow' || e.kind==='strike') {
-      if (!validPoint(e.from) || !Object.hasOwn(VECTORS,e.dir) || !['main','vatican'].includes(e.scene) ||
+      if (!validPoint(e.from) || !Object.hasOwn(VECTORS,e.dir) || !isScene(e.scene) ||
           !Number.isFinite(e.t0) || Math.abs(t-e.t0)>5000)return false;
       /* A free-aimed shot must say which way, properly; a swing never does. */
       if (e.aim!==undefined && (e.kind!=='arrow' || !validAim(e.aim)))return false;

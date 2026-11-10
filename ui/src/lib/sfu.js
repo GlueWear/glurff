@@ -928,16 +928,6 @@ export class SfuSession {
     return out;
   }
 
-  levels() {
-    const out = {};
-    for (const d of this.down.values()) {
-      if (!d.ship || d.ship === this.our) continue;
-      if (!d.audioEl) continue;
-      out[d.ship] = Math.round(d.audioEl.volume * 100);
-    }
-    return out;
-  }
-
   /* Which ships we are receiving video from, so the UI can show tiles only
    * for people actually sending one. */
   videoShips() {

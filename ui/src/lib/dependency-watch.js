@@ -1,17 +1,25 @@
-import { NOLTBOOK_DESK, NOLTBOOK_PUBLISHER, reduceDependency } from './dependency-state.js';
+import { NOLTBOOK_DESK, NOLTBOOK_PUBLISHER, reduceDependency, applyCharges } from './dependency-state.js';
 
 export function createDependencyWatch({ client, send }) {
   let state = { status: 'checking' }, handle = null, closed = false, initialLoaded = false;
   let queued = [];
-  const listeners = new Set();
+  /* Every app on our ship, as docket has it; null until the snapshot is in. */
+  let charges = null;
+  const listeners = new Set(), chargeListeners = new Set();
   const set = (next) => {
     if (closed || (next.status === state.status && next.error === state.error)) return;
     state = next;
     for (const listener of listeners) listener(state);
   };
+  const setCharges = (next) => {
+    if (closed || next === charges) return;
+    charges = next;
+    for (const listener of chargeListeners) listener(charges);
+  };
   const receive = (fact) => {
     if (!initialLoaded) { queued.push(fact); return; }
     set(reduceDependency(state, fact));
+    setCharges(applyCharges(charges, fact));
   };
   /* Docket's watch emits only future add/delete changes. Its current charge
    * map comes from a scry, so subscribe first, fetch the snapshot, then replay
@@ -29,10 +37,11 @@ export function createDependencyWatch({ client, send }) {
 
   const snapshot = client.scry({ app: 'docket', path: '/charges' }).then((fact) => {
     if (closed) return;
-    let next = reduceDependency(state, fact);
-    for (const delta of queued) next = reduceDependency(next, delta);
+    let next = reduceDependency(state, fact), all = applyCharges(null, fact);
+    for (const delta of queued) { next = reduceDependency(next, delta); all = applyCharges(all, delta); }
     queued = [];
     initialLoaded = true;
+    setCharges(all);
     if (next.status === 'checking') set({ status: 'unavailable' });
     else set(next);
   }).catch(() => {
@@ -44,6 +53,8 @@ export function createDependencyWatch({ client, send }) {
   return {
     get state() { return state; },
     on(listener) { listeners.add(listener); listener(state); return () => listeners.delete(listener); },
+    charges: () => charges,
+    onCharges(listener) { chargeListeners.add(listener); return () => chargeListeners.delete(listener); },
     async install() {
       if (state.status === 'ready') return;
       set({ status: 'installing' });
@@ -56,7 +67,7 @@ export function createDependencyWatch({ client, send }) {
     },
     close() {
       closed = true;
-      listeners.clear();
+      listeners.clear(); chargeListeners.clear();
       if (handle != null) client.unsubscribe(handle).catch(() => {});
       else subscription.catch(() => {});
       snapshot.catch(() => {});

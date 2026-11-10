@@ -10,6 +10,7 @@ import { maintainConnection } from 'lib/connection';
 
 export let api = null;
 export let our = null;
+let connection = null;
 let exiting = false;
 let exitPokes = [];
 
@@ -22,7 +23,7 @@ export function initApi() {
   /* The bundled http-api registers delete without binding its receiver, so a
    * page unload throws unless we bind it ourselves. */
   window.removeEventListener('beforeunload', api.delete);
-  const connection = maintainConnection(api, {onRestore:()=>window.dispatchEvent(new Event('glurff-restored'))});
+  connection = maintainConnection(api, {onRestore:()=>window.dispatchEvent(new Event('glurff-restored'))});
   // Send departure pokes and channel deletion in order in ONE unload beacon.
   window.addEventListener('pagehide', () => {
     exiting = true;
@@ -47,8 +48,10 @@ export function initApi() {
 }
 
 /* Give the channel back without closing the page: a tab that has been
- * superseded by a newer one must stop holding subscriptions open. */
-export const closeChannel = () => { try { api?.delete?.(); } catch {} };
+ * superseded by a newer one must stop holding subscriptions open -- and its
+ * stream too (2026-11-09): delete() only tells the ship, and the browser kept
+ * the connection, one of the six it allows a ship. */
+export const closeChannel = () => { try { connection?.stop(); api?.delete?.(); } catch {} };
 
 /* `ackTimeout`: how long to wait for our own ship to take this poke before
  * settling it as unknown. Call control asks for a short one; see

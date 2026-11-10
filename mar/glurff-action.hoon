@@ -62,6 +62,12 @@
     ::  our own settings, as the client's JSON text; empty clears them
     ?:  =('prefs' op)  [%prefs peers (fall (str 'text') '')]
     ?:  =('ensure-commons' op)  [%ensure-commons peers ~]
+    ::  our world's note changed how open it is: our card, told again
+    ?:  =('card-again' op)  [%card-again peers ~]
+    ::  what a sign says, in our world or another's; empty text is allowed
+    ?:  =('sign-set' op)
+      [%sign-set peers (need (ship 'host')) (need (str 'item')) (fall (str 'text') '')]
+    ?:  =('sign-reset' op)  [%sign-reset peers (need (str 'item'))]
     ?:  =('move' op)
       =/  d=dir:g
         =/  v  (str 'dir')
@@ -126,7 +132,7 @@
       [%room-event peers (num 'place' 0) (need (str 'body'))]
     ::  Taking a room for one of our own notes, and giving it back.
     ?:  =('lease' op)
-      [%lease peers (num 'place' 0) `@ta`(need (str 'note'))]
+      [%lease peers (num 'place' 0) `@ta`(need (str 'note')) (ship 'world')]
     ?:  =('unlease' op)
       [%unlease peers ~]
     ?:  =('seat' op)

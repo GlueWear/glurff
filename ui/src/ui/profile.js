@@ -25,7 +25,12 @@ const loadOb = () => obLoading ??= import('urbit-ob')
   .then((m) => { ob = m.clan ? m : m.default ?? m; return ob; }, () => null);
 import { esc } from 'ui/html';
 import { avatarHtml } from 'ui/avatar';
+import { OFFLINE } from 'lib/glurff-online';
 import { MAX_CLOCKS, LABEL_MAX, SIZE_MIN, SIZE_MAX, validZone, localZone, addClock, zoneChoices, GOLD_HUE } from 'lib/clocks';
+
+/* A person's public Noltbook notes, at the foot of their card: hidden for now
+ * (2026-11-06), and not asked for while they are. */
+const SHOW_NOTES = false;
 
 
 const canvasBlob = (canvas, quality) => new Promise((resolve) =>
@@ -111,8 +116,24 @@ function zoneSelect(zone) {
 /* How long after opening a click is taken for the tap that opened us. */
 const GHOST_CLICK_MS = 400;
 
+/* A COLLECTION ON A CARD (2026-11-08): what of this Glurff's collectibles
+ * somebody has, each its picture or a star -- for us, the rest as "?" -- and
+ * for us, how many we have in other Glurffs. */
+function collectionHtml(c, ours) {
+  if (!c) return '';
+  const chips = c.items.map((it) => `<span class="collect-chip${it.found ? '' : ' missing'}" title="${esc(it.found ? it.name : 'Not found yet')}">${
+    !it.found ? '?' : it.picture ? `<img src="${esc(it.picture)}" alt="${esc(it.name)}">` : '★'}</span>`).join('');
+  return `<div class="card-collect">
+    <div class="collect-head"><span class="dim">${ours ? 'YOUR COLLECTION' : 'COLLECTED HERE'}</span>${c.total ? `<span>${c.count} of ${c.total} here</span>` : ''}</div>
+    ${chips ? `<div class="collect-row">${chips}</div>` : ''}
+    ${c.elsewhere.length ? `<div class="dim collect-away">Elsewhere: ${c.elsewhere.map((g) => `${esc(g.name)} ${g.count}`).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
 export class ProfileCard {
-  constructor(root, { onOpenDm, look, onEditCharacter, presenceOf, onWave, clocks = null, onArrangeClocks, onSent } = {}) {
+  /* canEditWorld(): whether this ship hosts a world with editing on, so our
+   * own card offers EDIT GLURFF (onEditWorld). */
+  constructor(root, { onOpenDm, look, onEditCharacter, canEditWorld = () => false, onEditWorld = () => {}, glurffOf = async () => null, onGlurff = () => {}, presenceOf, onWave, clocks = null, onArrangeClocks, onSent, collection = () => null } = {}) {
     this.root = root;
     this.root.className = 'card-overlay';
     this.root.hidden = true;
@@ -125,6 +146,12 @@ export class ProfileCard {
      * editor is opened by clicking it. */
     this.look = look ?? (() => null);
     this.onEditCharacter = onEditCharacter ?? (() => {});
+    Object.assign(this, { canEditWorld, onEditWorld, glurffOf, onGlurff });
+    /* WHAT THEY HAVE COLLECTED (2026-11-08): {count, total, items, elsewhere}
+     * or null; see main collectionOf. */
+    this.collection = collection;
+    /* THEIR GLURFF, once their host's card and Noltbook have said: {ship, ...} */
+    this.glurff = null;
     /* Whether they are in the world with us, and asleep since when; and how to
      * wave at them. See lib/waves. */
     this.presenceOf = presenceOf ?? (() => null);
@@ -169,18 +196,46 @@ export class ProfileCard {
     /* A lookup already under way, or already answered, is shown rather than
      * started again; the strip's own tap is how you retry. */
     if (!nb.profiles[ship] && !nb.lookups[ship]) requestProfile(ship);
-    if (!nb.remoteNotes[ship]) requestRemoteNotes(ship);
+    if (SHOW_NOTES && !nb.remoteNotes[ship]) requestRemoteNotes(ship);
+    if (ship !== our && this.glurff?.ship !== ship) {
+      this.glurff = { ship, looking: true };
+      this.glurffOf(ship).then((g) => { if (this.ship === ship) { this.glurff = { ship, ...(g ?? {}) }; this.paint(); } },
+        () => { if (this.ship === ship) { this.glurff = { ship }; this.paint(); } });
+    }
     this.paint();
+  }
+
+  /* THEIR GLURFF: go to it if we are in it, join it if it is public, ask to
+   * if it is private -- as their note would be in Noltbook. A secret one is
+   * not shown, and nor is one we cannot be told about. OFFLINE (2026-11-10):
+   * one taken down, or whose host did not answer and we knew of, is shown
+   * greyed rather than not at all. */
+  glurffRow(ship) {
+    const g = this.glurff;
+    if (!g || g.ship !== ship) return '';
+    const offline = g.card === undefined ? !!g.note : !!g.card && !g.card.live;
+    if (!g.card?.live && !offline) return '';
+    const name = esc(g.name ?? 'their Glurff');
+    const button = offline ? `<button class="b-glurff" disabled title="${OFFLINE}">OFFLINE</button>`
+      : g.member ? `<button class="b-glurff" title="Go to ${name}">VISIT GLURFF</button>`
+      : g.asked ? '<button class="b-glurff" disabled title="Waiting to be let in">ASKED TO JOIN</button>'
+      : g.visibility === 'public' ? `<button class="b-glurff" title="Join ${name} and go there">JOIN GLURFF</button>`
+      : g.visibility === 'private' ? `<button class="b-glurff" title="Ask to join ${name}">ASK TO JOIN GLURFF</button>` : '';
+    if (!button) return '';
+    const icon = g.icon ? `<img class="card-glurff-icon" src="${esc(g.icon)}" alt="" onerror="this.remove()">` : '';
+    return `<div class="card-glurff${offline ? ' offline' : ''}"${offline ? ` title="${OFFLINE}"` : ''}><span class="dim">Glurff</span> ${icon}<span class="card-glurff-name">${name}</span>${button}</div>`;
   }
 
   close() {
     this.ship = null;
+    this.glurff = null;
     this.editing = false;
     this.saving = false;
     this.avatarFile = null;
     this.avatarCleared = false;
     this.root.hidden = true;
     this.root.innerHTML = '';
+    this.painted = null;
   }
 
   /* ---- OUR CLOCKS: text, time zone and size for each, and more of them.
@@ -284,7 +339,7 @@ export class ProfileCard {
     const here = ship === our ? null : this.presenceOf(ship);
     const idleMin = Number.isFinite(here?.idleSince) ? Math.max(1, Math.round((Date.now() - here.idleSince) / 60000)) : null;
 
-    this.root.innerHTML = `
+    const html = `
       <div class="card">
         <button class="card-x" title="Close">&times;</button>
         <div class="card-top">
@@ -302,8 +357,9 @@ export class ProfileCard {
           </div>` : ''}
         </div>
         ${!this.editing && bio ? `<div class="card-bio"><span class="dim">BIO</span><div>${bioHtml(bio)}</div></div>` : ''}
+        ${this.editing ? '' : collectionHtml(this.collection(ship), ship === our)}
         ${ship !== our && LOOKUP[lookup] ? `<div class="card-lookup ${LOOKUP[lookup][1] ? 'busy' : 'done'}" data-state="${lookup}"${LOOKUP[lookup][1] ? ' aria-busy="true"' : ' role="button" tabindex="0"'}><span>${LOOKUP[lookup][0]}</span>${LOOKUP[lookup][1] ? '<span class="dots"><i></i><i></i><i></i></span>' : ''}</div>` : ''}
-        ${ship === our ? `${this.editing ? '' : '<div class="card-profile-btn"><button class="b-profile-edit">EDIT PROFILE</button></div>'}
+        ${ship === our ? `${this.editing ? '' : `<div class="card-profile-btn"><button class="b-profile-edit">EDIT PROFILE</button>${this.canEditWorld() ? '<button class="b-world-edit" title="Build your own Glurff, and publish it for people to visit">EDIT GLURFF</button>' : ''}</div>`}
         ${this.editing ? `<form class="card-profile-form">
           <label><span>USER NAME</span><input class="profile-name" maxlength="32" value="${esc(profile.displayName ?? '')}" placeholder="set display name…" autocomplete="off"></label>
           <label><span>BIO</span><textarea class="profile-bio" placeholder="say something about yourself…">${esc(bio)}</textarea></label>
@@ -330,7 +386,7 @@ export class ProfileCard {
           <button class="b-pal pal-${esc(status)}" title="${esc(PAL_TITLE[status] ?? PAL_TITLE.none)}">${PAL_LABEL[status] ?? 'ADD PAL'}</button>
           <button class="b-contact"${status !== 'none' ? ' hidden' : ''}>${isContact(ship) ? 'REMOVE CONTACT' : 'ADD CONTACT'}</button>
           <button class="b-block${blocked ? ' danger' : ''}">${blocked ? 'UNBLOCK' : 'BLOCK'}</button>
-        </div>`}
+        </div>${this.glurffRow(ship)}`}
         <form class="send-form"${this.sending ? '' : ' hidden'}>
           <input class="send-amount" type="number" min="0" step="0.0001" placeholder="NOCK" autocomplete="off">
           <button type="submit" class="b-confirm">SEND</button>
@@ -338,13 +394,21 @@ export class ProfileCard {
           <div class="send-fee dim" aria-live="polite"></div>
         </form>
         <div class="send-status" role="status">${esc(this.status ?? '')}</div>
-        <div class="card-notes">
+        <div class="card-notes"${SHOW_NOTES ? '' : ' hidden'}>
           ${notes.length
             ? notes.map((n) => `<div class="card-note"><span class="n">${esc(n.name)}</span>
                  <span class="dim">${esc(n.headline ?? '')}</span></div>`).join('')
             : `<div class="dim">${LOOKUP[lookup]?.[1] ? 'loading…' : 'no public notes'}</div>`}
         </div>
       </div>`;
+    /* NOTHING NEW, NOTHING REBUILT (2026-11-09). Notes and profiles change
+     * several times a second in a busy Glurff, and a card rebuilt between the
+     * press and the release of a click loses the click: EDIT GLURFF was missed
+     * that way. The same card for the same character is left as it is -- and
+     * so is whatever is being typed into it. */
+    if (html === this.painted && worn === this.paintedLook && this.root.firstElementChild) return;
+    this.painted = html; this.paintedLook = worn;
+    this.root.innerHTML = html;
 
     const q = (c) => this.root.querySelector(c);
     q('.card-x').onclick = () => this.close();
@@ -419,6 +483,8 @@ export class ProfileCard {
     }
     if (ship === our && this.editing && this.clocks) this.wireClocks();
     if (ship === our) {
+      const world = q('.b-world-edit');
+      if (world) world.onclick = () => { this.close(); this.onEditWorld(); };
       const edit = q('.b-profile-edit');
       if (edit) edit.onclick = () => {
         this.editing = true; this.editError = ''; this.avatarFile = null; this.avatarCleared = false;
@@ -507,6 +573,8 @@ export class ProfileCard {
       this.say(r.ok ? 'Waved 👋' : r.why === 'soon' ? 'You just waved. Give them a moment.' : 'Not in Glurff right now.');
     };
     q('.b-dm').onclick = () => { this.onOpenDm(ship); this.close(); };
+    const glurff = q('.b-glurff');
+    if (glurff && !glurff.disabled) glurff.onclick = () => this.onGlurff(ship);
     q('.b-pal').onclick = () => {
       if (blocked) return;
       /* Asking again while a request is out does nothing useful, so the

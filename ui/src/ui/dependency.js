@@ -1,12 +1,18 @@
 import { NOLTBOOK_PUBLISHER, NOLTBOOK_DESK } from 'lib/dependency';
 import { esc } from 'ui/html';
 
+const UNSURE_MS = 8000;
 
 /* A missing dependency is explained and installed in Glurff's own UI. It is
  * never silently installed: a second desk is a meaningful change to a ship. */
 export function showNoltbookDependency({ watch, isAvailable = () => false,
   onAvailable = () => () => {}, reload = () => location.reload() }) {
   let root = null, reloadTimer = null, currentStatus = 'checking', installRequested = false;
+  /* NOT ON A CHECK (2026-11-09). Nothing is shown while docket is asked: it
+   * opened on every start and was gone a moment later. It shows when docket
+   * says Noltbook is not here -- or, when docket cannot be asked at all, once
+   * Noltbook has had UNSURE_MS to answer for itself and has not. */
+  let unsureTimer = null, waited = false;
 
   const remove = () => { root?.remove(); root = null; };
   const ensure = () => {
@@ -36,14 +42,14 @@ export function showNoltbookDependency({ watch, isAvailable = () => false,
     currentStatus = state.status;
     if (isAvailable()) { remove(); return; }
     if (state.status === 'ready' && !installRequested) { remove(); return; }
+    if (state.status === 'checking') { remove(); return; }
+    if (state.status === 'unavailable' && !waited) {
+      unsureTimer ??= setTimeout(() => { waited = true; if (currentStatus === 'unavailable') paint({ status: currentStatus }); }, UNSURE_MS);
+      return;
+    }
     const el = ensure(), status = el.querySelector('.dependency-status');
     const install = el.querySelector('.dependency-install');
     const manual = el.querySelector('.dependency-manual');
-    if (state.status === 'checking') {
-      status.textContent = 'Checking this ship for Noltbook…';
-      install.disabled = true; install.textContent = 'Checking…'; manual.hidden = true;
-      return;
-    }
     if (state.status === 'ready') {
       status.textContent = 'Noltbook is installed. Reconnecting Glurff…';
       install.disabled = true; manual.hidden = true;
@@ -77,7 +83,7 @@ export function showNoltbookDependency({ watch, isAvailable = () => false,
   const offWatch = watch.on(paint);
   const offAvailable = onAvailable(() => { if (isAvailable()) remove(); });
   return () => {
-    clearTimeout(reloadTimer);
+    clearTimeout(reloadTimer); clearTimeout(unsureTimer);
     offWatch(); offAvailable(); remove();
   };
 }

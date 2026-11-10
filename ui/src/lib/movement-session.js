@@ -43,14 +43,20 @@
  * ship's agent keeps ONE relay room for everybody -- the WORLD session, at
  * WORLD_TERM -- opened by the first ask, with no browser of the host's
  * involved. Given `world`, everybody goes straight to it: no settle window,
- * no claim, nothing to race. Everything above is now the FALLBACK, for when
- * the host cannot be reached: a world session not live within WORLD_WAIT_MS
- * (and nobody else live on it) is set aside for WORLD_RETRY_MS, doubling to
- * WORLD_RETRY_MAX_MS, and sessions of our own are found or started as before.
- * Once the wait is over the world is proposed again -- access before break,
- * so a working fallback is kept until the host has let us in -- and everybody
- * returns to it. It outranks every other session, and its term is the top
- * one, so clients from before it existed rank it first as well.
+ * no claim, nothing to race. Everything above was then the FALLBACK, for
+ * when the host could not be reached: a world session not live within
+ * WORLD_WAIT_MS was set aside for a minute, doubling to five, while sessions
+ * of our own were found or started, and everybody returned to the world when
+ * its host let them in. It outranks every other session, and its term is the
+ * top one, so clients from before it existed rank it first as well.
+ *
+ * ONE ROOM, THE HOST'S (2026-11-10). That fallback is gone for a world with a
+ * host -- which every Glurff now is. A Glurff whose host cannot be reached is
+ * down, and a room of our own would only look like being in it. So there is
+ * no settling, no claim, no failover and no setting the host aside: we stay
+ * asking for its room, a late answer lets us straight in, and `stuck` says
+ * when it has not let us in for WORLD_WAIT_MS, for the page to say so with
+ * Try again. Without a world, everything above is as it was.
  */
 
 /* Clear of rooms (1-7) and proximity huddles (1000-900999). Mirrored in
@@ -60,11 +66,9 @@ export const MAX_TERM = 49999;
 /* The world host's room. Mirrored as world-term in sur/glurff.hoon; the two
  * MUST agree. Sessions of our own stay below it. */
 export const WORLD_TERM = MAX_TERM;
-/* How long the world session gets to go live before we fall back, and how long
- * it is then set aside before being tried again. */
+/* How long the world session gets to go live before the page says its host
+ * is not answering. */
 export const WORLD_WAIT_MS = 30000;
-export const WORLD_RETRY_MS = 60000;
-export const WORLD_RETRY_MAX_MS = 5 * 60 * 1000;
 /* A session we are switching to stays a candidate this much longer than a
  * plain report would, so a slow switch is not withdrawn half way: reports from
  * people off our relay arrive minutes apart now, not seconds. */
@@ -161,20 +165,11 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
   let proposed = null;             //  {host, term, place} awaiting its host's grant
   let lastLiveAt = null;           //  local ms our relay was last live
   const home = isShip(world) ? { host: world, term: WORLD_TERM } : null;
-  let worldFails = 0, worldDownUntil = 0;
   /* Sessions of our own stay below the world's term. */
   const top = home ? WORLD_TERM - 1 : MAX_TERM;
 
   const key = (s) => (s ? `${s.host}/${s.term}` : '');
   const isWorld = (s) => !!home && !!s && s.host === home.host && s.term === WORLD_TERM;
-  const worldUp = () => !!home && now() >= worldDownUntil;
-  function worldFailed(why) {
-    if (!home) return;
-    worldFails++;
-    const wait = Math.min(WORLD_RETRY_MAX_MS, WORLD_RETRY_MS * 2 ** (worldFails - 1));
-    worldDownUntil = now() + wait;
-    trace('movement-session', { host: home.host, generation: WORLD_TERM, reason: `world-${why}`, wait });
-  }
 
   function valid(mv) {
     return !!mv && isShip(mv.host) && Number.isSafeInteger(mv.term) && mv.term >= 1 &&
@@ -210,10 +205,7 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
       c.eligible = c.eligible || eligible;
       found.set(k, c);
     };
-    /* The world is always worth going to, unless we have just failed to. */
-    if (worldUp()) add(home.host, home.term, false, 0, true);
     for (const h of heard.values()) {
-      if (isWorld(h) && !worldUp() && !isWorld(current)) continue;
       /* The session we are switching to is held a while longer. */
       const held = proposed && h.host === proposed.host && h.term === proposed.term;
       if (t - h.at >= LIVE_WINDOW_MS + (held ? HOLD_MS : 0)) continue;
@@ -269,6 +261,9 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
     for (const [from, h] of heard) if (t - h.at >= LIVE_WINDOW_MS * 2 + HOLD_MS) heard.delete(from);
     while (failovers.length && t - failovers[0] >= FAILOVER_WINDOW_MS) failovers.shift();
 
+    /* A world with a host: its room, and nothing else (see ONE ROOM above). */
+    if (home) { if (!isWorld(current)) adopt(home, 'world'); return; }
+
     if (role === DEGRADED) {
       if (t < degradedUntil) return;
       role = SEEKING;
@@ -311,16 +306,6 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
     /* Nothing better any more: stop asking. */
     if (proposed) propose(null);
 
-    /* The world host cannot be reached, and nobody else is getting through
-     * either: set it aside, and find or start a session of our own. */
-    if (isWorld(current) && liveSince === null && trying !== null &&
-        t - trying >= WORLD_WAIT_MS && !othersLive(current)) {
-      worldFailed('unreachable');
-      started = t;
-      adopt(null, 'world-unreachable');
-      return;
-    }
-
     /* Failover, only on evidence the service is gone for everyone. */
     if (liveSince === null && trying !== null && t - trying >= FAILOVER_MS && !othersLive(current)) {
       if (failovers.length >= MAX_FAILOVERS || current.term >= top) {
@@ -347,7 +332,6 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
       lastLiveAt = now();
       if (liveSince === null) liveSince = now();
       trying = null;
-      if (isWorld(current)) { worldFails = 0; worldDownUntil = 0; }
     } else {
       liveSince = null;
       if (trying === null) trying = now();
@@ -376,9 +360,14 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
       return true;
     },
     proposed: () => (proposed ? { ...proposed } : null),
-    /* The movement layer could not get into this session. For the world, that
-     * sets it aside like an unreachable host; anything else backs off there. */
-    unreachable(s) { if (isWorld(s)) worldFailed('refused'); },
+    /* The movement layer could not get into this session. The world's host
+     * is never set aside (ONE ROOM above): `stuck` says so instead. */
+    unreachable() {},
+    /* The world's host has not let us into its room for WORLD_WAIT_MS: the
+     * page says so, with Try again. */
+    stuck: () => isWorld(current) && liveSince === null && trying !== null && now() - trying >= WORLD_WAIT_MS,
+    /* Try again: the wait starts over, as the page asks the host again. */
+    retry() { if (isWorld(current) && liveSince === null) trying = now(); },
     /* The world session, if this world has a host. */
     world: () => (home ? { ...home, place: placeOf(home.term) } : null),
     role: () => role,
@@ -392,6 +381,6 @@ export function createMovementSession({ our, now = Date.now, onChange = () => {}
                     live: liveSince !== null, heard: heard.size, failovers: failovers.length,
                     proposed: proposed ? `${proposed.host}/${proposed.term}` : null,
                     world: home ? { host: home.host, onIt: isWorld(current),
-                                    downFor: Math.max(0, worldDownUntil - now()) } : null }),
+                                    stuck: isWorld(current) && liveSince === null && trying !== null && now() - trying >= WORLD_WAIT_MS } : null }),
   };
 }

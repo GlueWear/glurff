@@ -22,9 +22,13 @@
  * is taken only as a record its own controller wrote, from somebody allowed.
  *
  * The jukebox stays ownerless: anybody allowed may operate it. */
+import { ITEMS } from '../world/places.js';
 
-export const PLAYER_SURFACES = ['jukebox', 'amphitheatre', 'movie'];
-export const CONTROLLED_SURFACES = ['amphitheatre', 'movie'];
+/* The surfaces are the world's videos (world/places): a screen is
+ * controlled, a player of your own -- the jukebox -- is not. */
+const videos = ITEMS.filter((it) => it.do?.kind === 'video');
+export const PLAYER_SURFACES = videos.map((it) => it.id);
+export const CONTROLLED_SURFACES = videos.filter((it) => it.do.screen).map((it) => it.id);
 export const PLAYER_PROVIDERS = ['none', 'youtube', 'vimeo', 'direct', 'radio', 'soundcloud', 'screen'];
 const surfaceSet = new Set(PLAYER_SURFACES), providerSet = new Set(PLAYER_PROVIDERS);
 

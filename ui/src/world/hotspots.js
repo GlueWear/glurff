@@ -1,26 +1,28 @@
 /* Named rectangles on a painted scene. Coordinates are source-image pixels,
  * not screen pixels, so hit testing survives every camera zoom and pan. */
 import { siteFrom } from '../lib/sites.js';
+import { ITEMS } from './places.js';
+import { covers } from './world-doc.js';
 
-export const HOTSPOTS = [
-  { id:'jukebox', scene:'main', rect:{ x:108, y:166, w:35, h:58 } },
-  { id:'amphitheatre', scene:'main', rect:{ x:646, y:32, w:248, h:73 } },
-  { id:'movie', scene:'main', rect:{ x:1192, y:108, w:148, h:68 } },
-  /* SPOTS THAT OPEN AN APP (see ui/app-panel). The patch of map is painted in;
-   * which app it opens is the world's host's to set (`settable`), from their
-   * agent -- see spotsFor below. `app` here is what a spot opens until the
-   * host sets something else; HOST stands for the world's host ship
-   * (lib/world-config), who publishes the app and keeps the table. */
-  /* The Game Room's ping pong table: %pong, at the world's own table. */
-  { id:'pong-table', scene:'main', rect:{ x:1368, y:810, w:62, h:70 }, settable:true,
-    app:{ desk:'pong', title:'Pong', publisher:'HOST', context:{ gid:'glurff-game-room', host:'HOST' } } },
-  /* The Game Room's TV, on its stand by the far wall: %doomur, four-player Doom
-   * deathmatch, in the world's own room -- kept by the world's host too. */
-  { id:'doomur-tv', scene:'main', rect:{ x:1367, y:714, w:47, h:48 }, settable:true,
-    app:{ desk:'doomur', title:'Doomur', publisher:'HOST', context:{ gid:'glurff-game-room', host:'HOST' } } },
-  /* The Board Room's long table: nothing until the host puts an app there. */
-  { id:'boardroom-table', scene:'main', rect:{ x:145, y:790, w:198, h:57 }, settable:true },
-];
+/* THE SPOTS, as the world's document places them (2026-11-05): every item
+ * that is clicked -- a screen, the jukebox, a spot that opens an app or a
+ * site, a portal -- with the box round it (`rect`, map pixels) and its
+ * `shape`. A spot that opens an app keeps the app's own shape, {desk, title,
+ * publisher, context}: `settable` ones are the world's host's to change from
+ * their agent (see spotsFor below), and HOST stands for the world's host ship
+ * (lib/world-config), who publishes the app and keeps the table. */
+/* A placed image that does nothing is just a picture, not a spot. */
+/* A character of the world's is tapped where it stands now, not where it
+ * was put (world/game npcAt). */
+const clicked = (it) => it.rect && (it.do?.trigger ?? 'click') === 'click' && (it.do?.kind !== 'none' || it.settable) && it.do?.kind !== 'npc';
+export function spotOf(it) {
+  const spot = { id: it.id, scene: it.scene, rect: it.rect, shape: it.shape, name: it.name, item: it };
+  if (it.settable) spot.settable = true;
+  if (it.do.kind === 'app') spot.app = { desk: it.do.desk, title: it.do.title ?? it.name, publisher: it.do.publisher, context: it.do.context ?? {} };
+  if (it.do.kind === 'web') spot.web = { url: it.do.url, host: new URL(it.do.url).host, title: it.do.title ?? it.name };
+  return spot;
+}
+export const HOTSPOTS = ITEMS.filter(clicked).map(spotOf);
 
 /* A spot's app as the host's agent sends it ({desk, publisher, title,
  * context}), checked: it came from another ship. null if it will not do. */
@@ -71,17 +73,22 @@ export function spotApp(app, host) {
     context: Object.fromEntries(Object.entries(app.context ?? {}).map(([k, v]) => [k, fill(v)])) };
 }
 
-export const SCREEN_RECTS = {
-  amphitheatre: { x:650, y:36, w:240, h:64 },
-  /* Four pixels further left than it was (2026-11-01): the painted screen
-   * showed past the video's left edge. */
-  movie: { x:1197, y:113, w:131, h:56 },
-};
+/* Where each screen plays (map pixels), and for whose room: the document's
+ * videos that have a screen. */
+export const SCREEN_RECTS = Object.fromEntries(ITEMS.filter((it) => it.do?.kind === 'video' && it.do.screen)
+  .map((it) => [it.id, it.do.screen]));
+export const SCREEN_AREAS = Object.fromEntries(ITEMS.filter((it) => it.do?.kind === 'video' && it.do.screen)
+  .map((it) => [it.id, it.do.area]));
+/* Every video surface: screens and personal players like the jukebox. */
+export const SURFACES = ITEMS.filter((it) => it.do?.kind === 'video').map((it) => it.id);
+export const surfaceScene = (id) => ITEMS.find((it) => it.id === id)?.scene ?? null;
 
 export const pointInRect = (point, rect) => !!point && point.x >= rect.x && point.y >= rect.y &&
   point.x <= rect.x + rect.w && point.y <= rect.y + rect.h;
 
+/* The spot under a point: inside its shape, which for most is its box. */
 export function hotspotAt(hotspots, scene, point) {
-  return hotspots.find(h => h.scene === scene && pointInRect(point, h.rect)) ?? null;
+  return hotspots.find(h => h.scene === scene && !h.hidden?.() && pointInRect(point, h.rect) &&
+    (!h.shape || h.shape.t === 'rect' || covers(h.shape, point.x, point.y))) ?? null;
 }
 

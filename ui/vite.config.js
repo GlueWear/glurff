@@ -36,7 +36,9 @@ export default defineConfig({
   /* The stylesheet is a public file Vite does not fingerprint, so it was
    * served "revalidate every time" and downloaded whole on every load. Its
    * link carries its own content version instead: an unchanged stylesheet
-   * keeps its URL and stays cached, a changed one gets a new URL. */
+   * keeps its URL and stays cached, a changed one gets a new URL. So does the
+   * loading screen's script (2026-11-04), a public file for the same reason:
+   * it must run before the bundle has arrived. */
   plugins: [{
     /* `?inline` on a font means it, whatever assetsInlineLimit says: the two
      * pixel-face weights (ui/fonts) ride inside the bundle as data URLs. As
@@ -51,10 +53,14 @@ export default defineConfig({
   }, {
     name: 'glurff-style-version',
     transformIndexHtml(html) {
-      const v = crypto.createHash('sha256').update(fs.readFileSync('public/style.css')).digest('hex').slice(0, 12);
-      return html.replace('href="/apps/glurff/style.css"', `href="/apps/glurff/style.css?v=${v}"`);
+      const v = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex').slice(0, 12);
+      return html.replace('href="/apps/glurff/style.css"', `href="/apps/glurff/style.css?v=${v('public/style.css')}"`)
+        .replace('src="/apps/glurff/loading.js"', `src="/apps/glurff/loading.js?v=${v('public/loading.js')}"`);
     },
   }],
-  build: { target: 'esnext', assetsInlineLimit: 0 },
+  /* Three pages: the game; the map editor and its playtest (2026-11-05),
+   * which only the host ship's own login can use (src/editor). */
+  build: { target: 'esnext', assetsInlineLimit: 0,
+    rollupOptions: { input: { main: path.resolve('index.html'), edit: path.resolve('edit.html'), playtest: path.resolve('playtest.html') } } },
   server: { host: '127.0.0.1', port: 3000 },
 });

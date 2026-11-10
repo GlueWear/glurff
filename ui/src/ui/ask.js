@@ -10,8 +10,10 @@ import { esc } from 'ui/html';
 /* Resolves true or false. Escape and a click outside both mean no, because a
  * question you dismissed is a question you did not answer yes to. A question
  * left unanswered for `timeout` ms is a no; one whose `signal` aborts closes
- * and resolves null -- the question stopped mattering. */
-export function ask(question, { yes = 'Yes', no = 'Cancel', detail = null, dismiss = false, timeout = 0, signal = null } = {}) {
+ * and resolves null -- the question stopped mattering. A `careful` question
+ * (2026-11-09) -- one whose yes is hard to undo -- starts on no, and Enter
+ * answers whichever button is chosen. */
+export function ask(question, { yes = 'Yes', no = 'Cancel', detail = null, dismiss = false, timeout = 0, signal = null, careful = false } = {}) {
   if (typeof document === 'undefined') return Promise.resolve(false);
   if (signal?.aborted) return Promise.resolve(null);
   return new Promise((resolve) => {
@@ -41,13 +43,13 @@ export function ask(question, { yes = 'Yes', no = 'Cancel', detail = null, dismi
     if (timeout > 0) timer = setTimeout(() => done(false), timeout);
     const onKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); done(dismiss); }
-      else if (e.key === 'Enter') { e.preventDefault(); done(true); }
+      else if (e.key === 'Enter') { e.preventDefault(); done(!careful || document.activeElement === root.querySelector('.ask-yes')); }
     };
     root.querySelector('.ask-yes').onclick = () => done(true);
     root.querySelector('.ask-no').onclick = () => done(false);
     root.addEventListener('pointerdown', (e) => { if (e.target === root) done(dismiss); });
     window.addEventListener('keydown', onKey, true);
     document.body.appendChild(root);
-    root.querySelector('.ask-yes').focus();
+    root.querySelector(careful ? '.ask-no' : '.ask-yes').focus();
   });
 }

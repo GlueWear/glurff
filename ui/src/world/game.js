@@ -1,4 +1,3 @@
-import { versioned } from '../lib/build.js';
 /* The world, drawn.
  *
  * PixiJS, nearest-neighbour, integer zoom steps so pixels stay square. The
@@ -19,14 +18,24 @@ import { fontsReady, PIXEL_FONT } from 'ui/fonts';
 import { FRAME, FEET, HEAD, completeLook, allTextures, characterLayers, nameHeight,
   equipmentOf, wholeFrame, animationFrames, artUrl, EQUIPMENT, spellColour, companionReach } from 'world/parts';
 import { CharacterAnimation } from './animation.js';
-import { buildWorld, regionAt, SPAWN, COMMONS, GAME_ROOM, MAIN_SCENE, VATICAN_SCENE, TILE,
-  VATICAN_SPAWN, MAP_IMAGE, OVER_IMAGE, VATICAN_IMAGE, VATICAN_OVER_IMAGE,
-  ROOMS, normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
-  vaticanExitAt, sceneInfo } from 'world/places';
-import { MAIN_RETURN } from 'world/secret-room';
+import { buildWorld, regionAt, SPAWN, COMMONS, MAIN_SCENE, SCENE_IDS, spawnOf, roomsOf,
+  normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
+  walkPortalAt, walkItemAt, arrivalPoint, sceneInfo, sceneFront, sceneItemImages, scenePainting, sceneWorld } from 'world/places';
+import { ITEMS, sceneNeighbours, scenePaintTiles } from 'world/places';
+import { signFontSize } from 'world/world-doc';
+import { paintSign, SIGN_COLOUR } from 'world/sign-art';
+import { wanderRoute, faceTowards } from 'world/npc-walk';
+import { assetUrl } from 'lib/world-config';
 import { hotspotAt as findHotspot } from 'world/hotspots';
 
 BaseTexture.defaultOptions.scaleMode = SCALE_MODES.NEAREST;
+
+/* A map's painting: its host's, named by its hash, and so the same file
+ * forever. The app carries none of its own (2026-11-10). */
+const mapUrl = (url) => url;
+/* ...as Pixi is asked to load it: a host's URL has no file extension to say
+ * it is an image, so it is told. */
+const mapAsset = (url) => ({ src: mapUrl(url), loadParser: 'loadTextures' });
 
 /* How far above the feet a name sits, as a fraction of the character's own
  * height. The art leaves empty rows above the head, so hanging the label off
@@ -81,6 +90,13 @@ const FRAME_MS = 200;       //  Minifantasy walk timing
 /* A companion following: how far behind its place it sets off walking, and
  * how near counts as there (in tiles). */
 const COMPANION_START = 0.2, COMPANION_SETTLE = 0.05;
+/* How near a spot counts as walked up to it (2026-11-04): tiles from our feet
+ * to its edge. */
+const SPOT_REACH = 1.5;
+/* A character's line shows for this long, and not again for this long; a
+ * collectible that shows only close by shows within this many people's
+ * height (2026-11-08). */
+const NPC_SAY_MS = 5000, NPC_AGAIN_MS = 25000, NEAR_PERSONS = 3;
 /* How far a line of text's letters actually reach above and below its
  * baseline -- measured, since a font's own line leaves room it may not use. */
 let inkContext = null;
@@ -110,7 +126,8 @@ export const startZoom = (width, height) => (Math.min(width, height) < 600 ? 2 :
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm, onTap } = {}) {
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm, onTap,
+    swellsNear, isShowing, onWalkInto } = {}) {
     /* The "1" key: take our weapon out, or put it away. */
     this.onArm = onArm ?? (() => {});
     this.armed = false;
@@ -141,6 +158,8 @@ export class Game {
      * place switch -- the room is part of the same world. */
     this.onRoomChange = onRoomChange ?? (() => {});
     this.onSceneChange = onSceneChange ?? (() => {});
+    /* An item walked into, that is not a portal: (item). */
+    this.onWalkInto = onWalkInto ?? (() => {});
     this.onEmote = onEmote ?? (() => {});
     this.zoom = 3;
     this.keys = new Set();
@@ -153,7 +172,9 @@ export class Game {
     this.settling = null; this.settled = 0;
     this.self = { x: SPAWN.x, y: SPAWN.y, dir: 'down', moving: false, frame: 0,
                   look: null, scene: MAIN_SCENE };
-    this.exitWasInside = false;
+    /* Standing on a portal you walk into: it takes you only when you step
+     * onto it, not while you stand where it set you down. */
+    this.portalWasUnder = false;
     this.lastFrame = 0;
     /* Double-tapping a direction runs, the way it does in every game that has
      * ever had a run button. */
@@ -167,6 +188,13 @@ export class Game {
     this.panned = false;
     this.hotspots = [];
     this.hoveredHotspot = null;
+    /* WALKED UP TO (2026-11-04). A finger cannot hover, so on a touch screen
+     * the spot we stand at swells as one does under a mouse (`swellsNear`) --
+     * but not a screen showing something (`isShowing(id)`): its picture is
+     * over it, and the swell would only show round the edges. */
+    this.swellsNear = swellsNear ?? (() => false);
+    this.isShowing = isShowing ?? (() => false);
+    this.nearSpot = null;
   }
 
   async start() {
@@ -450,32 +478,241 @@ export class Game {
       Math.abs(v - z) < Math.abs(ZOOMS[best] - z) ? idx : best, 0);
     this.zoom = ZOOMS[i];
     this.camera.scale.set(this.zoom);
+    this.drawEdge();
+    this.showSigns();
     if (this.selfSprite) this.positionNameplate(this.selfSprite);
     for (const p of this.peers.values()) this.positionNameplate(p.ch);
   }
 
   /* ------------------------------------------------------------ textures */
 
-  async load() {
-    /* The world you start in is ready before walking begins. The SECRET
-     * scene's painting -- about 370 KB nobody needs at startup -- follows in
-     * the background, and is normally in long before anybody finds the way
-     * in; if not, the scene fills in as it arrives rather than blocking. */
-    const maps = [MAP_IMAGE, OVER_IMAGE], later = [VATICAN_IMAGE, VATICAN_OVER_IMAGE];
+  /* `onProgress(f)`, 0..1, as the artwork arrives: the loading screen's count
+   * (ui/loading). */
+  async load(onProgress = () => {}) {
+    /* The map you start on is ready before walking begins. The world's other
+     * maps -- Vatican City's painting is about 370 KB nobody needs at startup
+     * -- follow in the background, and are normally in long before anybody
+     * finds the way there; if not, the scene fills in as it arrives rather
+     * than blocking. One at a time, those its doors lead to first (2026-11-08):
+     * a world may have ten, and the host's ship sends each whole before the
+     * next rather than all of them at once beside everything else. */
+    const paintings = (scene) => [...Object.values(sceneImages(scene)).filter(Boolean), ...scenePaintTiles(scene).map((t) => t.url)];
+    const near = new Set(sceneNeighbours(this.scene));
+    const order = [...SCENE_IDS.filter((s) => near.has(s)), ...SCENE_IDS.filter((s) => s !== this.scene && !near.has(s))];
+    const maps = paintings(this.scene), later = [...new Set(order.flatMap(paintings))];
     /* The names over heads are drawn in the pixel face; wait for it (briefly,
      * see ui/fonts) so nobody's name is drawn once in a fallback and left so. */
-    await Promise.all([Assets.load([...maps.map(versioned), ...allTextures()]), fontsReady]);
-    this.mapTextures = new Map(maps.map(url => [url, Texture.from(versioned(url))]));
-    this.laterMaps = Assets.load(later.map(versioned)).then(() => {
-      for (const url of later) if (!this.mapTextures.has(url)) this.mapTextures.set(url, Texture.from(versioned(url)));
-    }, () => {});
+    await Promise.all([Assets.load([...maps.map(mapAsset), ...allTextures()], (f) => onProgress(f)), fontsReady]);
+    onProgress(1);
+    this.mapTextures = new Map(maps.map(url => [url, this.fit(Assets.get(mapUrl(url)))]));
+    this.laterMaps = (async () => {
+      for (const url of later) {
+        if (this.mapTextures.has(url)) continue;
+        try { const t = await Assets.load(mapAsset(url)); if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t)); } catch {}
+      }
+    })();
+  }
+
+  /* Where we stand on the page: the middle of our character, in CSS pixels --
+   * where the loading screen opens onto the world (ui/loading). */
+  selfOnScreen() {
+    if (!this.app?.view || !this.camera) return null;
+    const box = this.app.view.getBoundingClientRect(), z = this.zoom, tile = this.tile;
+    const middle = sceneInfo(this.scene).collisionOffsetY;
+    return { x: box.left + this.camera.position.x + this.self.x * tile * z,
+      y: box.top + this.camera.position.y + (this.self.y - middle) * tile * z };
   }
 
   /* A scene's painting, loaded or loading. */
   sceneTexture(url) {
-    let t = this.mapTextures.get(url);
-    if (!t) { t = Texture.from(versioned(url)); this.mapTextures.set(url, t); }
-    return t;
+    if (!url) return Texture.EMPTY;
+    const t = this.mapTextures.get(url);
+    if (t) return t;
+    /* Not in yet (somebody got there first, or a placed image): blank until
+     * it is, then the scene is dressed again. Pixi loads each file once. */
+    Assets.load(mapAsset(url)).then((loaded) => {
+      this.mapTextures.set(url, this.fit(loaded));
+      if (this.painting) this.dressScene();
+    }, () => {});
+    return Texture.EMPTY;
+  }
+
+  /* A painting bigger than this device can hold as one texture is drawn from
+   * a smaller copy of it, made here; the map's coordinates do not change, as
+   * every painting is drawn at its map's size. */
+  fit(tex) {
+    const gl = this.app?.renderer?.gl, max = gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 0;
+    const b = tex?.baseTexture, source = b?.resource?.source;
+    if (!max || !b?.valid || !source || Math.max(b.realWidth, b.realHeight) <= max) return tex;
+    const k = max / Math.max(b.realWidth, b.realHeight);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.floor(b.realWidth * k)); c.height = Math.max(1, Math.floor(b.realHeight * k));
+    c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+    return Texture.from(c);
+  }
+
+  /* DRESS A SCENE: its painting and what of it is in front of people, at the
+   * map's size; the images placed on it, behind or in front. Again whenever a
+   * texture it is waiting for arrives. A map in space has no painting: its
+   * edge is a faint line instead. */
+  dressScene() {
+    const scene = this.scene, world = sceneWorld(scene), images = sceneImages(scene);
+    const fill = (sprite, tex, w, h) => {
+      sprite.texture = tex;
+      if (tex !== Texture.EMPTY) { sprite.width = w; sprite.height = h; } else sprite.scale.set(1);
+    };
+    fill(this.painting, this.sceneTexture(images.image), world.px, world.py);
+    fill(this.overPainting, this.sceneTexture(images.over), world.px, world.py);
+    for (const layer of [this.paintLayer, this.backItems, this.frontItems]) for (const c of layer.removeChildren()) c.destroy();
+    for (const t of scenePaintTiles(scene)) {
+      const s = new Sprite();
+      fill(s, this.sceneTexture(t.url), t.at[2], t.at[3]);
+      s.position.set(t.at[0], t.at[1]);
+      this.paintLayer.addChild(s);
+    }
+    for (const it of sceneItemImages(scene)) {
+      /* Turned about its middle (world/turned, 2026-11-10). */
+      const s = new Sprite();
+      fill(s, this.sceneTexture(it.url), it.at[2], it.at[3]);
+      s.anchor.set(0.5);
+      s.position.set(it.at[0] + it.at[2] / 2, it.at[1] + it.at[3] / 2);
+      s.rotation = (it.turn * Math.PI) / 180;
+      (it.front ? this.frontItems : this.backItems).addChild(s);
+    }
+    this.drawEdge();
+    this.paintSigns();
+    this.paintCollectibles();
+    const front = sceneFront(scene), ground = front ? this.groundImage(scene) : null;
+    this.frontPainting.visible = !!ground;
+    if (ground) fill(this.frontPainting, this.frontTexture(ground, front), world.px, world.py);
+  }
+
+  /* THE GROUND AS ONE PICTURE (2026-11-08): the painting and the images
+   * placed behind people, in their order -- what the foreground layer lifts
+   * over people, and what a spot near us swells from. At the map's size, or
+   * smaller for a big one: {canvas, k} where k is its pixels per map pixel;
+   * null while there is nothing to draw. Made again as images arrive. */
+  groundImage(scene) {
+    const { size } = scenePainting(scene), painting = sceneImages(scene).image;
+    const source = (url) => this.mapTextures.get(url)?.baseTexture?.resource?.source ?? null;
+    const parts = [...(painting ? [{ url: painting, at: [0, 0, size[0], size[1]] }] : []), ...scenePaintTiles(scene),
+      ...sceneItemImages(scene).filter((it) => !it.front)].filter((p) => source(p.url));
+    const key = `${scene}|${parts.map((p) => `${p.url}@${p.at}${p.turn ? `~${p.turn}` : ''}`).join(',')}`;
+    if (this.groundCache?.key === key) return this.groundCache.image;
+    if (this.groundCache?.image?.base) {
+      /* A spot swelled from the old one goes with it, and comes back on the
+       * next look round. */
+      this.hotspotLayer?.removeChildren().forEach((c) => c.destroy());
+      this.hoveredHotspot = null;
+      this.groundCache.image.base.destroy();
+    }
+    let image = null;
+    if (parts.length) {
+      const gl = this.app?.renderer?.gl, max = Math.min(4096, gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 4096);
+      const k = Math.min(1, max / Math.max(size[0], size[1]));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(size[0] * k)); canvas.height = Math.max(1, Math.round(size[1] * k));
+      const ctx = canvas.getContext('2d');
+      for (const p of parts) {
+        if (!p.turn) { ctx.drawImage(source(p.url), p.at[0] * k, p.at[1] * k, p.at[2] * k, p.at[3] * k); continue; }
+        ctx.save();
+        ctx.translate((p.at[0] + p.at[2] / 2) * k, (p.at[1] + p.at[3] / 2) * k); ctx.rotate((p.turn * Math.PI) / 180);
+        ctx.drawImage(source(p.url), (-p.at[2] / 2) * k, (-p.at[3] / 2) * k, p.at[2] * k, p.at[3] * k);
+        ctx.restore();
+      }
+      image = { canvas, k };
+    }
+    this.groundCache = { key, image };
+    return image;
+  }
+
+  /* What a scene's foreground layer marks, cut from the ground: drawn over
+   * everybody, like the doorways of the official map. */
+  frontTexture(ground, front) {
+    if (this.frontCache?.ground === ground) return this.frontCache.tex;
+    const { canvas: src, k } = ground;
+    const mask = document.createElement('canvas'); mask.width = front.cols; mask.height = front.rows;
+    const m = mask.getContext('2d'), data = m.createImageData(front.cols, front.rows);
+    for (let i = 0; i < front.cells.length; i++) data.data[i * 4 + 3] = front.cells[i] ? 255 : 0;
+    m.putImageData(data, 0, 0);
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(mask, 0, 0, front.cols * front.grid * k, front.rows * front.grid * k);
+    const tex = Texture.from(c);
+    this.frontCache?.tex.destroy(true);
+    this.frontCache = { ground, tex };
+    return tex;
+  }
+
+  /* SIGNS ON THE MAP (2026-11-08): every item of this scene made into a
+   * sign, its words inside its box -- what it says now, for a sign people
+   * write on (`signText`, set by main from lib/signs). Painted again when one
+   * changes, and on another scene. */
+  paintSigns() {
+    const layer = this.signLayer; if (!layer) return;
+    for (const c of layer.removeChildren()) c.destroy(true);
+    const scale = { character: { scale: sceneCharacterScale(this.scene) } };
+    for (const it of ITEMS) {
+      const sign = it.scene === this.scene && it.do?.kind === 'text' && it.do.sign;
+      if (!sign || !it.rect) continue;
+      const { x, y, w, h } = it.rect, size = signFontSize(scale, sign.size);
+      const k = Math.min(3, 2048 / Math.max(w, h));
+      const canvas = paintSign(this.signText?.(it) ?? it.do.text ?? '', { w, h, size, colour: sign.color ?? SIGN_COLOUR, plaque: sign.plaque !== false }, k);
+      const sprite = new Sprite(Texture.from(canvas, { scaleMode: SCALE_MODES.LINEAR }));
+      sprite.position.set(x, y); sprite.width = w; sprite.height = h;
+      sprite.signSize = size;
+      layer.addChild(sprite);
+    }
+    this.showSigns();
+  }
+  /* COLLECTIBLES (2026-11-08): each one's picture, inside its box and in
+   * proportion, over the ground. One that shows only close by is faded in
+   * as we come near (tickCollectibles); one with no picture is a spot on the
+   * map, and nothing is drawn. */
+  paintCollectibles() {
+    const layer = this.collectLayer; if (!layer) return;
+    for (const c of layer.removeChildren()) c.destroy();
+    for (const it of ITEMS) {
+      const pic = it.scene === this.scene && it.do?.kind === 'collect' && it.do.picture;
+      if (!pic || !it.rect) continue;
+      const r = it.rect, k = Math.min(r.w / pic.w, r.h / pic.h), w = pic.w * k, h = pic.h * k;
+      const sprite = new Sprite(this.sceneTexture(assetUrl(pic.src)));
+      sprite.width = w; sprite.height = h; sprite.position.set(r.x + (r.w - w) / 2, r.y + (r.h - h) / 2);
+      sprite.item = it;
+      layer.addChild(sprite);
+    }
+    this.tickCollectibles();
+  }
+  /* Whether we stand within `persons` people's height of an item's box. */
+  nearItem(it, persons = NEAR_PERSONS) {
+    if (!it?.rect || it.scene !== this.scene) return false;
+    const x = this.self.x * this.tile, y = this.self.y * this.tile, r = it.rect;
+    const d = Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
+    return d <= persons * (FEET - HEAD) * this.characterScale;
+  }
+  tickCollectibles() {
+    for (const s of this.collectLayer?.children ?? []) {
+      if (!s.item.do.near) { s.alpha = 1; continue; }
+      s.alpha = this.nearItem(s.item) ? 1 : this.nearItem(s.item, NEAR_PERSONS * 1.5) ? 0.35 : 0;
+    }
+  }
+  /* Words too small to read at this zoom are not drawn. */
+  showSigns() {
+    for (const s of this.signLayer?.children ?? []) s.visible = s.signSize * this.zoom >= 5;
+  }
+
+  /* A MAP IN SPACE (2026-11-08): where it ends, as a faint line about a
+   * screen pixel and a half wide at any zoom. */
+  drawEdge() {
+    const g = this.edge; if (!g) return;
+    g.clear();
+    if (sceneImages(this.scene).image) return;
+    const w = sceneWorld(this.scene);
+    g.lineStyle({ width: 1.5 / this.zoom, color: 0xffffff, alpha: 0.22, alignment: 1 });
+    g.drawRect(0, 0, w.px, w.py);
   }
 
   /* -------------------------------------------------------------- places */
@@ -487,15 +724,25 @@ export class Game {
     this.actors.removeChildren();
     this.above.removeChildren();
 
-    const images = sceneImages(this.scene);
-    this.painting = new Sprite(this.sceneTexture(images.image));
-    this.painting.position.set(0, 0);
-    this.ground.addChild(this.painting);
+    this.edge = new Graphics();
+    this.painting = new Sprite();
+    /* What its host painted over the map image (2026-11-08), in tiles. */
+    this.paintLayer = new Container();
+    this.ground.addChild(this.edge, this.painting, this.paintLayer);
+    this.backItems = new Container();
+    this.ground.addChild(this.backItems);
     this.hotspotLayer = new Container();
     this.ground.addChild(this.hotspotLayer);
-    this.overPainting = new Sprite(this.sceneTexture(images.over));
-    this.overPainting.position.set(0, 0);
-    this.above.addChild(this.overPainting);
+    /* Signs' words and collectibles' pictures, over the ground and under
+     * everybody (world/sign-art). */
+    this.signLayer = new Container();
+    this.collectLayer = new Container();
+    this.ground.addChild(this.signLayer, this.collectLayer);
+    this.frontPainting = new Sprite();
+    this.overPainting = new Sprite();
+    this.frontItems = new Container();
+    this.above.addChild(this.frontPainting, this.overPainting, this.frontItems);
+    this.dressScene();
     /* Rooms shut to us are covered over rather than merely un-walkable: an
      * invisible wall is a bug, a closed room is a fact. */
     this.covers = new Container();
@@ -508,14 +755,18 @@ export class Game {
 
     this.selfSprite = this.makeCharacter(this.self.look, null, this.scene);
     this.actors.addChild(this.selfSprite.node);
+    this.buildNpcs();
     return wd;
   }
 
-  /* Into Vatican City from the Game Room: what saying "vatican city" in its
-   * chat does (world/secret-room). Only from there, and only ourselves. */
-  enterVatican() {
-    if (this.scene !== MAIN_SCENE || regionAt(this.self.x, this.self.y, this.scene, this.room) !== GAME_ROOM) return false;
-    this.setScene(VATICAN_SCENE, VATICAN_SPAWN);
+  /* THROUGH A PORTAL (world/places), ourselves only: to its arrival, on
+   * this map or another. One said as a phrase takes us only if we are
+   * standing in its area -- "vatican city" from the Game Room. */
+  takePortal(portal) {
+    if (!portal?.to) return false;
+    if (portal.area && (this.scene !== portal.area.scene ||
+        regionAt(this.self.x, this.self.y, this.scene, this.room) !== portal.area.id)) return false;
+    this.setScene(portal.to.scene, arrivalPoint(portal.to));
     return true;
   }
 
@@ -529,9 +780,7 @@ export class Game {
     this.tile = sceneTile(next);
     this.characterScale = sceneCharacterScale(next);
     this.world = buildWorld(next);
-    const images = sceneImages(next);
-    this.painting.texture = this.sceneTexture(images.image);
-    this.overPainting.texture = this.sceneTexture(images.over);
+    this.dressScene();
     this.self.x = destination.x;
     this.self.y = destination.y;
     this.self.dir = destination.dir ?? this.self.dir;
@@ -544,7 +793,7 @@ export class Game {
     this.settling = null;
     this.settled = 0;
     this.room = regionAt(this.self.x, this.self.y, next, this.room);
-    this.exitWasInside = next === VATICAN_SCENE && vaticanExitAt(this.self.x, this.self.y);
+    this.portalWasUnder = walkItemAt(this.self.x, this.self.y, next)?.id ?? null;
     this.showHotspot(null);
     this.scaleCharacter(this.selfSprite, this.characterScale, sceneNameSize(next));
     this.placeCharacter(this.selfSprite, this.self.x, this.self.y, next);
@@ -552,6 +801,7 @@ export class Game {
       p.ch.node.visible = (p.scene === next);
       this.placeCharacter(p.ch, p.render.x, p.render.y, p.scene);
     }
+    this.buildNpcs();
     this.poseCharacter(this.selfSprite, this.self.dir, 0);
     this.centreCamera();
     this.onSceneChange(next, previous);
@@ -810,6 +1060,83 @@ export class Game {
     ch.node.zIndex = Math.round(y * tile);
   }
 
+  /* ---------------------------------------------------------------- NPCs */
+
+  /* THE WORLD'S OWN CHARACTERS (2026-11-08): items whose behaviour is to be
+   * one, drawn as people are on this scene, standing where they were put --
+   * or wandering their area (world/npc-walk), the same in every browser.
+   * Never peers: nobody counts them, calls them or sees them in a list. */
+  buildNpcs() {
+    for (const n of this.npcs?.values() ?? []) { n.ch.node.destroy({ children: true }); n.ch.companion.destroy(); n.ch.companionShadow.destroy(); }
+    this.npcs = new Map();
+    const scene = this.scene, tile = sceneTile(scene);
+    for (const it of ITEMS) {
+      if (it.scene !== scene || it.do?.kind !== 'npc' || !it.rect) continue;
+      const home = { x: (it.rect.x + it.rect.w / 2) / tile, y: (it.rect.y + it.rect.h / 2) / tile };
+      const ch = this.makeCharacter(it.do.look ?? null, it.name, scene);
+      this.actors.addChild(ch.node);
+      const place = regionAt(home.x, home.y, scene), r = it.do.roam;
+      /* In the box its host drew (2026-11-08); without one, near where it
+       * stands and in its area. */
+      const box = r ? [r.x / tile, r.y / tile, (r.x + r.w) / tile, (r.y + r.h) / tile] : null;
+      const inside = box ? (x, y) => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] : (x, y) => regionAt(x, y, scene, place) === place;
+      const route = it.do.wander ? wanderRoute({ id: it.id, home, solid: (x, y) => mapSolid(x, y, scene), inside, box, speed: sceneWalkSpeed(scene) * 0.35 }) : null;
+      this.npcs.set(it.id, { item: it, ch, home, route, x: home.x, y: home.y, near: false, said: -Infinity });
+      this.placeCharacter(ch, home.x, home.y, scene);
+    }
+  }
+  /* Each frame: where each one is, which way it looks -- at the nearest
+   * person, when it stands still and somebody is close -- and, as WE come
+   * near, one of its lines over its head, for us alone. */
+  tickNpcs(time, dt) {
+    if (!this.npcs?.size) return;
+    const now = Date.now(), person = (FEET - HEAD) * this.characterScale / this.tile;
+    const people = [{ x: this.self.x, y: this.self.y }];
+    for (const p of this.peers.values()) if (p.scene === this.scene && p.render) people.push(p.render);
+    for (const n of this.npcs.values()) {
+      const at = n.route ? n.route.at(now) : { x: n.home.x, y: n.home.y, moving: false, dir: null };
+      n.x = at.x; n.y = at.y;
+      let dir = at.dir;
+      if (!at.moving) {
+        let best = null, bestD = 4 * person;
+        for (const p of people) { const d = Math.hypot(p.x - n.x, p.y - n.y); if (d < bestD) { best = p; bestD = d; } }
+        dir = best ? faceTowards(n, best) : n.item.do.dir ?? 'down';
+      }
+      this.placeCharacter(n.ch, n.x, n.y, this.scene);
+      this.animateCharacter(n.ch, dir, at.moving, time);
+      this.followCharacter(n.ch, n.x, n.y, this.scene, time, dt);
+      const lines = n.item.do.lines ?? [], d = Math.hypot(this.self.x - n.x, this.self.y - n.y);
+      if (!n.near && d < 2.5 * person && lines.length && time - n.said > NPC_AGAIN_MS) {
+        n.ch.speech = lines[Math.floor(Math.random() * lines.length)];
+        n.ch.speechUntil = time + NPC_SAY_MS; n.said = time;
+      }
+      n.near = d < (n.near ? 3.5 : 2.5) * person;
+      if (n.ch.speech) { if (time >= n.ch.speechUntil) n.ch.speech = null; this.paintBubble(n.ch, time); }
+    }
+  }
+  /* The character under a screen point, nearest in front -- as characterAt
+   * finds people. */
+  npcAt(clientX, clientY) {
+    if (!this.npcs?.size) return null;
+    const p = this.worldPixelAt(clientX, clientY); if (!p) return null;
+    const scale = this.characterScale;
+    let hit = null;
+    for (const n of this.npcs.values()) {
+      const cx = n.x * this.tile, base = n.y * this.tile;
+      if (Math.abs(p.x - cx) <= (FRAME * scale) / 6 && p.y <= base && p.y >= base - (FEET - HEAD) * scale && (!hit || n.y > hit.y)) hit = n;
+    }
+    hit ??= [...this.npcs.values()].filter((n) => this.onNameplate(n.ch, clientX, clientY)).sort((a, b) => b.y - a.y)[0];
+    return hit?.item ?? null;
+  }
+  /* Is a screen point on this character's name tag (2026-11-09)? A name is
+   * as much who somebody is as their body: a double-click on it opens them
+   * too. The tag's own drawn box, wherever zoom and scale have put it. */
+  onNameplate(ch, clientX, clientY) {
+    if (!ch?.node?.visible || !ch.nameplate?.visible || !this.app?.view) return false;
+    const rect = this.app.view.getBoundingClientRect();
+    return ch.labelBackground.getBounds().contains(clientX - rect.left, clientY - rect.top);
+  }
+
   /* ------------------------------------------------------------- peers */
 
   /* `motion` is whatever the sender told us about how they are moving --
@@ -876,6 +1203,11 @@ export class Game {
     const hits = [];
     for (const [ship, p] of this.peers) if (p.spot && p.scene === this.scene && boxed(p.spot)) hits.push([ship, p.spot.y]);
     if (boxed(this.self)) hits.push([this.ourShip, this.self.y]);
+    /* Not on anybody: on somebody's name tag, then. */
+    if (!hits.length) {
+      for (const [ship, p] of this.peers) if (p.scene === this.scene && this.onNameplate(p.ch, clientX, clientY)) hits.push([ship, p.spot?.y ?? 0]);
+      if (this.onNameplate(this.selfSprite, clientX, clientY)) hits.push([this.ourShip, this.self.y]);
+    }
     if (!hits.length) return null;
     hits.sort((a, b) => b[1] - a[1]);
     return hits[0][0];
@@ -885,6 +1217,7 @@ export class Game {
 
   setHotspots(hotspots) {
     this.hotspots = (hotspots ?? []).filter(h => h && h.id && h.scene && h.rect);
+    this.nearSpot = null;
     this.showHotspot(null);
   }
 
@@ -904,6 +1237,8 @@ export class Game {
   hoverHotspot(clientX, clientY, target = null) {
     if (this.panning || this.menuOpen() || (target && this.app?.view && target !== this.app.view))
       return this.showHotspot(null);
+    /* A character of the world's: tapped to talk to, never swelled. */
+    if (this.npcAt(clientX, clientY)) { this.showHotspot(null); this.mount.style.cursor = 'pointer'; return; }
     this.showHotspot(this.hotspotAt(clientX, clientY));
   }
 
@@ -913,23 +1248,47 @@ export class Game {
       .some(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
   }
 
+  /* With no pointer on one, the spot we have walked up to, if any. */
   showHotspot(hotspot) {
+    hotspot ??= this.nearSpot;
     const id = hotspot?.id ?? null;
     if (this.hoveredHotspot === id) return;
     this.hoveredHotspot = id;
     this.hotspotLayer?.removeChildren().forEach(child => child.destroy());
-    if (!hotspot || !this.painting?.texture?.baseTexture || hotspot.scene !== this.scene) {
+    if (!hotspot || hotspot.scene !== this.scene) {
       if (this.mount) this.mount.style.cursor = this.restCursor();
       return;
     }
-    const r = hotspot.rect;
-    const texture = new Texture(this.painting.texture.baseTexture, new Rectangle(r.x, r.y, r.w, r.h));
-    const sprite = new Sprite(texture);
-    sprite.anchor.set(.5);
-    sprite.position.set(r.x + r.w / 2, r.y + r.h / 2);
-    sprite.scale.set(1.14);
-    this.hotspotLayer.addChild(sprite);
+    /* Swelled from the ground as drawn, painting and pictures; nothing to
+     * swell on bare space. */
+    const ground = this.groundImage(this.scene), r = hotspot.rect;
+    if (ground) {
+      ground.base ??= BaseTexture.from(ground.canvas);
+      const k = ground.k, x = Math.max(0, r.x * k), y = Math.max(0, r.y * k);
+      const w = Math.min(ground.canvas.width, (r.x + r.w) * k) - x, h = Math.min(ground.canvas.height, (r.y + r.h) * k) - y;
+      if (w >= 1 && h >= 1) {
+        const sprite = new Sprite(new Texture(ground.base, new Rectangle(x, y, w, h)));
+        sprite.anchor.set(.5);
+        sprite.position.set((x + w / 2) / k, (y + h / 2) / k);
+        sprite.scale.set(1.14 / k);
+        this.hotspotLayer.addChild(sprite);
+      }
+    }
     this.mount.style.cursor = 'pointer';
+  }
+
+  /* The nearest spot on this scene within SPOT_REACH tiles of our feet, where
+   * nearness swells a spot at all. */
+  spotNear() {
+    if (!this.swellsNear()) return null;
+    const x = this.self.x * this.tile, y = this.self.y * this.tile, reach = SPOT_REACH * this.tile;
+    let best = null, bestDistance = Infinity;
+    for (const h of this.hotspots) {
+      if (h.scene !== this.scene || h.hidden?.()) continue;
+      const r = h.rect, d = Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
+      if (d <= reach && d < bestDistance && !this.isShowing(h.id)) { best = h; bestDistance = d; }
+    }
+    return best;
   }
 
   activateHotspot(clientX, clientY) {
@@ -1134,7 +1493,7 @@ export class Game {
     if (!ch.bubble) {
       const bubble = new Container(), back = new Graphics();
       const words = new Text('', { fontFamily: `"${PIXEL_FONT}", ui-monospace, Menlo, monospace`,
-        fontWeight: '400', fontSize: 12, fill: 0x17141f });
+        fontWeight: '400', fontSize: 12, fill: 0x17141f, wordWrap: true, wordWrapWidth: 220, align: 'center' });
       words.anchor.set(0.5, 1);
       words.resolution = 2;
       bubble.addChild(back, words);
@@ -1143,6 +1502,10 @@ export class Game {
     }
     const size = Math.round(Number(ch.label.style.fontSize) * 0.9);
     if (ch.bubbleWords.style.fontSize !== size) ch.bubbleWords.style.fontSize = size;
+    /* A character's line wraps at about twelve letters, not off a phone's
+     * screen; what people are doing stays on one line, as it always was. */
+    const wrap = size * (ch.speech ? 12 : 64);
+    if (ch.bubbleWords.style.wordWrapWidth !== wrap) ch.bubbleWords.style.wordWrapWidth = wrap;
     ch.bubbleWords.text = text;
     /* A cream bubble with a little tail, just above the name. */
     const w = Math.max(ch.bubbleWords.width + 8, 16), h = ch.bubbleWords.height + 2, tail = 3;
@@ -1250,8 +1613,11 @@ export class Game {
    * threshold, which counts as still being inside it: they never left.)
    * Their own client does it; Noltbook refuses them the call either way. */
   moveOutside() {
-    if (!this.world || !this.selfSprite || this.scene !== MAIN_SCENE) return false;
-    this.self.x = SPAWN.x; this.self.y = SPAWN.y; this.self.dir = 'down';
+    if (!this.world || !this.selfSprite) return false;
+    const spawn = arrivalPoint(spawnOf(this.scene));
+    if (!spawn) return false;
+    if (regionAt(spawn.x, spawn.y, this.scene) !== COMMONS) return false;
+    this.self.x = spawn.x; this.self.y = spawn.y; this.self.dir = 'down';
     this.self.moving = false; this.self.frame = 0;
     this.keys.clear(); this.running = false; this.stick = null;
     this.pan = { x: 0, y: 0 };
@@ -1262,13 +1628,15 @@ export class Game {
   /* Draw over the rooms we may not enter. Cheap and re-run only when the set
    * changes, which is when somebody takes or gives back a secret lease. */
   paintCovers() {
-    if (!this.covers || this.scene !== MAIN_SCENE) return;
+    if (!this.covers) return;
     /* Which rooms are shut changes when a lease does, not sixty times a
      * second: looked at four times a second. */
     const t = performance.now();
     if (t - (this.coversAt ?? -Infinity) < 250) return;
     this.coversAt = t;
-    const mainRooms = ROOMS.filter((r) => r.scene === MAIN_SCENE);
+    /* A room that is the whole map -- Vatican City -- is never covered over:
+     * it is where you are standing. */
+    const mainRooms = roomsOf(this.scene).filter((r) => !(r.w >= this.world.w && r.h >= this.world.h));
     /* Evaluate access once. Discovery can update while this frame is being
      * painted; asking twice used to cache "room 3 is covered" after the
      * second pass had drawn nothing. */
@@ -1284,8 +1652,8 @@ export class Game {
        * the furniture of a room that is supposed to be shut. */
       cover.tint = 0x05060a;
       cover.alpha = 1;
-      cover.x = r.x * TILE; cover.y = r.y * TILE;
-      cover.width = r.w * TILE; cover.height = r.h * TILE;
+      cover.x = r.x * this.tile; cover.y = r.y * this.tile;
+      cover.width = r.w * this.tile; cover.height = r.h * this.tile;
       this.covers.addChild(cover);
     }
   }
@@ -1308,6 +1676,8 @@ export class Game {
       if(p.ch.asleep||p.ch.waveUntil||p.ch.activity)this.paintBubble(p.ch,time);
       if(p.ch.reward)this.paintReward(p.ch,time);
     }
+    this.tickNpcs(time, dt);
+    this.tickCollectibles();
     if(this.selfSprite.asleep||this.selfSprite.waveUntil)this.paintBubble(this.selfSprite,time);
     if(this.selfSprite.reward)this.paintReward(this.selfSprite,time);
 
@@ -1356,6 +1726,10 @@ export class Game {
       this.doorRoom = null;
     }
     this.self.moving = moving;
+    /* A spot walked up to swells; one walked away from settles -- unless a
+     * finger is on the world, which shows its own. */
+    const spot = this.spotNear();
+    if (spot !== this.nearSpot) { this.nearSpot = spot; if (!this.tap) this.showHotspot(null); }
     /* Walking brings the view back to you. */
     if (moving && (this.pan.x || this.pan.y)) this.pan = { x: 0, y: 0 };
 
@@ -1369,12 +1743,17 @@ export class Game {
     if (moving || wasMoving) this.onMove({ ...this.self });
 
     const rawRoom = regionAt(this.self.x, this.self.y, this.scene, this.room);
-    const inExit = this.scene === VATICAN_SCENE && vaticanExitAt(this.self.x, this.self.y);
-    if (inExit && !this.exitWasInside) {
-      this.setScene(MAIN_SCENE, MAIN_RETURN);
-      return;
+    /* A portal walked into -- Vatican City's way home -- takes us as we step
+     * onto it; anything else set to be walked into opens as we step onto it.
+     * Once a step, not every frame we stand there. */
+    const stepped = walkItemAt(this.self.x, this.self.y, this.scene);
+    if (stepped && stepped.id !== this.portalWasUnder) {
+      this.portalWasUnder = stepped.id;
+      const door = walkPortalAt(this.self.x, this.self.y, this.scene);
+      if (door?.item.id === stepped.id) { if (door.to) this.setScene(door.to.scene, arrivalPoint(door.to)); return; }
+      this.onWalkInto(stepped);
     }
-    this.exitWasInside = inExit;
+    if (!stepped) this.portalWasUnder = null;
 
     /* Rooms are regions of the same map, so entering one is just noticing that
      * you are standing inside it.

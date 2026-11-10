@@ -36,6 +36,8 @@
  * Everything here is transient. The pal graph and Noltbook are never changed,
  * and nothing is kept beyond this page.
  */
+import { isScene, spotMax } from '../world/places.js';
+const SPOT = spotMax(16);
 export const MAX_GUESTS = 32;
 export const MAX_VIEWERS = 64;
 /* A guest renews by asking for the list again, or by being in the call. */
@@ -81,9 +83,9 @@ const num = (n) => Number.isSafeInteger(n) && n >= 0;
 export function validHere(h) {
   if (!h || typeof h !== 'object' || !h.spot) return false;
   const s = h.spot;
-  return s.place === 0 && num(s.x) && num(s.y) && s.x <= 1024 && s.y <= 736 &&
+  return s.place === 0 && num(s.x) && num(s.y) && s.x <= SPOT.x && s.y <= SPOT.y &&
     ['up', 'down', 'left', 'right'].includes(s.dir) &&
-    (s.scene === undefined || s.scene === 'main' || s.scene === 'vatican') && num(h.rev) &&
+    (s.scene === undefined || isScene(s.scene)) && num(h.rev) &&
     (h.host === null || h.host === undefined || isShip(h.host)) &&
     (h.stamp === undefined || Number.isFinite(h.stamp));
 }

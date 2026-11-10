@@ -4,6 +4,8 @@
  *          call -- has a little "zzz…" bubble, the z's coming one at a time.
  *   WAVE   somebody who waved at us has a hand over their head, for us alone,
  *          for WAVE_MS. It wins over everything while it lasts.
+ *   SAYS   a character of the world's (an NPC), one of its lines as we come
+ *          near, for us alone, for a few seconds.
  *   DOING  what somebody is doing on their stage -- "playing Doomur",
  *          "playing krunker.io", "watching a movie" -- for everybody, from
  *          their presence. It wins over sleep.
@@ -18,8 +20,10 @@ export const WAVE_MS = 5000;
 export const WAVE_TEXT = '👋';
 
 /* The words for a character at `time` (performance ms), or null for none. */
-export function bubbleText({ asleep = false, waveUntil = 0, activity = null } = {}, time = 0) {
+export function bubbleText({ asleep = false, waveUntil = 0, activity = null, speech = null, speechUntil = 0 } = {}, time = 0) {
   if (waveUntil && time < waveUntil) return WAVE_TEXT;
+  /* A character of the world's, saying one of its lines (2026-11-08). */
+  if (speech && time < speechUntil) return speech;
   if (activity) return activity;
   if (asleep) return SLEEP_FRAMES[Math.floor(time / SLEEP_STEP_MS) % SLEEP_FRAMES.length];
   return null;

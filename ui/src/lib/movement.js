@@ -16,10 +16,12 @@
  * position over presence at most once every FALLBACK_MS. When every viewer is
  * on the relay, moving sends nothing through Eyre or Ames at all.
  *
- * THE WORLD ROOM. Given `world` -- the world's host ship -- everybody's first
+ * THE WORLD ROOM. Given `world` -- the world's host ship -- everybody's
  * session is that ship's world room, which its AGENT opens and keeps; nobody's
- * browser opens, reopens or releases it. See movement-session for when we fall
- * back to sessions of our own and how we return.
+ * browser opens, reopens or releases it. It is the only one (2026-11-10, see
+ * ONE ROOM in movement-session): a host that does not let us in is said to
+ * be not answering, with Try again (`stuck`, `retry`), and its answer, however
+ * late, lets us straight in.
  *
  * ADMISSION AND LIFETIME. The host claims the room's place on its own ship and
  * opens the room once. Everyone else -- and the host itself, afterwards -- gets
@@ -32,6 +34,7 @@
  */
 import { createMovementSession, isMovementPlace } from './movement-session.js';
 import { createMovementRelay, LIVE, REFUSED, FAILED, EXPIRED } from './movement-relay.js';
+import { normalScene } from '../world/places.js';
 
 export const TICK_MS = 1000;
 export const FALLBACK_MS = 2000;
@@ -550,7 +553,7 @@ export function createMovement({
     moved(p, force = false, urgent = false) {
       const previous = last, at = now();
       const seconds = lastAt === null ? 0 : (at - lastAt) / 1000;
-      const scene = p.scene === 'vatican' ? 'vatican' : 'main';
+      const scene = normalScene(p.scene);
       const sameScene = previous?.scene === scene;
       const moving = p.moving ?? (!!previous && sameScene && (previous.x !== p.x || previous.y !== p.y));
       const speed = (from, to) => (previous && sameScene && moving && seconds > 0 && seconds < 1 ? (to - from) / seconds : 0);
@@ -607,6 +610,17 @@ export function createMovement({
     onRelay: (ship) => relay.live() && relay.has(ship),
     control: (ship, body) => relay.control?.(ship, body) ?? false,
     relayLive: () => relay.live(),
+    /* The world's host has not let us in for a while (movement-session). */
+    stuck: () => !!session.stuck?.(),
+    /* TRY AGAIN (2026-11-10): ask the host for our pass now, not when the
+     * backoff comes round to it. */
+    retry() {
+      if (!current || !started) return;
+      session.retry?.();
+      inFlight = null;
+      if (request) { cancel(request.timer); request.timer = null; request.tries = 0; }
+      requestAccess(true);
+    },
     announce: () => session.announce(),
     current: () => session.current(),
     stats: () => ({

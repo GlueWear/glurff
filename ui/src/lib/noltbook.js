@@ -28,8 +28,10 @@ export const RUMORS_NOTE = 'ars-rumors';
 /* Rooms have no notes of their own: their chat is session-only, in the browser
  * (see lib/room-events.js and ui/hud.js). The commons is a shared group, and the
  * war room is Rumors, Noltbook's own anonymous note. */
-/* The war room is the Rumors room: anonymous, and Noltbook's own note. */
-export const RUMORS_ROOM = 13;
+/* The war room is the Rumors room: anonymous, and Noltbook's own note. Which
+ * room that is, the world's document says (its `rumors` area; world/places),
+ * or -1 for a world with none. */
+export { RUMORS_ROOM } from '../world/places.js';
 /* Noltbook delivers BOTH our own and remote rumors as `rumor-message`, stored
  * under ars-rumors. An earlier reading of this traced remote rumors to the
  * `cover` note; that was wrong, and merging cover also pulled ordinary cover
@@ -258,8 +260,16 @@ export function applyFact(name, p) {
     case 'note-meta-updated': {
       const n = nb.notes[p.id];
       if (!n) return;
+      /* Its icon is always said, and null when it was taken away. */
       nb.notes[p.id] = { ...n, visibility: p.visibility ?? n.visibility,
-        iconUrl: p.iconUrl ?? n.iconUrl, writable: p.writable !== false };
+        iconUrl: 'iconUrl' in p ? p.iconUrl : n.iconUrl, writable: p.writable !== false };
+      field = 'notes'; noteId = p.id; break;
+    }
+    /* Its name: a Glurff renamed by its host reads the new one at once. */
+    case 'note-renamed': {
+      const n = nb.notes[p.id];
+      if (!n || typeof p.name !== 'string') return;
+      nb.notes[p.id] = { ...n, name: p.name };
       field = 'notes'; noteId = p.id; break;
     }
     /* Who is in it. A join approved in Noltbook opens the room here. */

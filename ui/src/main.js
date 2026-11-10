@@ -1,31 +1,31 @@
 import { diagnostic, setMovementDiagnostics, milestone } from 'lib/diagnostics';
 import { createMemberPresence } from 'lib/member-presence';
-import { WORLD_ID, WORLD_HOST } from 'lib/world-config';
+import { WORLD_ID, WORLD_HOST, WORLD_NOTE, WORLD_NAME, DEFAULT_HOST, WORLD_RELEASE, WORLD_PREVIEW, WORLD_DOC } from 'lib/world-config';
 import { createRoomEvents } from 'lib/room-events';
 import { createMovement } from 'lib/movement';
 import { WORLD_TERM } from 'lib/movement-session';
 import { createBow } from 'lib/bow';
 import { createPlayerState } from 'lib/player-state';
-import { palStatus } from 'lib/noltbook';
+import { palStatus, knownShips, noteUrl } from 'lib/noltbook';
 import { createWaves, createTitleFlash, WAVE_NOTICE_MS } from 'lib/waves';
 import { createClockSettings, anchor as clockAnchor, clockTime } from 'lib/clocks';
 import { IDLE_MS } from 'world/bubbles';
 import { esc } from 'ui/html';
 import { sceneCharacterScale, sceneTile, sceneInfo, solidAt as mapSolid } from 'world/places';
 /* Artwork loads alongside the official note. Connecting waits for membership. */
-import { initApi, our, closeChannel } from 'lib/api';
+import { initApi, our, closeChannel, subscribeRaw } from 'lib/api';
 import { watchNoltbookDependency } from 'lib/dependency';
 import { createTabGuard } from 'lib/tab';
 import { createSessionLease, newerMotion } from 'lib/session-lease';
 import { createReachability } from 'lib/reachability';
 import { createInsideLease } from 'lib/inside-lease';
 import { createReliable } from 'lib/reliable';
-import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts, glurffMuted, loadGlurffMembers, glurffRoster, glurffNoteRevision, nbApi } from 'lib/noltbook';
+import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldStatus, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts, glurffMuted, loadGlurffMembers, glurffRoster, glurffNoteRevision, nbApi } from 'lib/noltbook';
 import * as G from 'lib/glurff';
 import { Game, startZoom } from 'world/game';
 import { TouchControls, watchTouch, watchLayout, touching } from 'ui/touch-controls';
-import { welcomeOnce, showWelcome } from 'ui/welcome';
-import { COMMONS, roomById, regionAt, isChattyRoom, GAME_ROOM } from 'world/places';
+import { COMMONS, QUIET, roomById, regionAt, isChattyRoom, GAME_ROOM, isScene, MAIN_SCENE, portalOf, arrival, ITEMS } from 'world/places';
+import { assetUrl } from 'lib/world-config';
 import { Builder } from 'ui/builder';
 import { Hud } from 'ui/hud';
 import { Rail } from 'ui/rail';
@@ -36,19 +36,30 @@ import { Contacts } from 'ui/contacts';
 import { Me } from 'ui/me';
 import { Members } from 'ui/members';
 import { GlurffMembers } from 'ui/glurff-members';
-import { soonButton } from 'ui/soon';
+import { GlurffsPanel } from 'ui/glurffs-panel';
+import { glurffsOf } from 'lib/glurffs';
+import { createGlurffs } from 'lib/glurffs';
+import { CARD_WAIT_MS, OFFLINE, whyOffline } from 'lib/glurff-online';
 import { MediaSurfaces } from 'ui/media-surfaces';
 import { ask } from 'ui/ask';
 import { Stage } from 'ui/stage';
+import { EditorStage } from 'ui/editor-stage';
+import { home as hostHome } from './editor/host-api.js';
 import { Sites } from 'ui/sites';
 import { showNoltbookDependency } from 'ui/dependency';
-import { showWorldMembership } from 'ui/world-membership';
-import { HOTSPOTS, spotApp, spotsFor } from 'world/hotspots';
+import { createLoading, NOTICES } from 'ui/loading';
+import { HOTSPOTS, spotApp, spotsFor, spotOf } from 'world/hotspots';
 import { AppPanel } from 'ui/app-panel';
 import * as R from 'lib/rooms';
 import { DEFAULT_LOOK, DIRS, fightingWeapon, releaseMs, bodyBox } from 'world/parts';
 import { unlocks } from 'lib/unlock';
-import { opensVatican } from 'world/secret-room';
+import { phrasePortal } from 'world/secret-room';
+import { showContent, showTalk, showFound } from 'ui/content-card';
+import { foundIn, withFound, elsewhere, foundFrom } from 'lib/collection';
+import { createSigns, editableSign } from 'lib/signs';
+import { createPolls } from 'lib/polls';
+import { createAreaSound } from 'lib/area-sound';
+import { fontsReady } from 'ui/fonts';
 import { sendBox } from 'ui/send-box';
 import { sendBlocked } from 'lib/wallet';
 import { shipLike, validAmount } from 'lib/nock-receipt';
@@ -81,10 +92,18 @@ const closeDependencyPrompt = showNoltbookDependency({
   isAvailable: () => nb.ready,
   onAvailable: (fn) => onChange(fn, (change) => change.field === 'notes'),
 });
-const closeMembershipPrompt = showWorldMembership();
+/* THE WAY IN (2026-11-04): the loading screen, until everything is here -- the
+ * world drawn, its host answering, us a member, and its people where they
+ * stand (ui/loading). Membership trouble is said on it. */
+const loading = createLoading({ name: WORLD_PREVIEW ? `${WORLD_NAME} (playtest)` : WORLD_NAME, host: WORLD_HOST,
+  people: () => !!movement?.relayLive?.() && (movement?.rosterReady?.() ?? true),
+  where: () => game.selfOnScreen(),
+  /* A playtest lands once the draft is drawn: who is a member is no matter. */
+  ...(WORLD_PREVIEW ? { joined: () => true } : {}) });
+window.__loading = loading;   // debug handle
 window.addEventListener('glurff-exit', () => {
   closeDependencyPrompt();
-  closeMembershipPrompt();
+  loading.halt();
   noltbookDependency.close();
 });
 
@@ -103,7 +122,8 @@ const tabGuard = createTabGuard({
 });
 window.addEventListener('storage', (e) => { if (e.key === TAB_KEY) tabGuard.heard(e.newValue); });
 window.addEventListener('glurff-exit', () => tabGuard.close());
-tabGuard.claim();
+/* A playtest is not a visit: the Glurff open in another tab stays the live one. */
+if (!WORLD_PREVIEW) tabGuard.claim();
 /* ONE LIVE GLURFF PER SHIP -- across browsers and devices, which the tab guard
  * cannot see. Held by our agent; see lib/session-lease. Started once /world is
  * watched, so the agent's answer has somewhere to arrive. */
@@ -268,7 +288,7 @@ R.onRooms(() => void offerJoinRequest());
  * The decision tree is lib/inside-lease; this wires it to the world. */
 function insideLeaseHere() {
   const place = R.rooms.here;
-  if (!(place > COMMONS && place <= 15) || R.rooms.lease?.place === place) return null;
+  if (!(place > COMMONS && place < 1000) || R.rooms.lease?.place === place) return null;
   const lease = R.leaseAt(place);
   if (!lease?.note && !lease?.vis) return null;
   if (lease.note && nb.notes[lease.note]) return null;             //  a member
@@ -308,15 +328,17 @@ const checkInsideLease = () => insideLease.check();
 R.onRooms(() => void checkInsideLease());
 R.onRoommates(() => void checkInsideLease());
 onChange(() => void checkInsideLease(), (c) => ['notes', 'joinStatus', 'remoteNotes'].includes(c.field));
-/* A short line at the top of the screen, gone by itself. */
+/* A short line at the top of the screen, gone by itself -- after `ms`, or
+ * once what it waits for is over (hideNotice). */
 const notice = document.createElement('div');
 notice.className = 'toast'; notice.setAttribute('role', 'status'); notice.hidden = true;
 document.body.appendChild(notice);
 let noticeTimer = null;
-function showNotice(text) {
+function showNotice(text, ms = 6000) {
   notice.textContent = text; notice.hidden = false;
-  clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.hidden = true; }, 6000);
+  clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice.hidden = true; }, ms);
 }
+function hideNotice(text) { if (notice.textContent === text) { clearTimeout(noticeTimer); notice.hidden = true; } }
 /* A WAVE for us: who, and a way to look at them. It waits for us if the tab is
  * in the background -- the hand over their head too -- rather than coming and
  * going unseen. See lib/waves. */
@@ -355,6 +377,22 @@ document.addEventListener('visibilitychange', () => {
  * sky follows every change at once; the agent is told a moment after the last. */
 const clocks = createClockSettings({ save: (text) => G.savePrefs(text) });
 clocks.on((s) => game.setClocks(s.clocks));
+/* THE SOUND OF PLACES (2026-11-08; lib/area-sound): the loop of the area we
+ * are in -- quieter in a call or while something plays for the room, and
+ * off from the settings, which remember it. */
+const areaOf = (place, scene) => (place === COMMONS ? WORLD_DOC.maps.find((m) => m.id === scene)?.areas?.find((a) => a.mode === 'world') ?? null
+  : roomById(place)?.area ?? null);
+const SOUNDS = [...new Set(WORLD_DOC.maps.flatMap((m) => (m.areas ?? []).map((a) => a.sound?.src).filter(Boolean)))];
+const placeSound = createAreaSound({
+  want: () => areaOf(state.room, game.scene)?.sound ?? null,
+  url: (src) => assetUrl(src),
+  enabled: () => clocks.get().placeSound !== false,
+  ducked: () => inCall() || (globalThis.__players?.store.snapshot() ?? []).some((p) => p.provider !== 'none' && !p.paused),
+});
+if (SOUNDS.length) { placeSound.start(); setTimeout(() => placeSound.prefetch(SOUNDS), 4000); }
+window.__placeSound = placeSound;   // debug handle
+const placeSoundSetting = SOUNDS.length ? { on: () => clocks.get().placeSound !== false,
+  set: (on) => { if (clocks.loaded()) clocks.update((s) => ({ ...s, placeSound: on })); } } : null;
 /* ARRANGING: the clocks come in front of the map to be dragged about, until
  * Done (or Escape). */
 const arrangeBar = document.createElement('div');
@@ -405,6 +443,8 @@ function flashClockTip(id, x, y) {
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && game.arranging()) arrangeClocks(false); });
 
 const game = new Game(document.getElementById('stage'), {
+  /* Something walked into rather than tapped: it opens as a tapped one would. */
+  onWalkInto: (item) => activateSpot(spotOf(item)),
   onEmote: scene => {
     void Promise.resolve(sendWorldAction({kind:'emote',scene,t0:Date.now()})).catch(()=>{});
   },
@@ -436,6 +476,10 @@ const game = new Game(document.getElementById('stage'), {
    * world where you cannot simply walk in. */
   isClosed: (room) => R.roomClosed(room),
   isBlocked: (room) => R.roomBlocked(room),
+  /* A finger cannot hover: on a touch screen the spot we walk up to swells
+   * instead -- but not a painted screen while it shows something. */
+  swellsNear: () => touching(),
+  isShowing: (id) => { const view = mediaUI?.views.get(id); return !!view?.isScreen && view.mode === 'docked' && !view.root.hidden; },
   onRoomDoor: (room) => offerRoomDoor(room),
   onClockHover: (id, x, y) => showClockTip(id, x, y),
   /* "1": our weapon out, or away -- if we have one. */
@@ -447,6 +491,8 @@ const game = new Game(document.getElementById('stage'), {
     if (game.arranging()) return;
     const ship = game.characterAt(x, y);
     if (ship) { card.open(ship); return; }
+    const npc = game.npcAt(x, y);
+    if (npc) { talkTo(npc); return; }
     const clock = game.skyClockAt(x, y);
     if (clock) { flashClockTip(clock.id, x, y); return; }
     hideClockTip();
@@ -469,7 +515,7 @@ const game = new Game(document.getElementById('stage'), {
       events.clear();
       R.enterRoom(game.room);
       hud.setRoom(game.room);
-    }
+    } else if (game.room === QUIET) hud.setRoom(game.room);   //  named by its map
     /* Force the new scene out at once so peers hide us on the old painting and
      * draw us on the new one without waiting for the next walking update. */
     reported = { dir: game.self.dir, moving: false, scene };
@@ -492,6 +538,17 @@ const stage = new Stage({ game, touch: () => touching(), onActivity: (text) => {
   diagnostic('stage', { reason: text ? 'on' : 'off', detail: text ?? '' });
   if (presenceStarted) presence.publish();
 } });
+
+/* A CLICK INSIDE A FRAME -- the editor, an app or a website on the stage, a
+ * window's app -- never reaches this page, so the menus and panels that a
+ * click anywhere else puts away stayed open (2026-11-07). That click moves
+ * the focus into the frame, which this page does hear: it is passed on as a
+ * click on the frame, which is outside every one of them. */
+window.addEventListener('blur', () => setTimeout(() => {
+  const frame = document.activeElement;
+  if (frame?.tagName !== 'IFRAME') return;
+  for (const type of ['pointerdown', 'click']) frame.dispatchEvent(new PointerEvent(type, { bubbles: true }));
+}, 0));
 
 // Ephemeral world effects use Glurff's authenticated envelope, not a claimed
 // sender inside the JSON body. No changes to Noltbook or movement traffic.
@@ -576,10 +633,12 @@ const hudRoot = document.getElementById('hud');
  * unlocks choosing weapons, mounts, companions and ready-made characters, for
  * good (lib/unlock). */
 function secret(text, room) {
-  /* "vatican city", said in the Game Room, takes us -- and only us -- there
-   * (world/secret-room). Not sent either. */
-  if (opensVatican(text, roomById(room)?.slug)) {
-    if (!game.enterVatican()) showNotice('Say it standing in the Game Room.');
+  /* A phrase portal's phrase -- "vatican city", said in the Game Room --
+   * takes us, and only us, where it leads (world/secret-room). Not sent
+   * either. */
+  const portal = phrasePortal(text, room);
+  if (portal) {
+    if (!game.takePortal(portal)) showNotice(`Say it standing in ${portal.area.name}.`);
     return true;
   }
   if (!unlocks(text, roomById(room)?.slug)) return false;
@@ -613,7 +672,12 @@ function receiveReward(who, e) {
       (e.to !== our && !state.peers.has(e.to)) || !Number.isFinite(e.t0) || Math.abs(Date.now() - e.t0) > 10000) return;
   game.reward(e.to, e.amount);
 }
-const hud = new Hud(hudRoot, { events, secret, send: (ship, at) => sendFrom(ship, at) });
+/* POLLS in any chat (lib/polls): kept by the app of whoever started one,
+ * and told to everybody in the Glurff. */
+const polls = createPolls({ our, send: (event) => sendWorldAction(event),
+  allowed: (ship) => worldMember(ship) && palStatus(ship) !== 'blocked' && !glurffMuted(ship) });
+const hud = new Hud(hudRoot, { events, secret, polls, name: displayName, send: (ship, at) => sendFrom(ship, at), preview: WORLD_PREVIEW, scene: () => game.scene });
+setInterval(() => { for (const p of polls.tick()) hud.postResult(p); }, 5000);
 window.__hud = hud;   // debug handle
 const railRoot = document.createElement('div');
 railRoot.id = 'rail';
@@ -621,7 +685,8 @@ document.body.appendChild(railRoot);
 const stripRoot = document.createElement('div');
 stripRoot.id = 'strip';
 document.body.appendChild(stripRoot);
-const rail = new Rail(railRoot, stripRoot, { stage, notify: (text) => showNotice(text) });
+const rail = new Rail(railRoot, stripRoot, { stage, notify: (text) => showNotice(text), placeSound: placeSoundSetting });
+stage.onStaged = (on) => rail.forStage(on);
 window.__rail = rail;   // debug handle
 /* The phone layout stacks things on the call bar, and lifts the chat above
  * the on-screen keyboard: both measured here (ui/touch-controls). */
@@ -662,21 +727,78 @@ const dmRoot = document.createElement('div');
 topLeft.appendChild(dmRoot);
 const cardRoot = document.createElement('div');
 document.body.appendChild(cardRoot);
+/* Whether this ship hosts a world it may edit: our agent refuses `home` to
+ * anybody else, and says `edit` only when its operator turned editing on. */
+let worldEditable = false, hosted = null;
+/* THE EDITOR, on our stage (ui/editor-stage) -- never from a playtest, which
+ * is the editor's own. Its "Visit this Glurff" brings us home to ours. */
+const editorStage = new EditorStage({ stage, ask, look: () => state.look, editLook: (look) => editNpcLook(look),
+  visit: () => { if (WORLD_HOST !== our) location.assign(`/apps/glurff/?w=${our}`); } });
+/* AN NPC'S LOOK (2026-11-08), for the editor on the stage: the character
+ * builder we dress ourselves with, a second one of its own -- ours is not
+ * touched -- over the editor. Its look when Done, null on Cancel. */
+let npcBuilder = null, npcAnswer = null;
+function editNpcLook(look) {
+  if (!npcBuilder) {
+    const root = document.createElement('div'); root.className = 'npc-builder';
+    document.body.appendChild(root);
+    const answer = (v) => { const a = npcAnswer; npcAnswer = null; a?.(v); };
+    npcBuilder = new Builder(root, { title: 'NPC', own: false, onDone: (lk) => answer(lk), onCancel: () => answer(null) });
+    npcBuilder.setEquipmentReady(true);
+  }
+  npcAnswer?.(null);
+  return new Promise((resolve) => {
+    npcAnswer = resolve;
+    npcBuilder.picking = false; npcBuilder.tab = null;
+    npcBuilder.setLook(look);
+    if (!npcBuilder.open) npcBuilder.toggle();
+  });
+}
+const openEditor = () => editorStage.open();
+/* EVERYBODY BUILDS (2026-11-10): EDIT GLURFF is on everybody's own card --
+ * the editor makes this ship a host, editing on, the first time it opens --
+ * except in a playtest, which is the editor's own. */
+worldEditable = !WORLD_PREVIEW;
+hostHome().then((h) => { hosted = h?.hosting && h.note ? { note: h.note } : null; }, () => {});
+/* YOUR GLURFFS (lib/glurffs): the ones we are in, home, and who is in them. */
+const glurffs = createGlurffs({ settings: clocks, current: { host: WORLD_HOST, note: WORLD_NOTE, name: WORLD_NAME },
+  hosting: () => hosted, keep: !WORLD_PREVIEW });
+window.__glurffs = glurffs;   // debug handle
+/* OUR WORLD'S NOTE CHANGED HOW OPEN IT IS -- here, in the editor or in
+ * Noltbook: our agent tells every ship watching our card what it may now see
+ * of it (a secret Glurff is nothing to anybody outside it). */
+let hostedVis = null;
+onChange(() => {
+  const v = hosted && nb.notes[hosted.note]?.visibility;
+  if (!v || v === hostedVis) return;
+  if (hostedVis) G.cardAgain().catch(() => {});
+  hostedVis = v;
+}, (c) => c.field === 'notes');
 const card = new ProfileCard(cardRoot, {
   onOpenDm: (ship) => dms.openWith(ship),
   /* Your character is in your own profile; everyone else's is whatever the
    * world is drawing for them. */
   look: (ship) => ship === our ? state.look : state.peers.get(ship)?.look ?? null,
   onEditCharacter: () => builder.toggle(),
+  /* EDIT GLURFF: this ship's own world, on our own card: anybody's, from
+   * 2026-11-10 (see above). */
+  canEditWorld: () => worldEditable,
+  onEditWorld: () => openEditor(),
+  /* Their Glurff: visit it, join it, or ask to (lib/glurffs). */
+  glurffOf: (ship) => glurffs.look(ship),
+  onGlurff: (ship) => { card.close(); void travelTo(ship); },
   /* In the world with us, and since when they have been idle (their clock). */
   presenceOf: (ship) => ship === our ? null : state.peers.has(ship)
     ? { inWorld: true, idleSince: state.peers.get(ship).idle ?? null } : { inWorld: false, idleSince: null },
   onWave: (ship) => waves.wave(ship),
   /* Our clocks, edited with our profile; see lib/clocks. */
   clocks,
+  /* What they have collected here, and we everywhere (lib/collection). */
+  collection: (ship) => collectionOf(ship),
   onArrangeClocks: () => arrangeClocks(true),
   onSent: (ship, sent) => rewarded(ship, sent),
 });
+window.__card = card;   // debug handle
 const dms = new Dms(dmRoot, { onShowProfile: (ship) => card.open(ship), send: (ship, at) => sendFrom(ship, at) });
 new Contacts(contactsRoot, { onShowProfile: (ship) => card.open(ship) });
 const me = new Me(topRight, { onOpen: (ship) => card.open(ship), look: () => state.look });
@@ -689,6 +811,7 @@ const membersRoot = document.createElement('div');
 topLeft.prepend(membersRoot);
 const members = new Members(membersRoot, {
   here: () => state.room,
+  scene: () => game.scene,
   /* IN A ROOM, the list is the call's list: you are on it if you are in the
    * call, and not if you are not. In the COMMONS there is no room call, so it
    * stays what it has always been -- the people standing around you, who are
@@ -719,16 +842,18 @@ const glurffMembers = new GlurffMembers({
 });
 onChange(() => glurffMembers.paint(), (c) => c.field === 'glurffMembers' || c.field === 'profiles' ||
   (['notes', 'noteAdmins', 'noteMuted'].includes(c.field) && c.noteId === COMMONS_NOTE));
-/* THE RINGED PLANET, straight after the room button and before contacts: a
- * placeholder for now (ui/soon). */
-const soonRoot = document.createElement('div');
-membersRoot.after(soonRoot);
-soonButton(soonRoot);
+/* THE RINGED PLANET, straight after the room button and before contacts:
+ * your Glurffs (ui/glurffs-panel). */
+const glurffsRoot = document.createElement('div');
+membersRoot.after(glurffsRoot);
+new GlurffsPanel(glurffsRoot, { glurffs, go: (host) => travelTo(host), name: displayName, people: knownShips, ask,
+  visiting: WORLD_HOST !== our && !WORLD_PREVIEW ? WORLD_HOST : null, theirs: (host) => glurffsOf(host) });
 /* THE MAGNIFYING GLASS, after the room button: this world's games, or any
  * website, on our stage (ui/sites). */
 const sitesRoot = document.createElement('div');
 topLeft.appendChild(sitesRoot);
 const sites = new Sites(sitesRoot, { games: () => worldGames(), settings: clocks, ask,
+  installed: () => appPanel.installed(), openInstalled: (a) => appPanel.open({ desk: a.desk, title: a.title, publisher: our, context: {} }, { stage: true }),
   openWeb: (site) => appPanel.openWeb(site) });
 window.__sites = sites;   // debug handle
 
@@ -739,6 +864,8 @@ game.mount.addEventListener('dblclick', (e) => {
   if (game.touchedRecently()) return;   //  a double-tap: the tap already did it
   const ship = game.characterAt(e.clientX, e.clientY);
   if (ship) { card.open(ship); return; }
+  const npc = game.npcAt(e.clientX, e.clientY);
+  if (npc) { talkTo(npc); return; }
   /* A clock out in the sky: arrange them, straight from there. */
   if (!game.arranging() && game.skyClockAt(e.clientX, e.clientY)) { arrangeClocks(true); return; }
   game.activateHotspot(e.clientX, e.clientY);
@@ -844,7 +971,8 @@ function applyPresence() {
     if(!old || !state.peers.has(ship) || old.rev!==p.rev || old.host!==p.host || old.chatPlace!==p.chatPlace ||
       old.huddle?.session!==p.huddle?.session || old.huddle?.rev!==p.huddle?.rev ||
       old.spot.x!==p.spot.x || old.spot.y!==p.spot.y || old.spot.dir!==p.spot.dir || old.spot.scene!==p.spot.scene ||
-      old.idle!==p.idle || old.micOff!==p.micOff || old.sheathed!==p.sheathed || old.activity!==p.activity)
+      old.idle!==p.idle || old.micOff!==p.micOff || old.sheathed!==p.sheathed || old.activity!==p.activity ||
+      String(old.found ?? '')!==String(p.found ?? ''))
       onWorldFact('peer-here',{...p,who:ship},true);
     appliedPresence.set(ship,p);
   }
@@ -859,7 +987,9 @@ const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
   ...(inCall()&&!R.rooms.micOn?{micOff:true}:{}),
   /* A weapon we hold but have put away is not drawn for the others either. */
   ...(weaponReady()&&!game.armed?{sheathed:true}:{}),chatPlace:state.room,spot:{place:COMMONS,x:Math.round(game.self.x*G.SUB),y:Math.round(game.self.y*G.SUB),dir:game.self.dir,scene:game.scene},rev:state.rev,host:R.rooms.host??null,
-  huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[]});
+  huddle:R.huddleSummary(),mv:movement?.announce()??null,players:globalThis.__players?.store.snapshot()??[],
+  /* What of this Glurff's collectibles we have (lib/collection). */
+  ...(foundPlaces.length?{found:foundPlaces}:{})});
 const presence = createMemberPresence({
   our, session:crypto.randomUUID(),
   sessionGen: () => sessionLease.gen(),
@@ -908,21 +1038,179 @@ onChange(() => { for (const view of mediaUI.views.values()) view.paintPanel?.();
  * the player runs on their own ship (see ui/app-panel). */
 const appRoot = document.createElement('div');
 document.body.appendChild(appRoot);
-const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID, stage });
+const appPanel = new AppPanel(appRoot, { trace: diagnostic, world: WORLD_ID, stage, charges: () => noltbookDependency.charges() });
+/* An app installed or removed while the apps list is open shows at once. */
+noltbookDependency.onCharges(() => { if (sites.open) sites.lookUp(1); });
 window.__appPanel = appPanel;   // debug handle
+window.__rooms = R;   // debug handle: rooms, leases, calls
 /* The spots as the world's host has set them (see world/hotspots): until the
  * host's list arrives -- or if it never does -- each opens what the map gives
  * it, and a spot with nothing set is no spot at all. */
 /* An app from a spot opens on the stage; a website from a spot asks once,
- * then does too (ui/sites); the screens and the jukebox play in the world. */
+ * then does too (ui/sites); the screens and the jukebox play in the world; a
+ * portal takes us through. */
 let spotSet = {}, spotWebs = {};
+/* SIGNS anybody here can write on (lib/signs): what each says now, from the
+ * world's host. */
+const signs = createSigns({ host: WORLD_HOST, our, preview: WORLD_PREVIEW });
+/* Signs on the map show what they say now, and again when it changes;
+ * and once the pixel face has come, in it (world/sign-art). */
+game.signText = (it) => signs.of(it).text;
+signs.on(() => game.paintSigns());
+fontsReady.then(() => game.paintSigns());
+const activateSpot = (h) => {
+  if (h.web) return sites.visit(h.web.url, h.web.title);
+  if (h.app) return appPanel.open(spotApp(h.app, WORLD_HOST), { stage: true });
+  const kind = h.item?.do.kind;
+  if (kind === 'portal') return game.takePortal(portalOf(h.item));
+  if (kind === 'travel') return travelTo(h.item.do.host);
+  if (kind === 'text' || kind === 'links' || kind === 'artifact') return showContent(h.item, { signs, name: displayName, isHost: WORLD_HOST === our });
+  if (kind === 'video') return mediaUI.activate(h.id);
+  if (kind === 'collect') return collect(h.item);
+  return null;
+};
+/* A CHARACTER OF THE WORLD'S, TAPPED (2026-11-08): what it says, and its
+ * choices, each done as the item it is would be. */
+function talkTo(item) {
+  showTalk(item, { choose: (c) => activateSpot(spotOf({ ...item, id: `${item.id}-choice`, name: c.label, do: c.do })) });
+}
+/* COLLECTIBLES (2026-11-08; lib/collection): found by tapping or walking
+ * into one, once a person, and kept in our own settings. A playtest keeps
+ * what it finds for itself. */
+const COLLECTIBLES = ITEMS.filter((it) => it.do?.kind === 'collect');
+const playFound = new Set();
+const foundHere = () => (WORLD_PREVIEW ? COLLECTIBLES.filter((it) => playFound.has(it.id)).map((it) => it.id) : foundIn(clocks.get(), WORLD_HOST, COLLECTIBLES));
+let foundPlaces = [];
+const placesFound = () => { const have = new Set(foundHere()); foundPlaces = COLLECTIBLES.map((it, i) => (have.has(it.id) ? i : -1)).filter((i) => i >= 0); };
+clocks.on(placesFound);
+function collect(item) {
+  const had = foundHere().includes(item.id);
+  if (!had) {
+    if (WORLD_PREVIEW) playFound.add(item.id);
+    else {
+      /* Before our settings have come, a change would save over them. */
+      if (!clocks.loaded()) return showNotice('One moment: your collection is still on its way.');
+      if (!withFound(clocks.get(), WORLD_HOST, item.id)) return showNotice('Your collection is full: no room for more.');
+      clocks.update((s) => withFound(s, WORLD_HOST, item.id) ?? s);
+    }
+    placesFound();
+    if (presenceStarted) presence.publish();
+  }
+  const index = COLLECTIBLES.indexOf(item);
+  const others = [...state.peers].filter(([, p]) => p.found?.includes(index)).map(([ship]) => displayName(ship));
+  showFound(item, { picture: item.do.picture ? assetUrl(item.do.picture.src) : null, count: foundHere().length, total: COLLECTIBLES.length,
+    had, preview: WORLD_PREVIEW, others });
+}
+/* A profile card's collection: of somebody here, what of this Glurff's they
+ * have; of us, all of it -- found and not -- and what we have elsewhere. */
+function collectionOf(ship) {
+  const chip = (it, found) => ({ name: it.name, picture: found && it.do.picture ? assetUrl(it.do.picture.src) : null, found });
+  if (ship === our) {
+    const have = new Set(foundHere());
+    const away = WORLD_PREVIEW ? [] : elsewhere(clocks.get(), WORLD_HOST).map((g) => ({ ...g,
+      name: (clocks.get().glurffs ?? []).find((x) => x.host === g.host)?.name || `${displayName(g.host)}'s Glurff` }));
+    if (!COLLECTIBLES.length && !away.length) return null;
+    return { count: have.size, total: COLLECTIBLES.length, items: COLLECTIBLES.map((it) => chip(it, have.has(it.id))), elsewhere: away };
+  }
+  const found = state.peers.get(ship)?.found ?? [];
+  if (!COLLECTIBLES.length || !state.peers.has(ship)) return null;
+  return { count: found.length, total: COLLECTIBLES.length, items: found.map((i) => chip(COLLECTIBLES[i], true)), elsewhere: [] };
+}
+/* TO ANOTHER GLURFF (2026-11-05; joining, 2026-11-07). Asked about first,
+ * without being announced there. One we are in, we go to. One we are not in
+ * is joined the way a note is: a public one on the way in, a private one
+ * asked of its host, who lets us in later; a secret one is never offered --
+ * its host shows it to nobody outside it. Going is the page's own way out,
+ * which lets go of our calls, presence and session, then loads that one. */
+let travelling = false;
+const goTo = (host) => location.assign(`/apps/glurff/?w=${host}`);
+async function travelTo(host, again = false) {
+  if (travelling || !host) return;
+  if (host === WORLD_HOST) return showNotice('You are in that Glurff already.');
+  travelling = true;
+  let retry = false;
+  const finding = `Finding ${displayName(host)}'s Glurff…`;
+  showNotice(finding, CARD_WAIT_MS + 1000);
+  try {
+    const g = await glurffs.look(host, 5000, again);
+    hideNotice(finding);
+    /* The official world too (2026-11-10): the app carries no copy of it. */
+    if (g.card === null && host !== DEFAULT_HOST) return showNotice(`${displayName(host)} has no Glurff you can visit.`);
+    /* OFFLINE (2026-11-10): taken down, or its host silent for CARD_WAIT_MS
+     * -- said the one way, with another try. */
+    if (!g.card?.live) {
+      retry = await ask(OFFLINE, { yes: 'TRY AGAIN', no: 'CANCEL',
+        detail: whyOffline({ card: g.card, name: g.name ?? g.card?.name, host: displayName(host), own: host === our }) });
+      return;
+    }
+    const away = `You will leave ${WORLD_NAME}.`;
+    if (g.member) {
+      if (await ask(`Go to ${g.name}?`, { yes: 'GO', detail: `${away} Hosted by ${displayName(host)}.` })) goTo(host);
+      return;
+    }
+    if (g.asked) return showNotice(`You asked to join ${g.name}. ${displayName(host)} has not let you in yet.`);
+    if (g.visibility === 'private') {
+      if (!(await ask(`Ask to join ${g.name}?`, { yes: 'ASK TO JOIN', no: 'NOT NOW',
+        detail: `It is private: ${displayName(host)} or an admin lets people in. It will be in your Glurffs when they do.` }))) return;
+      await glurffs.join(host, g.note, g.name, 6000);
+      if (glurffs.member(g.note)) return goTo(host);
+      return showNotice(`Asked to join ${g.name}. It will be in your Glurffs once you are let in.`);
+    }
+    /* Public -- or not said in time, which the asking settles. */
+    if (!(await ask(`Join ${g.name}?`, { yes: 'JOIN AND GO', no: 'NOT NOW',
+      detail: `${g.visibility === 'public' ? 'It is public: you will be a member, and it will be in your Glurffs. ' : ''}${away}` }))) return;
+    showNotice(`Joining ${g.name}…`);
+    if (await glurffs.join(host, g.note, g.name)) return goTo(host);
+    showNotice(`Asked to join ${g.name}. It will be in your Glurffs once you are let in.`);
+  } catch (error) {
+    console.warn('travel', error);
+    showNotice(`That did not work: ${error.message ?? error}`);
+  } finally {
+    travelling = false;
+    if (retry) void travelTo(host, true);
+  }
+}
+/* A NOTE'S LINK (Noltbook's ~ref) in a chat or on the map: a Glurff's is
+ * the way to it; any other note's opens in Noltbook. */
+window.addEventListener('glurff-note-link', async (e) => {
+  const { note, host } = e.detail ?? {};
+  if (!note || !host) return;
+  const g = await glurffs.look(host, 3000).catch(() => null);
+  if (g?.note === note) return travelTo(host);
+  window.open(noteUrl(note), '_blank', 'noopener');
+});
 const showSpots = () => game.setHotspots(spotsFor(HOTSPOTS, spotSet, spotWebs, location.origin).map(h => ({ ...h,
-  onActivate: () => h.web ? sites.visit(h.web.url, h.web.title)
-    : h.app ? appPanel.open(spotApp(h.app, WORLD_HOST), { stage: true }) : mediaUI.activate(h.id) })));
+  /* A collectible that shows only close by can be tapped only there. */
+  ...(h.item?.do?.kind === 'collect' && h.item.do.near ? { hidden: () => !game.nearItem(h.item) } : {}),
+  onActivate: () => activateSpot(h) })));
 showSpots();
-/* This world's games, for the magnifying glass. */
-const worldGames = () => game.hotspots.filter((h) => h.app || h.web).map((h) => ({ id: h.id, kind: h.web ? 'web' : 'app',
-  title: h.web?.title ?? h.app.title ?? h.app.desk, open: () => h.onActivate(h) }));
+/* EVERY APP PLACED IN THIS GLURFF, for the % button (2026-11-08): on any of
+ * its maps, as an item -- the host's own choice, for a spot they set -- or as
+ * an NPC's choice; each once, opening on our stage. */
+const worldGames = () => {
+  const apps = [
+    ...spotsFor(HOTSPOTS, spotSet, spotWebs, location.origin).filter((h) => h.app).map((h) => h.app),
+    ...ITEMS.filter((it) => it.do?.kind === 'npc').flatMap((it) => (it.do.choices ?? []).filter((c) => c.do?.kind === 'app' && c.do.desk)
+      .map((c) => ({ desk: c.do.desk, title: c.do.title ?? c.label, publisher: c.do.publisher, context: c.do.context ?? {} }))),
+  ];
+  const seen = new Set();
+  return apps.filter((a) => { const k = `${a.publisher}/${a.desk}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .map((a) => ({ id: `${a.publisher}/${a.desk}`, kind: 'app', desk: a.desk, title: a.title || a.desk, image: appPicture(spotApp(a, WORLD_HOST)),
+      open: () => appPanel.open(spotApp(a, WORLD_HOST), { stage: true }) }));
+};
+/* Each placed app's picture, looked up once (app-panel picture): '' until
+ * it is known, and the apps list is drawn again when it is. */
+const appPictures = new Map();
+function appPicture(a) {
+  const own = noltbookDependency.charges()?.[a.desk]?.image;
+  if (typeof own === 'string' && own) return own;
+  const key = `${a.publisher}/${a.desk}`;
+  if (!appPictures.has(key)) {
+    appPictures.set(key, '');
+    void appPanel.picture(a.publisher, a.desk).then((img) => { if (img) { appPictures.set(key, img); sites.refresh(); } });
+  }
+  return appPictures.get(key);
+}
 window.__players = { store:playerStore, ui:mediaUI };
 R.setRoomContext({ here, watchers: () => presence.viewers() });
 R.onRoommates((why) => {
@@ -931,7 +1219,12 @@ R.onRoommates((why) => {
   if (worldReady) applyPresence();
   movement?.presence(allPeers(pendingPeers ?? presencePeers));
 });
-movement = createMovement({
+/* A PLAYTEST moves nobody but us: the movement layer of a world with nobody
+ * else in it, which sends nothing. */
+const STILL = { start() {}, stop() {}, restored() {}, moved() {}, presence() {}, ready: () => true, rosterReady: () => true,
+  reliable: () => true, confidence: () => 'live-stationary', result: () => false, relayLive: () => true, current: () => null,
+  announce: () => null, onRelay: () => false, control: () => Promise.resolve(), stats: () => ({}) };
+movement = WORLD_PREVIEW ? STILL : createMovement({
   our,
   generation: () => sessionLease.gen(),
   agent: { claim: G.claimMovement, release: G.releaseMovement, open: G.openMovement, knock: G.knockMovement },
@@ -1042,7 +1335,8 @@ let presenceStarted=false;
 let micSaid=false;
 R.onRooms(()=>{const off=inCall()&&!R.rooms.micOn;if(off!==micSaid){micSaid=off;if(presenceStarted)presence.publish();}});
 function socialReady() {
-  if(!watching || !liveTab)return;
+  /* A playtest never starts presence, movement or our "In Glurff" mark. */
+  if(!watching || !liveTab || WORLD_PREVIEW)return;
   if(!worldJoined()) {
     void stopActiveStatus();
     if(presenceStarted) {
@@ -1071,21 +1365,39 @@ let positionSignature='';
 let claimSignature='';
 /* RECONNECTING, SAID OUT LOUD. With no slow path, a dropped relay means
  * nobody moves and nothing live arrives until it is back -- which must read as
- * "reconnecting", not as everybody standing still. Shown only once the relay
- * has been up, or after the first few seconds, so startup is not a warning. */
+ * "reconnecting", not as everybody standing still. Only once the relay has
+ * been up: before that, once we have landed, we are still finding everyone
+ * (2026-11-09) -- the host's pass for the relay can take a while to come. */
+/* THE HOST NOT ANSWERING (2026-11-10): no room of our own in its place (see
+ * ONE ROOM in lib/movement-session) -- said, with Try again, and gone the
+ * moment its answer comes, however late. */
 const netPill = document.createElement('div');
 netPill.className = 'net-pill'; netPill.setAttribute('role', 'status'); netPill.hidden = true;
+const netText = document.createElement('span');
+const netRetry = document.createElement('button');
+netRetry.type = 'button'; netRetry.className = 'net-retry'; netRetry.textContent = 'Try again'; netRetry.hidden = true;
+netRetry.addEventListener('click', () => { movement?.retry?.(); paintConnectivity(); });
+netPill.append(netText, netRetry);
 document.body.appendChild(netPill);
-const bootAt = Date.now();
 let relayWasLive = false;
 function paintConnectivity() {
   const channel = window.api?.connectionDiagnostics?.();
   const relayLive = !!movement?.relayLive?.();
   if (relayLive) relayWasLive = true;
+  /* Arrived, and our membership being found again -- what does not take us
+   * back out into space (ui/loading). */
+  const phase = worldStatus()?.phase;
+  const rejoining = loading.landed() && nb.ready && !worldJoined() && phase !== 'stopped' && !NOTICES[phase]?.stop;
+  const stuck = !channel?.rebuilding && !rejoining && !relayLive && presenceStarted && loading.landed() && !!movement?.stuck?.();
   const text = channel?.rebuilding ? 'Reconnecting to your ship…'
-    : !relayLive && (relayWasLive || Date.now() - bootAt > 10000) && presenceStarted ? 'Reconnecting to the world…'
+    : rejoining ? 'Rejoining Glurff…'
+    : stuck ? `${WORLD_HOST} is not answering: nobody can see you move.`
+    : !relayLive && relayWasLive && presenceStarted ? 'Reconnecting to the world…'
+    : !relayLive && presenceStarted && loading.landed() ? 'Finding everyone…'
     : '';
-  if (netPill.textContent !== text) netPill.textContent = text;
+  if (netText.textContent !== text) netText.textContent = text;
+  netRetry.hidden = !stuck;
+  netPill.classList.toggle('stuck', stuck);
   netPill.hidden = !text;
 }
 ticker=setInterval(()=>{
@@ -1131,16 +1443,19 @@ function onControl(who, body) {
   onWorldFact('presence-event', { who, body: JSON.stringify(body) });
 }
 function onWorldFact(name, p, fromPresence=false) {
+  /* A playtest hears only our own character and clocks from our agent. */
+  if (WORLD_PREVIEW && name !== 'our-look' && name !== 'our-prefs') return;
   if(name==='presence-event') {
     if(!worldMember(p.who))return;
     reach.heard(p.who);
     try {const event=JSON.parse(p.body);if(event.world!==WORLD_ID)return;
     if(['arrow','arrow-hit','strike','strike-hit'].includes(event.kind)){bow.receive(p.who,event);}else if(event.kind==='emote'){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked' &&
-         ['main','vatican'].includes(event.scene) && Number.isFinite(event.t0) &&
+         isScene(event.scene) && Number.isFinite(event.t0) &&
          Math.abs(Date.now()-event.t0)<5000) game.react(p.who,'emote',event.scene);
     }else if(event.kind==='wave'){waves.receive(p.who);
     }else if(event.kind==='nock'){receiveReward(p.who,event);
+    }else if(event.kind==='poll'||event.kind==='poll-vote'){polls.receive(p.who,event);
     }else if(event.kind?.startsWith('call-')){R.receiveCallEvent(p.who,event);}else if(event.kind?.startsWith('room-')){R.receiveRoomEvent(p.who,event);}else if(event.kind?.startsWith('player-')){
       if(state.peers.has(p.who) && palStatus(p.who)!=='blocked')globalThis.__players?.store.receive(p.who,event);
     }else presence.receive(p.who,event);}catch(e){console.warn('Invalid presence event');}
@@ -1164,7 +1479,7 @@ function onWorldFact(name, p, fromPresence=false) {
       break;
     case 'peer-here': {
       const reported = { place: p.spot.place, x: p.spot.x / G.SUB, y: p.spot.y / G.SUB,
-                         dir: p.spot.dir, scene: p.spot.scene ?? 'main' };
+                         dir: p.spot.dir, scene: p.spot.scene ?? MAIN_SCENE };
       const prev = state.peers.get(p.who);
       /* Presence is the slow path now. If the relay already delivered a newer
        * position from this sender, keep it -- both carry the sender's own clock.
@@ -1178,6 +1493,7 @@ function onWorldFact(name, p, fromPresence=false) {
                       micOff: p.micOff === true,
                       sheathed: p.sheathed === true,
                       activity: typeof p.activity === 'string' && p.activity ? p.activity.slice(0, 64) : null,
+                      found: foundFrom(p.found, COLLECTIBLES),
                       host: newer ? (p.host || null) : prev.host,
                       huddle: p.huddle ?? null,
                       motionT: newer ? stamp : prev.motionT,
@@ -1232,10 +1548,17 @@ function onWorldFact(name, p, fromPresence=false) {
       break;
     /* The room we hold for one of our notes. It outlives the tab, so this
      * arrives at startup as well as when it changes. */
-    case 'our-lease':
-      R.setLease(p ?? null);
+    case 'our-lease': {
+      /* Taken in this world, or in another: a room's number means something
+       * only in its own world, so one held elsewhere is not a room of ours
+       * here -- it stays held there, and is only remembered, so taking a
+       * room here can say what it gives up. */
+      const here = !!p && (p.world ?? DEFAULT_HOST) === WORLD_HOST;
+      R.rooms.elsewhere = p && !here ? p : null;
+      R.setLease(here ? p : null);
       hud.setRoom(state.room);
       break;
+    }
     /* The lease owner's agent telling us which generation our seat joined, so
      * our renewals and our leave name the lease we are actually in. */
     case 'seat-ok':
@@ -1287,6 +1610,51 @@ function onWorldFact(name, p, fromPresence=false) {
   }
 }
 
+/* THE PLAYTEST'S OWN WORD: at the top, that nobody sees us -- and what in the
+ * draft is not yet right to publish (src/playtest). */
+function showPreview() {
+  const pill = document.createElement('div');
+  pill.className = 'preview-pill';
+  const problems = globalThis.glurffDraftProblems ?? [];
+  pill.innerHTML = `<b>Playtest</b> <span class="dim">· nobody sees you here</span>` +
+    (problems.length ? ` <span class="warn" title="${esc(problems.slice(0, 5).join(' · '))}">· ${problems.length} problem${problems.length === 1 ? '' : 's'} to fix before publishing</span>` : '');
+  topMid.appendChild(pill);
+}
+
+/* A NEW RELEASE, published while we walk (2026-11-05): said, not adopted. The
+ * walls under somebody never change mid-visit; the next visit is the new
+ * world, and until then this one's images stay where they were.
+ * TAKEN DOWN while we walk (2026-11-10): "This Glurff is offline", and the
+ * way home -- or, to its host, that nobody can come in until it is published
+ * again. Published again as it was, nothing is said. The official world as
+ * well (2026-11-10): the app carries no copy of it; when it is ours that is
+ * down, there is no home to go to that is not it. */
+function watchRelease() {
+  let said = WORLD_RELEASE, shown = null;
+  void Promise.resolve(subscribeRaw('glurff', `/card/${WORLD_HOST}`, (u) => {
+    const c = u?.['world-card'];
+    if (c?.host !== WORLD_HOST) return;
+    const now = c.card?.live?.release ?? null;
+    if (now === said) return;
+    said = now;
+    shown?.remove(); shown = null;
+    if (now === WORLD_RELEASE) return;
+    const away = glurffs.home() === WORLD_HOST ? DEFAULT_HOST : glurffs.home();
+    const note = document.createElement('div');
+    note.className = 'update-note';
+    note.innerHTML = (now !== null ? '<span>This Glurff has been updated.</span> <button type="button" data-do="refresh">Refresh</button>'
+      : WORLD_HOST === our ? '<span>Your Glurff is offline: nobody can come in until you publish it.</span>'
+      : away === WORLD_HOST ? `<span>${OFFLINE}.</span>`
+      : `<span>${OFFLINE}.</span> <button type="button" data-do="home">Go home</button>`)
+      + ' <button type="button" class="dim" aria-label="Not now">×</button>';
+    note.querySelector('[data-do="refresh"]')?.addEventListener('click', () => location.reload());
+    note.querySelector('[data-do="home"]')?.addEventListener('click', () => goTo(away));
+    note.querySelector('[aria-label]').onclick = () => { note.remove(); if (shown === note) shown = null; };
+    document.body.appendChild(note);
+    shown = note;
+  }, '/card')).catch(() => {});
+}
+
 (async function boot() {
   window.__game = game;
   game.ourShip = our;
@@ -1299,7 +1667,7 @@ function onWorldFact(name, p, fromPresence=false) {
     })
     .catch((e) => console.error('Noltbook unavailable; social features are off', e));
   await game.start();
-  const art = game.load();
+  const art = game.load((f) => loading.art(f));
   R.setMovementResultHandler((name, p) => movement?.result(name, p) ?? false);
   /* Calls are decided on positions; do not start one on positions the movement
    * layer cannot vouch for yet. */
@@ -1307,8 +1675,14 @@ function onWorldFact(name, p, fromPresence=false) {
     roster: () => movement?.rosterReady?.() ?? movement?.ready() ?? true,
     reliable: (ship) => movement?.reliable(ship) ?? true,
     confidence: (ship) => movement?.confidence(ship) ?? 'live-stationary' });
-  await Promise.all([G.watchWorld(onWorldFact), R.initRooms()]);
+  R.setPreview(WORLD_PREVIEW);
+  /* A playtest waits for nothing of the world's: our own look and clocks
+   * arrive when they arrive, and dress us then. */
+  const watched = G.watchWorld(onWorldFact);
+  if (WORLD_PREVIEW) Promise.resolve(watched).catch(() => {});
+  else await Promise.all([watched, R.initRooms()]);
   watching = true;
+  loading.world();
   /* Which app each spot opens, from the world's host -- and again whenever
    * the host changes one. */
   void Promise.resolve(G.watchSpots(WORLD_HOST, (name, set) => {
@@ -1316,7 +1690,9 @@ function onWorldFact(name, p, fromPresence=false) {
     diagnostic('spots', { reason: name, count: Object.keys(set ?? {}).length });
     showSpots();
   })).catch(() => {});
-  sessionLease.start();
+  /* What the signs say now, before anybody reads one. */
+  if (WORLD_DOC?.maps?.some((m) => m.items?.some(editableSign))) signs.watch();
+  if (!WORLD_PREVIEW) sessionLease.start();
   milestone('world-subscribed');
   movement.moved({ ...game.self, host: R.rooms.host ?? null });
   socialReady();
@@ -1324,7 +1700,13 @@ function onWorldFact(name, p, fromPresence=false) {
   await art;
   game.self.look = state.look;
   game.build();
+  /* A playtest may start at any door of the draft (the editor's ?at=). */
+  const at = WORLD_PREVIEW ? arrival(new URLSearchParams(location.search).get('at')) : null;
+  if (at) game.setScene(at.scene, at);
   game.setZoom(startZoom(innerWidth, innerHeight));
+  /* A visit enters its first room once presence starts (socialReady); a
+   * playtest, which starts none, enters it here. */
+  if (WORLD_PREVIEW && state.room !== game.room) { state.room = game.room; R.enterRoom(game.room); hud.setRoom(game.room); }
   /* Names come from Noltbook profiles, which arrive after the world does --
    * so re-apply them whenever the store moves rather than only at boot, or
    * everyone is stuck showing the @p they had before their profile landed. */
@@ -1343,10 +1725,9 @@ function onWorldFact(name, p, fromPresence=false) {
   /* Our clocks, if our settings came in before the sky was there. */
   game.setClocks(clocks.get().clocks);
   milestone('world-ready');
-  /* The first visit: how Glurff is played, once (ui/welcome). */
-  welcomeOnce({ touch: touching() });
-  window.__welcome = () => showWelcome({ touch: touching() });   // debug handle
+  if (WORLD_PREVIEW) showPreview(); else watchRelease();
   /* Everyone presence found while the artwork loaded. */
   applyPresence();
+  loading.built();
   await social;
 })();

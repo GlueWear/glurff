@@ -1,8 +1,11 @@
+import './test-world.js';   //  the world, set before anything reads it
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import main from './map-data.js';
 import vatican from './vatican-data.js';
-import { MAIN_RETURN } from './secret-room.js';
+import { arrival } from './places.js';
+
+const MAIN_RETURN = arrival('game-return');
 
 const bytes = encoded => Buffer.from(encoded, 'base64');
 const marked = (encoded, index) => {

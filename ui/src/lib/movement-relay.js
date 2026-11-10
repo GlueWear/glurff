@@ -27,6 +27,7 @@
  *
  * RELAY SILENCE IS NOT DEPARTURE. Only the presence layer removes people.
  */
+import { spotMax, sceneNum, sceneOfNum, normalScene, MAIN_SCENE } from '../world/places.js';
 
 export const KIND = 'glurff.move';
 export const ACK_KIND = 'glurff.move-ack';
@@ -50,8 +51,8 @@ export const SEND_MS = 125;
 export const BUFFER_LIMIT = 64 * 1024;
 export const SUB = 16;                    //  wire units per tile, as presence uses
 
-const MAX_X = 1024;                       //  64 tiles * SUB
-const MAX_Y = 736;                        //  46 tiles * SUB
+/* The biggest map of the world, in wire units; 64 x 46 tiles at least. */
+const { x: MAX_X, y: MAX_Y } = spotMax(SUB);
 /* Velocity rides with the position, in wire units per second. Running is about
  * eight tiles a second; anything past twenty is not a walk. */
 const MAX_V = 20 * SUB;
@@ -66,7 +67,7 @@ const DIR_LIST = ['down', 'right', 'up', 'left'];
 export const HEADER_MS = 2000;
 export function encodePosition(p, s, { header = true, ack = null } = {}) {
   return [s, p.t, p.x, p.y, Math.max(0, DIR_LIST.indexOf(p.dir)), p.moving ? 1 : 0,
-    p.vx || 0, p.vy || 0, p.scene === 'vatican' ? 1 : 0,
+    p.vx || 0, p.vy || 0, sceneNum(p.scene),
     header ? (p.host ?? '') : null, header ? (p.gen || 0) : null, ack];
 }
 /* Either form, into the named one. `prior` is what this sender's last header
@@ -313,7 +314,7 @@ export function createMovementRelay({
         !Number.isSafeInteger(v.x) || !Number.isSafeInteger(v.y) ||
         v.x < 0 || v.y < 0 || v.x > MAX_X || v.y > MAX_Y || !DIRS.has(v.d) ||
         (v.h != null && !isShip(v.h)) ||
-        (v.z != null && v.z !== 0 && v.z !== 1) ||
+        (v.z != null && sceneOfNum(v.z) === null) ||
         //  Velocity and the walking flag are optional: an older sender has neither.
         (v.vx != null && !(Number.isSafeInteger(v.vx) && Math.abs(v.vx) <= MAX_V)) ||
         (v.vy != null && !(Number.isSafeInteger(v.vy) && Math.abs(v.vy) <= MAX_V)) ||
@@ -348,7 +349,7 @@ export function createMovementRelay({
     if (lag.size > MAX_TRACKED) lag.delete(lag.keys().next().value);
 
     const accepted=onPosition(who, { x: v.x / SUB, y: v.y / SUB, dir: v.d,
-                                      scene: v.z === 1 ? 'vatican' : 'main' },
+                                      scene: v.z == null ? MAIN_SCENE : sceneOfNum(v.z) },
                { t: v.t, seq: v.s, host: v.h ?? null, client: from, gen: v.g ?? 0,
                  //  Undefined, not false, from a sender that does not send them:
                  //  the receiver then works movement out from the positions.
@@ -466,7 +467,7 @@ export function createMovementRelay({
       if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !DIRS.has(p.dir)) return;
       const wire = (v) => Number.isFinite(v) ? Math.max(-MAX_V, Math.min(MAX_V, Math.round(v * SUB))) : 0;
       pending = latest = { x: Math.round(p.x * SUB), y: Math.round(p.y * SUB), dir: p.dir, t: now(),
-                  scene: p.scene === 'vatican' ? 'vatican' : 'main',
+                  scene: normalScene(p.scene),
                   host: isShip(p.host) ? p.host : null,
                   vx: wire(p.vx), vy: wire(p.vy), moving: !!p.moving,
                   gen: Number.isSafeInteger(p.gen) && p.gen > 0 ? p.gen : 0 };

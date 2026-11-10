@@ -1,4 +1,6 @@
 import { WORLD_ID } from './world-config.js';
+import { isScene, placeIn, spotMax, MAIN_SCENE } from '../world/places.js';
+const SPOT = spotMax(16);
 
 /* The shared note decides who may discover this world. Presence decides who is
  * actually here. Every packet goes directly between authenticated member ships;
@@ -42,9 +44,9 @@ const bytes = new TextEncoder();
 
 function validSnapshot(h) {
   if (!h || typeof h !== 'object' || !h.spot || h.spot.place !== 0 ||
-      !num(h.spot.x) || !num(h.spot.y) || h.spot.x > 1024 || h.spot.y > 736 ||
+      !num(h.spot.x) || !num(h.spot.y) || h.spot.x > SPOT.x || h.spot.y > SPOT.y ||
       !['up', 'down', 'left', 'right'].includes(h.spot.dir) ||
-      ![undefined, 'main', 'vatican'].includes(h.spot.scene) || !num(h.rev) ||
+      (h.spot.scene !== undefined && !isScene(h.spot.scene)) || !num(h.rev) ||
       (h.host !== null && !ship(h.host)) ||
       (h.stamp !== undefined && (!Number.isFinite(h.stamp) || h.stamp < 0)) ||
       /* Asleep since (their clock); absent when awake. */
@@ -58,7 +60,7 @@ function validSnapshot(h) {
   // Chat follows the sender's settled room, not a second guess from their
   // rounded position at a wall/doorway. Older clients omit this field.
   if (h.chatPlace !== undefined && (!num(h.chatPlace) ||
-      (h.spot.scene === 'vatican' ? h.chatPlace !== 900 : h.chatPlace > 15))) return false;
+      !placeIn(h.spot.scene ?? MAIN_SCENE, h.chatPlace))) return false;
   if (h.huddle != null) {
     const q = h.huddle;
     if (!ship(q.host) || !Number.isSafeInteger(q.place) || q.place < 1000 || q.place > 900999 ||

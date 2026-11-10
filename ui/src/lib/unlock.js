@@ -7,7 +7,11 @@
  * sent as a message. Our own agent remembers (its sprite-lab switch, which
  * Dojo can still turn off), so it follows us to any browser.
  */
-export const UNLOCK_ROOM = 'library';
+import { UNLOCK_SLUG } from '../world/places.js';
+
+/* The room it is said in: the official world's Library, or whichever area
+ * of a world's document has the `unlock` trait (world/places). */
+export const UNLOCK_ROOM = UNLOCK_SLUG;
 export const UNLOCK_PHRASE = 'argumentum ad baculum';
 
 /* The phrase, however it is typed: any case, any spacing, any punctuation. */
@@ -15,4 +19,4 @@ export const isUnlockPhrase = (text) =>
   String(text ?? '').toLowerCase().replace(/[^a-z]+/g, ' ').trim() === UNLOCK_PHRASE;
 
 /* Said where it counts: `room` is the room's slug (world/places). */
-export const unlocks = (text, room) => room === UNLOCK_ROOM && isUnlockPhrase(text);
+export const unlocks = (text, room) => !!UNLOCK_ROOM && room === UNLOCK_ROOM && isUnlockPhrase(text);

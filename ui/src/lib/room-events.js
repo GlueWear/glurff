@@ -1,4 +1,6 @@
-/* Casual shared dice, and session-only chat for any room without a note of its
+import { validRoll, rollText } from './dice.js';
+
+/* Rolls of the dice (lib/dice), and session-only chat for any room without a note of its
  * own. No history is replayed. Since 2026-10-13 a line can be edited or
  * deleted -- by whoever wrote it, and nobody else (ui/messages).
  *
@@ -38,6 +40,9 @@ export function createRoomEvents({our, room, peers, send, random = crypto, trace
     if (messages.some(m => m.eid === event.id)) return false;
     let text;
     if (event.kind === 'chat' && typeof event.text === 'string' && event.text.trim() && event.text.length <= 2000) text = event.text;
+    /* "/roll", from anybody's app (2026-11-08): what came up, checked. */
+    else if (event.kind === 'roll' && validRoll(event)) text = rollText(event, event.dice);
+    /* The Game Room's old button, from an app from before /roll. */
     else if (event.kind === 'dice' && place === gameRoom && Array.isArray(event.dice) && event.dice.length === 3 && event.dice.every(n => Number.isInteger(n) && n >= 1 && n <= 6)) {
       text = `rolled ${event.dice.join(' · ')} (total ${event.dice.reduce((a,b)=>a+b,0)})`;
     } else return false;
@@ -64,11 +69,6 @@ export function createRoomEvents({our, room, peers, send, random = crypto, trace
     chat: (text,parent=null) => publish({kind:'chat',id:random.randomUUID(),text,parent}),
     edit: (target,text) => publish({kind:'chat-edit',id:random.randomUUID(),target,text}),
     remove: (target) => publish({kind:'chat-delete',id:random.randomUUID(),target}),
-    roll: () => {
-      if (room() !== gameRoom) return Promise.reject(Error('Enter the Game Room first'));
-      const dice=[];
-      while(dice.length < 3) { const b=random.getRandomValues(new Uint8Array(1))[0]; if(b<252) dice.push(b%6+1); }
-      return publish({kind:'dice',id:random.randomUUID(),dice});
-    },
+    roll: ({count,sides,mod},dice,parent=null) => publish({kind:'roll',id:random.randomUUID(),count,sides,mod,dice,parent}),
   };
 }

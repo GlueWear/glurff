@@ -33,10 +33,14 @@ const HEADWEAR = new Set(['hat', 'hair', 'beard']);
 const BARE = { gloves: 0.6, shoulders: 0.7, beard: 0.6, hat: 0.5 };
 
 export class Builder {
-  constructor(root, { onChange, onDone } = {}) {
+  /* `title`, and `own` false, for dressing somebody else -- an NPC in the
+   * editor (2026-11-08): no hints about fighting, and Cancel beside Done
+   * when there is an `onCancel`. */
+  constructor(root, { onChange, onDone, onCancel = null, title = 'Your character', own = true } = {}) {
     this.root = root;
     this.onChange = onChange ?? (() => {});
     this.onDone = onDone ?? (() => {});
+    this.onCancel = onCancel; this.title = title; this.own = own;
     this.look = completeLook(null);
     this.open = false;
     this.picking = false;
@@ -171,7 +175,7 @@ export class Builder {
     const label = (slot) => CATALOG[slot]?.label ?? title(slot);
     const tabButton = (slot) => `<button class="slot-tab${slot === tab ? ' on' : ''}" data-tab="${slot}"${garments.includes(slot) ? ` data-style="${slot}"` : ''}
       role="tab" aria-selected="${slot === tab}">${esc(label(slot))}</button>`;
-    const hint = tab === 'weapon' || (!isGarment && ownAttack)
+    const hint = this.own && (tab === 'weapon' || (!isGarment && ownAttack))
       ? (this.equipmentReady&&ownAttack?'<p class="bow-hint">'+weaponHint(ownAttackOf(this.look),true)+' Hits are just for fun—you get straight back up.</p>'
         :this.equipmentReady&&this.look.weapon?.part?'<p class="bow-hint">'+weaponHint(this.look.weapon.part)+' Hits are just for fun—you get straight back up.</p>':'') : '';
     /* TWO COLUMNS (2026-10-20): the character on the left, what it wears on
@@ -182,7 +186,7 @@ export class Builder {
     const kept = [this.root.querySelector('.builder')?.scrollTop ?? 0, this.root.querySelector('.builder-main')?.scrollTop ?? 0];
     this.root.innerHTML = `<div class="builder editor">
       <div class="builder-head">
-      <h3>${premade ? esc(premade.name) : 'Your character'}</h3>
+      <h3>${premade ? esc(premade.name) : esc(this.title)}</h3>
       ${this.equipmentReady?`<div class="builder-modes"><button class="browse-characters">Pick a ready-made character</button>
         ${premade ? '<button class="build-own-btn">Build your own</button>' : ''}</div>`:''}
       </div>
@@ -203,7 +207,7 @@ export class Builder {
       </div>` : ''}
       </div>
       </div>
-      <div class="builder-foot"><p class="builder-error" role="status"></p><button class="done primary">Done</button></div>
+      <div class="builder-foot"><p class="builder-error" role="status"></p>${this.onCancel ? '<button class="cancel">Cancel</button>' : ''}<button class="done primary">Done</button></div>
     </div>`;
     this.root.querySelector('.preview-slot').appendChild(this.canvas);
     this.paint();
@@ -229,6 +233,8 @@ export class Builder {
     const own=this.root.querySelector('.build-own-btn');
     if(own)own.onclick = () => this.wear('premade','');
     this.root.querySelector('.done').onclick = (e) => this.finish(e.currentTarget);
+    const cancel = this.root.querySelector('.cancel');
+    if (cancel) cancel.onclick = () => { this.open = false; this.picking = false; this.render(); this.onCancel(); };
   }
 
   /* Each choice as what it is (see `picture` in render), at one size: small
@@ -282,7 +288,7 @@ export class Builder {
       /* "Archer · Blue" is one name; "Chosen Ones · Dark Channeler" is a name and its kind. */
       return rest.length&&!COLOURS.test(rest.join(' '))?[rest.join(' · '),kind]:[[kind,...rest].join(' · '),''];};
     this.root.innerHTML=`<div class="builder character-picker">
-      <div class="picker-head"><h3>Choose your character</h3><button class="picker-back">Back to your character</button><button class="picker-done">Done</button></div>
+      <div class="picker-head"><h3>${this.own ? 'Choose your character' : 'Choose a character'}</h3><button class="picker-back">${this.own ? 'Back to your character' : 'Back'}</button><button class="picker-done">Done</button></div>
       <label class="character-search">Find a character <input type="search" placeholder="Name or collection" aria-label="Find a character"></label>
       <div class="character-grid"><button class="character-choice build-own" data-character=""><strong>Build your own</strong><span>Choose your body, clothes and colours</span></button>
       ${choicesOf('premade').map(item=>{const [name,kind]=parts(item.name);return `<button class="character-choice${this.look.premade?.part===item.key?' selected':''}" data-character="${esc(item.key)}" data-search="${esc((item.name+' '+item.group).toLowerCase())}" title="${esc(item.name+' — '+item.group)}">

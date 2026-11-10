@@ -1,7 +1,7 @@
 import { createMediaAdapter, parseMediaRef, youtubeRef } from 'lib/player-providers';
 import { playbackPosition, CONTROLLED_SURFACES } from 'lib/player-state';
-import { SCREEN_RECTS } from 'world/hotspots';
-import { roomBySlug } from 'world/places';
+import { SCREEN_RECTS, SCREEN_AREAS, SURFACES, surfaceScene } from 'world/hotspots';
+import { roomBySlug, itemById } from 'world/places';
 import { rooms, onRooms, callPeers, startScreen, screenShare } from 'lib/rooms';
 import { esc } from 'ui/html';
 import { ask } from 'ui/ask';
@@ -11,7 +11,13 @@ import { columnMode, defaultTileWidth, dragToSize, resetTileSizes, onTileReset, 
 export const JUKEBOX_REF = 'https://www.youtube.com/watch?v=Bek5peeuUyU&list=PLo8ET_VWap-zw_uFQlI0JJesTJtepJ9N1';
 
 
-const TITLES = { jukebox: 'Jukebox', amphitheatre: 'Amphitheatre screen', movie: 'Movie Theater screen' };
+/* What each is called: its name in the world's document. */
+const TITLES = Object.fromEntries(SURFACES.map((s) => [s, itemById(s)?.name ?? s]));
+/* The screens; the rest -- the jukebox -- are players of your own. */
+const SCREENS = SURFACES.filter((s) => SCREEN_RECTS[s]);
+const personal = (surface) => !SCREEN_RECTS[surface];
+/* Where the videos are: the map their items are on. Off it, they rest. */
+const onSurfaceMap = (game, surface = SURFACES[0]) => !!surface && game.scene === surfaceScene(surface);
 /* THE PAINTED SCREENS sit a little higher than their rectangles once the map
  * is zoomed out to 1x or further, so the video is lifted there, in page
  * pixels for each zoom: the Movie Theater's by a pixel and a half (three on a
@@ -30,10 +36,8 @@ const ICONS = {
   unfull: icon('<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>'),
   stop: icon('<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none"/>'),
 };
-const SCREEN_ROOMS = {
-  amphitheatre: roomBySlug('presentation')?.id ?? 2,
-  movie: roomBySlug('movie')?.id ?? 3,
-};
+/* Whose room each screen plays for: its area's number. */
+const SCREEN_ROOMS = Object.fromEntries(SCREENS.map((s) => [s, roomBySlug(SCREEN_AREAS[s])?.id ?? -1]));
 const maxPopupWidth = () => Math.max(720, (globalThis.innerWidth ?? 744) - 24);
 const liveRef = ref => {
   if (typeof ref !== 'string') return null;
@@ -82,7 +86,7 @@ function mediaQuestion(surface, current) {
 
 class SurfaceView {
   constructor(owner, surface, kind) {
-    this.owner = owner; this.surface = surface; this.isScreen = surface !== 'jukebox';
+    this.owner = owner; this.surface = surface; this.isScreen = !personal(surface);
     this.kind = kind; this.mode = kind === 'tile' ? 'popup' : 'docked';
     this.root = document.createElement('div');
     this.root.className = kind === 'tile' ? 'tile media-tile' : 'world-media';
@@ -169,7 +173,7 @@ class SurfaceView {
     const o = this.owner, surface = this.surface, state = o.store.get(surface), v = o.viewing(surface);
     const playing = !!state && state.provider !== 'none';
     const staged = this.mode === 'stage';
-    const show = o.game.scene === 'main' && playing && !v.stopped && (staged || this.panelOpen);
+    const show = onSurfaceMap(o.game, this.surface) && playing && !v.stopped && (staged || this.panelOpen);
     const gagged = !o.mayShare();
     const b = (act, tip, body) => `<button type="button" data-act="${act}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${body}</button>`;
     const acts = [];
@@ -296,8 +300,7 @@ class SurfaceView {
       /* Hide puts it back where it was -- its painted screen, still playing;
        * the cross stops it, for us (2026-10-20). */
       this.owner.stage?.enter({ id:`media-${this.surface}`, kind:'media',
-        title:this.surface==='jukebox'?'Jukebox':this.surface==='amphitheatre'?'Amphitheatre screen':'Movie Theater screen',
-        hideLabel:this.surface==='jukebox'?'Hide jukebox':'Hide video',
+        title:TITLES[this.surface],
         /* A screen's bar sits in the bottom row when there is room for it
          * there, and in space kept above that row when there is not. */
         reserve:this.isScreen?{bottom:()=>this.reserve??0}:undefined,
@@ -315,7 +318,7 @@ class SurfaceView {
     else { this.root.style.width='';this.root.style.height=''; }
     if (mode === 'hidden') { this.root.hidden=true;this.root.style.display='none';this.paintPanel();return; }
     this.root.style.display='';
-    if(this.state&&this.state.provider!=='none'&&this.owner.game.scene==='main'&&(moving||!this.adapter))void this.apply(this.state);
+    if(this.state&&this.state.provider!=='none'&&onSurfaceMap(this.owner.game,this.surface)&&(moving||!this.adapter))void this.apply(this.state);
     this.paintPanel();
   }
 
@@ -495,7 +498,7 @@ export class MediaSurfaces {
 
   view(surface) {
     if (this.views.has(surface)) return this.views.get(surface);
-    const kind = surface === 'jukebox' ? 'tile' : 'world';
+    const kind = personal(surface) ? 'tile' : 'world';
     const view = new SurfaceView(this, surface, kind); this.views.set(surface, view);
     (kind === 'tile' ? this.strip : this.worldRoot).appendChild(view.root);
     this.orderTiles();
@@ -504,7 +507,7 @@ export class MediaSurfaces {
 
   orderTiles() {
     let cursor=this.strip.firstElementChild;
-    for(const surface of ['jukebox','amphitheatre','movie']){
+    for(const surface of SURFACES){
       const view=this.views.get(surface),el=view?.root;
       if(!el||view.mode!=='popup'||el.hidden)continue;
       if(el!==cursor)this.strip.insertBefore(el,cursor);
@@ -524,7 +527,7 @@ export class MediaSurfaces {
    * for those following it: not for anybody watching on their own, and never
    * a reason to start a player somebody stopped. */
   stateChanged(surface, state) {
-    if (surface !== 'jukebox') {
+    if (!personal(surface)) {
       const v = this.viewing(surface), view = this.view(surface);
       if (state.screening !== v.screening) {
         v.screening = state.screening; v.independent = false; v.local = null;
@@ -536,14 +539,14 @@ export class MediaSurfaces {
           if (view.mode === 'hidden' && state.provider !== 'none') { view.setMode('docked'); return; }
         }
       }
-      if (this.game.scene !== 'main' || v.stopped || (v.independent && state.provider !== 'none')) {
+      if (!onSurfaceMap(this.game, surface) || v.stopped || (v.independent && state.provider !== 'none')) {
         view.state = state; view.paintPanel(); return;
       }
       void view.apply(state);
       return;
     }
     if (!this.mutes.has(surface)) this.mutes.set(surface, state.startedBy !== this.our);
-    if (this.game.scene !== 'main') return;
+    if (!onSurfaceMap(this.game, surface)) return;
     void this.view(surface).apply(state);
   }
 
@@ -602,7 +605,7 @@ export class MediaSurfaces {
   }
 
   hide(surface) {
-    if(surface!=='jukebox'){
+    if(!personal(surface)){
       /* STOP WATCHING: our player stops, the room's screening does not, and
        * what we chose for its sound is kept for when we watch again. */
       const v=this.viewing(surface),view=this.view(surface);
@@ -640,7 +643,7 @@ export class MediaSurfaces {
   }
 
   activate(surface) {
-    if (surface === 'jukebox') {
+    if (personal(surface)) {
       this.jukeboxClosed = false;
       const view=this.view(surface);if(view.mode==='hidden')view.setMode('popup');
       const current = this.store.get(surface);
@@ -700,21 +703,21 @@ export class MediaSurfaces {
   }
 
   roomsChanged(){
-    for(const surface of ['amphitheatre','movie']){
+    for(const surface of SCREENS){
       const state=this.store.get(surface);if(state?.provider!=='screen')continue;
       const ref=liveRef(state.ref),live=screenShare();
       if(state.startedBy===this.our&&(!ref||!live||ref.token!==live.token)){
         this.store.clear(surface);continue;
       }
-      if(this.game.scene==='main'&&this.views.get(surface)?.mode!=='hidden')void this.view(surface).apply(state);
+      if(onSurfaceMap(this.game,surface)&&this.views.get(surface)?.mode!=='hidden')void this.view(surface).apply(state);
     }
   }
 
   layout() {
     if (this.lastScene !== this.game.scene) {
       const before=this.lastScene;this.lastScene=this.game.scene;
-      if(this.game.scene!=='main')for(const view of this.views.values()){view.destroyAdapter();view.root.hidden=true;view.paintPanel();}
-      else if(before!=='main')for(const surface of ['jukebox','amphitheatre','movie']){
+      if(!onSurfaceMap(this.game))for(const view of this.views.values()){view.destroyAdapter();view.root.hidden=true;view.paintPanel();}
+      else if(before!==surfaceScene(SURFACES[0]))for(const surface of SURFACES){
         const view=this.views.get(surface);
         if(view?.mode==='hidden'){view.paintPanel();continue;}
         const state=this.store.get(surface);if(state&&state.provider!=='none')void this.view(surface).apply(state);
@@ -724,7 +727,7 @@ export class MediaSurfaces {
     for (const [surface, rect] of Object.entries(SCREEN_RECTS)) {
       const view=this.views.get(surface); if(!view || view.root.hidden || view.mode!=='docked')continue;
       const canvas=this.game.app?.view, camera=this.game.camera;
-      const visible=this.game.scene==='main' && canvas && camera;
+      const visible=onSurfaceMap(this.game,surface) && canvas && camera;
       view.root.style.display=visible?'block':'none';
       if(!visible)continue;
       const box=canvas.getBoundingClientRect(), z=this.game.zoom;

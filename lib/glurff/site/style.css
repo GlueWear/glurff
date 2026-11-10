@@ -122,7 +122,13 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 /* ---- shared world media ----------------------------------------------- */
 .media-tile { aspect-ratio: 16 / 9; min-width: 96px; }
-.media-frame { position: absolute; inset: 0; display: grid; place-items: center; background: #050608; }
+/* ONE CELL THE FRAME'S OWN SIZE (2026-11-04). Left to size itself, the grid's
+   row took the player's own height -- an iframe's default 150px -- so on a
+   screen shorter than that (both painted screens at the three farthest zooms,
+   a narrow call column) the player hung off the bottom and the movie showed in
+   the screen's bottom quarter. Now the picture is the whole of it, side bars
+   and all, at every zoom. */
+.media-frame { position: absolute; inset: 0; display: grid; grid-template: 100% / 100%; place-items: center; background: #050608; }
 .media-frame iframe, .media-frame video { display: block; border: 0; width: 100%; height: 100%; object-fit: contain; }
 .media-frame audio { width: calc(100% - 16px); }
 .media-tools { position: absolute; z-index: 2; right: 2px; bottom: 2px; min-height: 24px;
@@ -172,7 +178,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
 #top-left { position: fixed; left: 12px; top: 12px; z-index: 6;
   display: flex; align-items: flex-start; gap: 8px; }
 #top-mid { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 6; }
-#top-right { position: fixed; right: 12px; top: 12px; z-index: 6; }
+#top-right { position: fixed; right: 12px; top: 12px; z-index: 6; display: flex; align-items: center; gap: 8px; }
 .me-btn { display: flex; align-items: center; gap: .45rem; height: 35px;
   background: var(--raise); border-radius: var(--r-sm); padding: 0 .35rem 0 .6rem; max-width: 220px; }
 .me-btn .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -231,9 +237,6 @@ button.on { border-color: var(--accent); color: var(--accent); }
   color: inherit; font: inherit; padding: .3rem; border-radius: var(--r-sm); }
 .dm-send input:focus { outline: none; border-color: var(--accent); }
 
-/* ---- the ringed planet: a placeholder (ui/soon) ------------------------ */
-.soon-btn { line-height: 0; padding: 0; width: 35px; height: 35px; display: grid; place-items: center; }
-.soon-btn svg { width: 21px; height: 21px; display: block; }
 
 /* ---- contacts and pal requests ---------------------------------------- */
 .contacts { position: relative; z-index: 7; }
@@ -425,11 +428,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .character-choice.build-own{background:#294841;border:2px solid #9ee0aa;color:#e8ffe8;grid-column:span 2;}
 .character-choice.build-own strong{font-size:18px;}
 .character-thumb{display:block;width:48px;height:48px;image-rendering:pixelated;flex-shrink:0;}
+/* An NPC's look, chosen from the editor on the stage (2026-11-08): over the
+ * stage and its tab, with the world dimmed behind. */
+.npc-builder:has(.builder)::before{content:'';position:fixed;inset:0;z-index:59;background:#000a;}
+.npc-builder .builder{z-index:60;}
+.builder .builder-foot .cancel{margin-top:12px;}
 .builder .done{margin-top:12px;}.noise-option{display:flex;gap:6px;align-items:center;margin:8px 0;}
 .reach{background:#202938e8;padding:0 8px;height:35px;border-radius: var(--r);white-space:nowrap;display:flex;align-items:center;gap:.3rem;}
-.game-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.game-controls:empty{display:none;}
-
-.game-controls[hidden]{display:none;}
 
 /* THE CHAT, IN GLURFF'S OWN LOOK (2026-10-13): dark rows like the rest of the
    interface, names in the accent, times quiet, three recent lines at rest.
@@ -532,6 +537,17 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .ask-detail { line-height: 1.4; font-size: 12px; }
 .ask-row { display: flex; gap: .4rem; justify-content: flex-end; }
 .ask-row .ask-yes { border-color: var(--accent); color: var(--accent); }
+/* A new release of this world, published while we walk (2026-11-05). */
+.update-note { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 30; background: #202938;
+  border: 1px solid var(--accent); border-radius: var(--r); padding: .4rem .6rem; display: flex; gap: .5rem; align-items: center; }
+/* What a placed thing shows: text, links, an artifact (ui/content-card, 2026-11-05). */
+.content-card { width: min(520px, 94vw); max-height: 86vh; }
+.content-text { white-space: pre-wrap; line-height: 1.45; overflow-y: auto; max-height: 60vh; }
+.content-links { margin: 0; padding-left: 1.1rem; line-height: 1.6; overflow-y: auto; max-height: 60vh; }
+.content-links a { color: var(--accent); }
+.content-artifact { width: 100%; height: min(60vh, 520px); border: 1px solid var(--line); border-radius: var(--r-sm); background: #0b0d12; }
+/* Over the loading screen, which waits on it (2026-11-04). */
+.dependency-overlay { z-index: 55; }
 .dependency-status { min-height: 1.4em; line-height: 1.4; color: var(--warm); }
 .dependency-manual { display: block; padding: .45rem .55rem; border: 1px solid var(--line);
   border-radius: var(--r-sm); background: rgba(10,12,18,.75); color: var(--text);
@@ -579,8 +595,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
 /* ---- who is here ------------------------------------------------------ */
 .members { position: relative; z-index: 6; display: flex;
   flex-direction: column; align-items: flex-start; gap: 6px; }
-.members-btn { height: 35px; }
-.members-panel { width: 260px; max-height: 60vh; overflow-y: auto; scrollbar-width: thin;
+.members-btn { height: 35px; width: 220px; max-width: 100%; display: flex; align-items: center; gap: .6em; }
+/* One size, whatever the room is called (2026-11-08): the name is cut short,
+   how many are here stays put at the end. */
+.members-btn .mb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.members-btn .mb-here { flex: none; margin-left: auto; white-space: nowrap; opacity: .75; }
+/* Hung under its button, as the messages' and the magnifying glass's are: it
+   opens over whatever is there -- the stage included -- rather than making
+   the top bar taller (2026-11-06). */
+.members-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 260px; max-height: 60vh; overflow-y: auto; scrollbar-width: thin;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .member-row { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem;
   cursor: pointer; border-bottom: 1px solid var(--line-soft); }
@@ -603,7 +626,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .card-me .b-edit { font-size: 11px; padding: 2px 8px; }
 .card-me .card-here { font-size: 11px; text-align: center; max-width: 116px; }
 /* EDIT PROFILE: small, under the bio, on the left. */
-.card-profile-btn { display: flex; justify-content: flex-start; }
+.card-profile-btn { display: flex; justify-content: flex-start; gap: 6px; flex-wrap: wrap; }
 .card-profile-btn button { font-size: 11px; padding: 2px 8px; }
 .card-sprite-slot { width: 116px; height: 116px; display: grid; place-items: center;
   background: #0c0f16; border: 1px solid var(--line); border-radius: var(--r-sm); }
@@ -678,6 +701,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
   background: var(--panel); color: #f0c674; border: 1px solid #5a4a22; border-radius: 999px;
   padding: 4px 14px; font-size: 12px; pointer-events: none; }
 .net-pill[hidden] { display: none; }
+/* Its host not answering (2026-11-10): said, with Try again. */
+.net-pill.stuck { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 14px; }
+.net-retry { font: inherit; font-weight: 600; color: #1b1405; background: #f0c674; border: 0; border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.net-retry[hidden] { display: none; }
 /* Somebody's picture, sigil or initials (ui/avatar). A sigil is square and
  * drawn on black: shown whole, never cropped. Initials sit in the middle. */
 .av, .card-av { display: grid; place-items: center; }
@@ -828,9 +855,11 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 @media (max-width: 700px) and (min-height: 501px) {
   #top-left { left: calc(8px + var(--safe-l)); top: calc(8px + var(--safe-t)); gap: 6px;
     max-width: calc(100vw - 64px - var(--safe-l) - var(--safe-r)); }
-  #top-right { right: calc(8px + var(--safe-r)); top: calc(8px + var(--safe-t)); }
+  /* The stage's bar, under our picture rather than beside it: the top bar is
+     full. */
+  #top-right { right: calc(8px + var(--safe-r)); top: calc(8px + var(--safe-t)); flex-direction: column-reverse; align-items: flex-end; gap: 6px; }
+  .stage-title { max-width: 40vw; }
   .members { min-width: 0; flex: 0 1 auto; }
-  .members-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dms, .contacts { flex: none; }
   #strip { left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); top: calc(52px + var(--safe-t)); gap: 4px; }
   /* Along the bottom on a phone; a narrow desktop window gets no longer a bar
@@ -878,11 +907,10 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 /* ---- the stage ------------------------------------------------------------ */
 /* THE STAGE (ui/stage): an app, a website or a movie screen takes the whole
    screen, behind Glurff's interface -- which floats over it as it floats over
-   the world, and can be hidden (html.overlay-off) and brought back from the
-   tab at the top. Wave notices show either way. */
+   the world. */
 /* ROOM FOR GLURFF (2026-10-31): what is staged fits between Glurff's bars,
-   measured by ui/stage into --stage-top and --stage-bottom (0 with Glurff
-   hidden), so neither bar covers it or its own controls. */
+   measured by ui/stage into --stage-top and --stage-bottom, so neither bar
+   covers it or its own controls. Panels opened from the bars open over it. */
 .app-panel.staged { left: 0; top: var(--stage-top, 0px); right: 0; bottom: var(--stage-bottom, 0px); transform: none; width: auto; height: auto;
   max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: #000; z-index: 3; }
 .app-panel.staged .app-head { display: none; }
@@ -910,11 +938,14 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
    only the others in it go. */
 .staged #world-media-layer > .world-media:not(.staged-media) { display: none !important; }
 .staged #hud { background: none; }
-.overlay-off #hud, .overlay-off #rail, .overlay-off #strip, .overlay-off #top-left, .overlay-off #top-mid,
-.overlay-off #top-right, .overlay-off .call-panels, .overlay-off .card-overlay,
-.overlay-off .app-panel:not(.staged) { display: none !important; }
-/* These are Glurff's controls, not the player's native play/pause/timeline. */
-.overlay-off #stage-media .media-tools, .overlay-off #stage-media .media-menu { display: none !important; }
+/* THE CALL'S FACES UNDER THE STAGE'S TAB (2026-11-04). On a phone -- and in a
+   narrow window -- the tab at the top sits just where the faces start, and
+   covered the first of them. While something is on the stage they start below
+   it: --stage-top is measured from the tab (ui/stage). */
+.staged #strip { top: max(48px, var(--stage-top, 0px)); }
+@media (min-width: 701px) and (min-height: 501px) { .staged #strip { top: max(56px, var(--stage-top, 0px)); } }
+@media (max-width: 700px) and (min-height: 501px) { .staged #strip { top: max(calc(52px + var(--safe-t)), var(--stage-top, 0px)); } }
+@media (max-height: 500px) { .staged #strip { top: max(calc(48px + var(--safe-t)), var(--stage-top, 0px)); } }
 /* FULL SCREEN, the video's own buttons (2026-10-20): twice the size, in the
    middle, above the player's own bar and the call bar -- not in the corner
    over the chat button. A phone keeps its finger-sized tray, moved likewise. */
@@ -924,7 +955,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .touch #stage-media .media-menu { left: 50%; right: auto; bottom: calc(var(--rail-h, 70px) + 28px); transform: translateX(-50%); }
 .touch #stage-media .media-tools { bottom: calc(var(--rail-h, 70px) + 80px); justify-content: center; }
 .touch #stage-media .media-tools button { padding: 5px 8px; font-size: 12px; }
-/* The tab: what is on the stage, Glurff's interface off and on, and close. */
+/* The bar: what is on the stage, minimize, and close. */
 /* HIDDEN, STILL RUNNING: out of sight but alive (a frame keeps running, a
    video keeps playing), and a chip at the bottom right to bring it back. */
 .stage-min .app-panel.staged, .stage-min #stage-media, .stage-min #stage-call-media,
@@ -939,29 +970,32 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 @media (max-width: 700px), (max-height: 500px) {
   .stage-dock { right: 8px; bottom: calc(var(--rail-h, 56px) + 64px + var(--safe-b, 0px)); }
 }
-.stage-tab { position: fixed; z-index: 46; top: calc(8px + var(--safe-t)); left: 12px; right: 12px;
+/* The hint, under the bars, in the middle. */
+.stage-tab { position: fixed; z-index: 46; top: max(calc(56px + var(--safe-t)), var(--stage-top, 0px)); left: 12px; right: 12px;
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
-.stage-wake { position: fixed; z-index: 0; left: 0; right: 0; top: 0; height: calc(96px + var(--safe-t)); pointer-events: none; }
-.stage-bar { position: relative; z-index: 1; pointer-events: auto; display: flex; align-items: center; gap: .35rem; max-width: 100%;
-  padding: 3px 4px 3px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.5); font-size: 12px; transition: opacity .25s, transform .25s; }
+/* Beside our name and picture (in #top-right), as tall as they are. */
+.stage-bar { pointer-events: auto; display: flex; align-items: center; gap: 4px; height: 35px; min-width: 0;
+  padding: 0 4px 0 12px; font-size: 12px; }
 .stage-title { min-width: 0; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff6dc; }
-.stage-bar button { border-radius: 999px; padding: 2px 10px; font-size: 12px; white-space: nowrap; }
-.stage-bar .stage-close { padding: 0 9px; font-size: 16px; line-height: 1.25; }
-.stage-hint { position: relative; z-index: 1; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
-  padding: 5px 10px; font-size: 11px; line-height: 1.4; color: var(--text); text-align: center; max-width: min(520px, 100%);
-  transition: opacity .25s; }
-.overlay-off .stage-tab.sleeping .stage-bar { opacity: 0; transform: translateY(-8px); pointer-events: none; }
-.overlay-off .stage-tab.sleeping .stage-hint { opacity: 0; }
-.overlay-off .stage-tab.sleeping .stage-wake { pointer-events: auto; }
-@media (max-width: 1000px) { .stage-tab { top: calc(52px + var(--safe-t)); } }
-@media (max-height: 500px) { .stage-tab { top: calc(48px + var(--safe-t)); } }
+.stage-bar button { height: 27px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.stage-bar .stage-hide, .stage-bar .stage-close { width: 27px; padding: 0; display: grid; place-items: center; }
+.stage-bar .stage-hide svg { width: 16px; height: 16px; }
+.stage-bar .stage-close { font-size: 18px; line-height: 1; }
+.stage-hint { pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 5px 10px; font-size: 11px; line-height: 1.4; color: var(--text); text-align: center; max-width: min(520px, 100%); }
 
 /* ---- the magnifying glass ------------------------------------------------- */
 /* This world's games, or any website, on our stage (ui/sites). */
 .sites { position: relative; z-index: 6; flex: none; }
 .sites-btn { line-height: 0; padding: 0; width: 35px; height: 35px; display: grid; place-items: center; }
 .sites-btn svg { width: 20px; height: 20px; display: block; }
+/* The apps button (2026-11-08): a %, as a desk is written. */
+.sites-percent { font: 700 19px/1 ui-monospace, Menlo, monospace; }
+.app-row { align-items: center; }
+.app-row .app-tile { flex: none; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; position: relative; overflow: hidden;
+  font-size: 13px; font-weight: 700; color: #fff; }
+.app-row .app-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.app-row .dim { margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 .sites-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 320px; max-height: 65vh;
   display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .sites-form { flex: none; }
@@ -1026,7 +1060,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 }
 
 /* WHO IS TALKING (2026-10-20): a green ring on their tile while they speak. */
-.tile.speaking { outline: 2px solid #4aba8a; outline-offset: -2px; box-shadow: 0 0 10px 1px rgba(74,186,138,.75); }
+/* Talking (lib/rooms onSpeaking): Glurff's green-blue round the tile. */
+.tile.speaking { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: 0 0 10px 1px rgba(127,214,195,.75); }
 .tile { transition: box-shadow .15s ease; }
 
 /* ---- the look, applied last so it wins (2026-10-21) ---------------------- */
@@ -1039,11 +1074,10 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
    never a sentence, which reads badly in capitals. Silkscreen is drawn on an
    eight-pixel grid; these sizes keep it sharp. */
 .where, .contacts-group, .rail-head, .stage-title, .builder h3, .card-name, .members-btn,
-.dm-head .who, .picker-head h3, .welcome h2 { font-family: var(--font-pixel); font-weight: 400; letter-spacing: .03em; }
+.dm-head .who, .picker-head h3 { font-family: var(--font-pixel); font-weight: 400; letter-spacing: .03em; }
 .contacts-group, .rail-head { font-size: 11px; }
 .members-btn, .stage-title, .dm-head .who, .where { font-size: 12px; }
 .builder h3, .picker-head h3, .card-name { font-size: 15px; }
-.welcome h2 { font-size: 16px; }
 /* Inside a pixel heading, what is not a name -- "saved in Noltbook", a call's
    status -- stays in the reading face. */
 .where .dim, .rail-head .dim { font: 400 12px var(--font-ui); letter-spacing: 0; }
@@ -1064,19 +1098,6 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .empty-state { display: flex; flex-direction: column; gap: 4px; padding: 14px 14px 16px; line-height: 1.45; }
 .empty-state b { font: 400 11px var(--font-pixel); letter-spacing: .04em; color: var(--bright); }
 .empty-state span { color: var(--soft); font-size: 13px; }
-/* THE FIRST VISIT (ui/welcome). */
-.welcome-overlay { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px;
-  background: rgba(6,8,12,.55); }
-.welcome { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 20px 22px 18px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
-.welcome h2 { margin: 0 0 14px; color: var(--bright); }
-.welcome dl { margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.welcome dl > div { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: baseline; }
-.welcome dt { font: 400 11px var(--font-pixel); letter-spacing: .04em; color: var(--accent); text-transform: uppercase; }
-.welcome dd { margin: 0; color: var(--text); line-height: 1.45; }
-.welcome-foot { display: flex; justify-content: flex-end; margin-top: 18px; }
-.welcome-foot button { padding: .45rem 1.1rem; }
-@media (max-width: 420px) { .welcome dl > div { grid-template-columns: 1fr; gap: 2px; } }
 /* THE EDITOR IN PICTURES (2026-10-21; ui/builder): a tab for each thing worn,
    every choice as a picture of you wearing it, then its colours. */
 .slot-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
@@ -1219,7 +1240,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 /* Its names above it, where the bottom of the screen leaves room for them. */
 .media-panel [data-tip]::after { top: auto; bottom: calc(100% + 7px); left: 50%; transform: translate(-50%, 2px); }
 .media-panel [data-tip]:hover::after, .media-panel [data-tip]:focus-visible::after { transform: translate(-50%, 0); }
-.overlay-off .media-panel, .stage-min .media-panel.staged-bar { display: none !important; }
+.stage-min .media-panel.staged-bar { display: none !important; }
 /* WHOSE IT IS (2026-11-01): the starter's picture and name at the start of the
    bar; our own picture, in the accent, when it is ours. Just the picture where
    the bar is narrow. Its explanation wraps, from its own left edge. */
@@ -1246,12 +1267,78 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
    is on it hide the world, and Glurff's bars sit on the black. */
 .staged body::before { content: ''; position: fixed; inset: 0; z-index: 2; background: #000; pointer-events: none; }
 
-/* The ringed planet on a phone: a tap shows its words for a moment. */
-.soon-btn { position: relative; }
-.soon-btn.tip-on::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 7px);
-  padding: 3px 7px; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line);
-  box-shadow: var(--shadow); color: var(--bright); font: 12px/1.3 var(--font-ui); white-space: nowrap;
-  pointer-events: none; z-index: 30; }
+/* YOUR GLURFFS (2026-11-07; ui/glurffs-panel): the ringed planet, with one
+   number on it; under it, the list. */
+.glurffs { position: relative; z-index: 6; flex: none; }
+.glurffs-btn { position: relative; line-height: 0; padding: 0; width: 35px; height: 35px; display: grid; place-items: center; }
+.glurffs-btn svg { width: 21px; height: 21px; display: block; }
+.glurffs-btn i { position: absolute; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px;
+  font: 700 10px/15px var(--font-ui); font-style: normal; text-align: center; color: #06120d; pointer-events: none; }
+.glurffs-btn i[hidden] { display: none; }
+/* One number (2026-11-08): everybody in your Glurffs, green; people asking
+   to join, amber, in its place. */
+.glurffs-btn .g-badge { right: -5px; top: -5px; background: #4aba8a; box-shadow: 0 0 6px rgba(74,186,138,.8); }
+.glurffs-btn .g-badge.asks { background: var(--warm); color: #1b1203; box-shadow: none; }
+.glurffs-panel { position: absolute; left: 0; top: calc(100% + 6px); width: 340px; max-height: 70vh;
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); }
+.glurffs-head { padding: .5rem .6rem .4rem; font: 400 12px var(--font-pixel); letter-spacing: .03em; color: var(--bright);
+  border-bottom: 1px solid var(--line-soft); }
+.glurffs-status { padding: .4rem .6rem; color: var(--warm); font-size: 12px; line-height: 1.35; border-bottom: 1px solid var(--line-soft); }
+.glurffs-status[hidden] { display: none; }
+.glurffs-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.g-empty { padding: .6rem; }
+.g-row { border-bottom: 1px solid var(--line-soft); }
+.g-row.here { background: rgba(127,214,195,.05); }
+.g-sum { display: flex; width: 100%; align-items: center; gap: .45rem; text-align: left; background: none; border: 0;
+  border-radius: 0; padding: .5rem .6rem; color: inherit; }
+button.g-sum:hover { background: var(--accent-wash); }
+.g-live { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.g-live.on { background: #4aba8a; box-shadow: 0 0 6px rgba(74,186,138,.8); }
+.g-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bright); }
+.g-tag { flex: none; font-size: 10px; padding: 0 5px; border: 1px solid var(--accent); color: var(--accent); border-radius: 3px; }
+.g-tag.here { border-color: var(--line); color: var(--dim); }
+.g-count { flex: none; font-size: 12px; }
+/* The Glurffs the host of this one is in (2026-11-08). */
+.g-other-head { border-top: 1px solid var(--line-soft); margin-top: .3rem; }
+.g-filter { display: block; width: calc(100% - 1rem); margin: .2rem .5rem .4rem; box-sizing: border-box; }
+.g-listed .g-sum { cursor: default; }
+.g-listed .g-sum button { flex: none; padding: 2px 10px; }
+.g-asking { flex: none; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--warm); color: #1b1203;
+  font: 700 10px/16px var(--font-ui); text-align: center; }
+.g-more { padding: 0 .6rem .55rem 1.65rem; display: flex; flex-direction: column; gap: .4rem; font-size: 12px; line-height: 1.35; }
+.g-acts { display: flex; flex-wrap: wrap; gap: 5px; }
+.g-acts button, .g-ask-acts button { font-size: 11px; padding: 2px 8px; }
+.g-ask { display: flex; flex-direction: column; gap: 4px; padding: .35rem .45rem; border: 1px solid var(--warm); border-radius: var(--r-sm); }
+.g-ask-acts { display: flex; gap: 5px; flex-wrap: wrap; }
+.g-row.waiting .g-name { color: var(--dim); }
+/* Offline: taken down, or its host not answering (lib/glurff-online, 2026-11-10). */
+.g-row.offline .g-name, .g-row.offline .g-icon { opacity: .45; }
+.g-row.offline .g-count { color: var(--dim); }
+dialog.g-invite { width: min(360px, calc(100vw - 32px)); background: var(--panel); color: inherit; border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--shadow); padding: .8rem; }
+dialog.g-invite::backdrop { background: rgba(4,6,10,.45); }
+dialog.g-invite h3 { margin: 0 0 .5rem; font: 400 13px var(--font-pixel); color: var(--bright); }
+dialog.g-invite input { width: 100%; box-sizing: border-box; background: var(--raise); border: 1px solid var(--line);
+  color: inherit; font: inherit; padding: .4rem; border-radius: var(--r-sm); }
+.g-pick { display: flex; flex-direction: column; margin-top: .4rem; max-height: 40vh; overflow-y: auto; }
+.g-pick button { text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: .4rem .3rem; }
+.g-pick button:hover { background: var(--accent-wash); }
+.g-said { min-height: 1.3em; margin-top: .4rem; font-size: 12px; }
+.g-invite-acts { display: flex; justify-content: flex-end; margin-top: .4rem; }
+@media (max-width: 700px), (max-height: 500px) {
+  .glurffs-panel { position: fixed; left: calc(8px + var(--safe-l)); right: calc(8px + var(--safe-r)); width: auto;
+    top: calc(52px + var(--safe-t)); }
+}
+/* A NOTE'S LINK in a chat or a text: its name, as a chip (ui/media). */
+.note-ref { display: inline; font: inherit; font-size: .95em; padding: 0 6px; margin: 0 1px; border-radius: 4px;
+  background: rgba(127,214,195,.12); border: 1px solid rgba(127,214,195,.45); color: var(--accent); cursor: pointer; }
+.note-ref:hover { background: rgba(127,214,195,.22); }
+/* THEIR GLURFF on a profile card (ui/profile). */
+.card-glurff { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.card-glurff-name { flex: 1 1 auto; min-width: 0; color: var(--bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-glurff button { font-size: 11px; padding: 2px 8px; }
+.card-glurff.offline .card-glurff-name, .card-glurff.offline .card-glurff-icon { opacity: .45; }
 
 /* GLURFF MEMBERS (2026-10-31; ui/glurff-members): everybody in the Glurff's
    note, from the room menu. A panel on a desktop, the whole screen on a phone. */
@@ -1303,3 +1390,115 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .gm { width: 100%; max-height: none; height: 100dvh; border-radius: 0; border: 0;
     padding-top: var(--safe-t, env(safe-area-inset-top, 0px)); padding-bottom: var(--safe-b, env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ---- the way in ------------------------------------------------------------ */
+/* THE LOADING SCREEN (2026-11-04): space from the first paint until everything
+   is in -- public/loading.js draws it, ui/loading says what it says. Over all
+   of Glurff; under the takeover card and the Noltbook prompt, which say why we
+   are going nowhere. */
+.loading { position: fixed; inset: 0; z-index: 49; overflow: hidden; background: #070a17; color: #dfe8ff;
+  font-family: var(--font-ui); -webkit-user-select: none; user-select: none; }
+.loading[hidden] { display: none; }
+.loading-sky { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.loading-card { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); width: min(340px, calc(100vw - 32px));
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; transition: opacity .2s; }
+.loading-card p { margin: 0; }
+/* The name is drawn in pixels over the card: these words are for a screen
+   reader -- or shown, for a name the pixel letters cannot spell. */
+.loading-name { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.loading-plain .loading-name { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal;
+  font: 400 26px var(--font-pixel); letter-spacing: .06em; color: #ffd47a; text-transform: uppercase; }
+/* "Traveling to" (2026-11-10): small, just over the name drawn in pixels --
+   or over the name in words, when the pixels cannot spell it. Not on a
+   playtest's screen, which goes nowhere. */
+.loading-to { position: absolute; left: 0; right: 0; bottom: calc(100% + var(--title-h, 0px) + 4px);
+  font-size: 11px; line-height: 14px; letter-spacing: .16em; text-transform: uppercase; color: #9fb4dc; }
+.loading-plain .loading-to { position: static; margin-bottom: -6px; }
+.loading-quiet .loading-to { display: none; }
+/* A playtest's screen: no space, the card in the middle (public/loading.js). */
+.loading-quiet .loading-card { top: 50%; transform: translate(-50%, -50%); }
+.loading-host { font-size: 12px; color: #9fb4dc; letter-spacing: .02em; }
+.loading-host:empty { display: none; }
+/* Twelve lights, lit as it goes. */
+.loading-bar { --done: 0%; width: 168px; height: 8px; margin-top: 4px;
+  background: linear-gradient(90deg, #9fd0ff var(--done), #1c2547 var(--done));
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 14px);
+  mask: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 14px); }
+.loading-say { font-size: 13px; color: #c9d6f2; min-height: 1.4em; }
+.loading-notice { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; padding: 10px 14px;
+  background: rgba(10,14,30,.82); border: 1px solid #2c3a66; border-radius: var(--r); }
+.loading-notice[hidden] { display: none; }
+.loading-title { font-weight: 600; color: #ffe08a; }
+.loading-detail { font-size: 13px; color: #c9d6f2; line-height: 1.4; }
+.loading-act { margin-top: 2px; padding: .35rem 1.1rem; }
+.loading-act[hidden] { display: none; }
+/* The way back to the official Glurff, when another would not load (src/boot). */
+.loading-back { display: block; margin-top: .6rem; color: inherit; opacity: .8; }
+/* Held still -- access removed, a request turned down: nothing to count. */
+.loading.held .loading-bar, .loading.held .loading-say { display: none; }
+/* Arriving: the words go first, then the world shows through. */
+.loading.arriving { background: transparent; }
+.loading.arriving .loading-card { opacity: 0; pointer-events: none; }
+.loading.arriving.still { opacity: 0; transition: opacity .35s; }
+.loading.returning { animation: loading-in .6s ease both; }
+@keyframes loading-in { from { opacity: 0; } }
+
+/* ---- a playtest ----------------------------------------------------------- */
+/* THE HOST WALKING THEIR DRAFT (src/playtest): said at the top, in the middle;
+   on a phone, under the top bar, where a call's faces would be. */
+.preview-pill { display: flex; align-items: center; gap: .35rem; height: 35px; padding: 0 12px; font-size: 12px; white-space: nowrap;
+  background-color: var(--panel); border: 1px solid var(--accent); border-radius: var(--r); box-shadow: var(--shadow); }
+.preview-pill b { color: var(--accent); font-family: var(--font-pixel); font-weight: 400; letter-spacing: .03em; }
+.preview-pill .warn { color: var(--warm); }
+@media (max-width: 1000px) {
+  #top-mid:has(.preview-pill) { top: calc(52px + var(--safe-t)); }
+  .preview-pill { height: 28px; font-size: 11px; }
+  .preview-pill .dim { display: none; }
+}
+/* A sign people can write on (ui/content-card, 2026-11-07). */
+.sign-meta { font-size: 12px; line-height: 1.5; margin-top: .5rem; }
+.sign-meta.bad { color: var(--bad, #f07a6a); }
+.sign-edit { width: 100%; box-sizing: border-box; min-height: 9rem; max-height: 55vh; resize: vertical; font: inherit; line-height: 1.45;
+  background: rgba(0,0,0,.35); color: var(--bright); border: 1px solid var(--line); border-radius: 6px; padding: .5rem .6rem; }
+.sign-edit:focus { outline: none; border-color: var(--accent); }
+/* A Glurff's icon in Your Glurffs and on a profile card (2026-11-07). */
+.g-icon { position: relative; flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px;
+  background: rgba(255,255,255,.08); color: var(--soft); font-size: 11px; font-weight: 700; overflow: hidden; }
+.g-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.card-glurff-icon { flex: none; width: 20px; height: 20px; border-radius: 5px; object-fit: cover; }
+
+/* "/" IN THE CHAT, and POLLS (2026-11-08): what the commands are, and a
+   poll's choices with how many chose each, the share a bar behind them. */
+.chat .commands {display:flex;flex-direction:column;gap:3px;}
+.chat .commands[hidden] {display:none;}
+.chat .commands button {text-align:left;font:12.5px var(--font-ui);padding:.35rem .55rem;}
+.chat .polls {display:flex;flex-direction:column;gap:6px;}
+.chat .polls[hidden], .chat .polls:empty {display:none;}
+.poll {background:rgba(16,20,29,.9);border:1px solid #4a5a7a;border-radius:var(--r);padding:7px 8px;font:13px/1.4 var(--font-ui);color:var(--bright);}
+.poll.ended {opacity:.75;}
+.poll-q {display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:6px;font-weight:600;}
+.poll-q .dim {font-weight:400;font-size:11.5px;white-space:nowrap;}
+.poll-options {display:flex;flex-direction:column;gap:4px;}
+.poll-options button {position:relative;display:flex;justify-content:space-between;gap:8px;text-align:left;overflow:hidden;
+  font:13px var(--font-ui);padding:.35rem .55rem;background:var(--raise);}
+.poll-options button::before {content:'';position:absolute;inset:0 auto 0 0;width:var(--share);background:rgba(74,186,138,.22);pointer-events:none;}
+.poll-options button > * {position:relative;}
+.poll-options button.on {border-color:var(--accent);}
+.poll-options button.on span::after {content:' ✓';color:var(--accent);}
+.poll-end {margin-top:6px;font:12px var(--font-ui);padding:.25rem .6rem;}
+
+/* CHARACTERS AND COLLECTIBLES (2026-11-08): a character's choices, a
+   collectible found, and a collection on a profile card. */
+.talk-choices { flex-wrap: wrap; }
+.found { display: flex; gap: .8rem; align-items: center; }
+.found-picture { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; flex: none; border-radius: 8px; background: rgba(255,255,255,.05); }
+.found-picture.star { display: grid; place-items: center; font-size: 34px; color: #ffd23f; }
+.found-count { font-size: 12px; }
+.card-collect { display: flex; flex-direction: column; gap: 6px; }
+.collect-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.collect-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.collect-chip { width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 6px; background: rgba(255,255,255,.07);
+  border: 1px solid var(--line); color: #ffd23f; font-size: 15px; overflow: hidden; }
+.collect-chip img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.collect-chip.missing { color: var(--dim); border-style: dashed; }
+.collect-away { font-size: 11.5px; }
