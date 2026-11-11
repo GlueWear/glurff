@@ -2,16 +2,9 @@
   {
     "url": "/apps/glurff/",
     "spur": "/lib/glurff/site/index/html",
-    "size": 1979,
+    "size": 1950,
     "mime": "text/html; charset=utf-8",
-    "sha256": "14923a123893c7f9ac51549c05f75f1b923c52ac9e57451f546b5aefd92557cf"
-  },
-  {
-    "url": "/apps/glurff/assets/___vite-browser-external_commonjs-proxy-6f37d1bc.js",
-    "spur": "/lib/glurff/site/assets/asset-vite-browser-externalcommonjs-proxy-6f37d1bc/js",
-    "size": 10877,
-    "mime": "application/javascript; charset=utf-8",
-    "sha256": "4991ef746f8560b28457182a25a6595edb348a1a2dec717f9f1d461ec24fd343"
+    "sha256": "c757d27b9501a26f93b24a6ac50fce054a6ea71bcb1ac276f594f6ac749738f4"
   },
   {
     "url": "/apps/glurff/assets/edit-73e6c5f5.js",
@@ -35,25 +28,25 @@
     "sha256": "5ce7ae80f5ceeb5ce60d524b4708dab1a438a28b5a1baa08d50cf4762ceba5ed"
   },
   {
-    "url": "/apps/glurff/assets/index-141a4dd2.js",
-    "spur": "/lib/glurff/site/assets/index-141a4dd2/js",
-    "size": 63457,
+    "url": "/apps/glurff/assets/index-10185b53.js",
+    "spur": "/lib/glurff/site/assets/index-10185b53/js",
+    "size": 64157,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "2ed7af19cf141b8929d787cdbbe070090b50bd45f79fdda87b4e2c51887633b7"
+    "sha256": "88e898752e5a46e9f855f22f5f5573ef64533ebdf6d1e416d97a6a3673688759"
   },
   {
-    "url": "/apps/glurff/assets/main-14c5207e.js",
-    "spur": "/lib/glurff/site/assets/main-14c5207e/js",
-    "size": 4959,
+    "url": "/apps/glurff/assets/main-23eddd02.js",
+    "spur": "/lib/glurff/site/assets/main-23eddd02/js",
+    "size": 522449,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "5e1dd35909be7b66aebf3dd6f7da74cfd4a21d481d4d926c72d58b9f895c1152"
+    "sha256": "39b0dd7d64eafc4ae8430380168d343611c19b0d910fc5b69367c883d40a6d3a"
   },
   {
-    "url": "/apps/glurff/assets/main-f56a9bfe.js",
-    "spur": "/lib/glurff/site/assets/main-f56a9bfe/js",
-    "size": 995186,
+    "url": "/apps/glurff/assets/main-e7a6af77.js",
+    "spur": "/lib/glurff/site/assets/main-e7a6af77/js",
+    "size": 4901,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "9b9b22f1970ea8ad67a4cbaa5b01977182952b6d6d9d0637aac9bb7366af4338"
+    "sha256": "f6420c31742d1e56e012cebeb283ad603df8e0d1d098be8d3f5c1fb2e6e36aa3"
   },
   {
     "url": "/apps/glurff/assets/note-link-e64acf9c.js",
@@ -63,18 +56,32 @@
     "sha256": "e53ef96cc35966ae25b2928d9067d9015ce4e52a9092339c69c20004fad70c90"
   },
   {
-    "url": "/apps/glurff/assets/playtest-d2e92a39.js",
-    "spur": "/lib/glurff/site/assets/playtest-d2e92a39/js",
-    "size": 1113,
+    "url": "/apps/glurff/assets/pixi-7-4-3.js",
+    "spur": "/lib/glurff/site/assets/pixi-7-4-3/js",
+    "size": 455498,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "101bc5d122255a62fbe2f91e5b7650cb5bab22febca6489d8f47a0c88ec07442"
+    "sha256": "a88e4607d95131552fee4cc2857487a354ffe2b4287400503c4b72113f9fcfe5"
   },
   {
-    "url": "/apps/glurff/assets/search-8f81a8a6.js",
-    "spur": "/lib/glurff/site/assets/search-8f81a8a6/js",
-    "size": 1825,
+    "url": "/apps/glurff/assets/playtest-2e3d226c.js",
+    "spur": "/lib/glurff/site/assets/playtest-2e3d226c/js",
+    "size": 1084,
     "mime": "application/javascript; charset=utf-8",
-    "sha256": "c0b1853df5d30f03180d6b838c4c5aeef3b34beefef8718d12c806ea8274f5a7"
+    "sha256": "462c626e45b1beed121e062139c9b4a4209f3f6085aa4b27c784189c9c7029f9"
+  },
+  {
+    "url": "/apps/glurff/assets/search-fc7cc0d6.js",
+    "spur": "/lib/glurff/site/assets/search-fc7cc0d6/js",
+    "size": 1838,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "63769a3364bd33d207aed1a69d025ecf07406951b7fc480e840f96d2ee66ed9a"
+  },
+  {
+    "url": "/apps/glurff/assets/world-card-fdd6e98f.js",
+    "spur": "/lib/glurff/site/assets/world-card-fdd6e98f/js",
+    "size": 10068,
+    "mime": "application/javascript; charset=utf-8",
+    "sha256": "df92cdefbea58ec673543f20dbea016f72dcd5362ac7325970c8ff52e4799cc8"
   },
   {
     "url": "/apps/glurff/assets/world-config-310068fd.js",
@@ -4720,9 +4727,9 @@
   {
     "url": "/apps/glurff/index.html",
     "spur": "/lib/glurff/site/index/html",
-    "size": 1979,
+    "size": 1950,
     "mime": "text/html; charset=utf-8",
-    "sha256": "14923a123893c7f9ac51549c05f75f1b923c52ac9e57451f546b5aefd92557cf"
+    "sha256": "c757d27b9501a26f93b24a6ac50fce054a6ea71bcb1ac276f594f6ac749738f4"
   },
   {
     "url": "/apps/glurff/licenses/jitsi-license.html",
@@ -4757,7 +4764,7 @@
     "spur": "/lib/glurff/site/playtest/html",
     "size": 1893,
     "mime": "text/html; charset=utf-8",
-    "sha256": "33efbce86ceaf487fac8d8cc8041bf1e52f168a583d9277456ceab370f99a663"
+    "sha256": "4f3ab82c125050dc4dddf84a4341bb3a18cb800743c18e802b02216bda2e1f6e"
   },
   {
     "url": "/apps/glurff/style.css",

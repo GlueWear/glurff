@@ -49,7 +49,16 @@ export const CALL_GRACE_MS = 20000;
 export const PEER_GRACE_MS = 15000;
 const BACKOFF = [4000, 8000, 16000, 30000];
 const RENEW_MARGIN_MS = 30000;
-const MAX_RENEW_MS = 120000;
+/* ASKING LESS (2026-11-11). A pass is renewed when it says to -- halfway
+ * through its life -- not every two minutes as it was: every ask is work
+ * for the host and an id the call service counts for a month. Recovery
+ * never waited on this timer: a relay that drops, refuses or expires asks
+ * at once (relayStatus). Never sooner than MIN_RENEW_MS after the last
+ * renewal, so a repeated grant past its own renew-after (the service answers
+ * a request id it has seen from its record) cannot make us ask again and
+ * again; never later than MAX_RENEW_MS, half a world room's lease. */
+export const MIN_RENEW_MS = 30000;
+export const MAX_RENEW_MS = 15 * 60 * 1000;
 /* An admission request that has had no answer for this long is not going to get one. */
 const ADMIT_DEADLINE_MS = 30000;
 /* ACCESS BEFORE BREAK: how long to wait for a candidate host's grant, and how
@@ -402,7 +411,7 @@ export function createMovement({
        * the lease. Same path whether or not the host is still here. */
       requestAccess(true);
       renewTimer = later(() => { renewTimer = null; if (current?.place === g.place) scheduleRenew(g); }, 30000);
-    }, Math.max(5000, due));
+    }, Math.max(MIN_RENEW_MS, due));
   }
 
   /* A /call-access result. Returns true if it belonged to movement, so the call

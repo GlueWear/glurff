@@ -23,6 +23,17 @@ function assetVersion() {
   return hash.digest('hex').slice(0, 12);
 }
 
+/* PIXI AS IT IS PUBLISHED (2026-11-11). The graphics library was about half
+ * of the app's file, so every update sent it again to every ship. Now it is
+ * Pixi's own ready-made file, unchanged and named by its version: it stays
+ * where every ship and browser already has it until we change the version,
+ * and an update sends only our code. (A chunk of our own build would not do:
+ * the bundler does not lay one out the same way twice, so its name changed
+ * from one build to the next of the same code.) The dev server still uses
+ * the package as it always has. */
+const PIXI_VERSION = JSON.parse(fs.readFileSync('node_modules/pixi.js/package.json', 'utf8')).version;
+const PIXI_FILE = `assets/pixi-${PIXI_VERSION.replace(/\./g, '-')}.js`;
+
 export default defineConfig({
   base: '/apps/glurff/',
   define: { __ASSET_VERSION__: JSON.stringify(assetVersion()) },
@@ -40,6 +51,12 @@ export default defineConfig({
    * loading screen's script (2026-11-04), a public file for the same reason:
    * it must run before the bundle has arrived. */
   plugins: [{
+    name: 'glurff-pixi-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: PIXI_FILE, source: fs.readFileSync('node_modules/pixi.js/dist/pixi.min.mjs') });
+    },
+  }, {
     /* `?inline` on a font means it, whatever assetsInlineLimit says: the two
      * pixel-face weights (ui/fonts) ride inside the bundle as data URLs. As
      * files they would need a type the packager and the ship do not serve. */
@@ -61,6 +78,7 @@ export default defineConfig({
   /* Three pages: the game; the map editor and its playtest (2026-11-05),
    * which only the host ship's own login can use (src/editor). */
   build: { target: 'esnext', assetsInlineLimit: 0,
-    rollupOptions: { input: { main: path.resolve('index.html'), edit: path.resolve('edit.html'), playtest: path.resolve('playtest.html') } } },
+    rollupOptions: { input: { main: path.resolve('index.html'), edit: path.resolve('edit.html'), playtest: path.resolve('playtest.html') },
+      external: ['pixi.js'], output: { paths: { 'pixi.js': `/apps/glurff/${PIXI_FILE}` } } } },
   server: { host: '127.0.0.1', port: 3000 },
 });

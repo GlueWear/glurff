@@ -1323,14 +1323,16 @@
 ::
 ::  Somebody asks to be let into our world's relay room. We open it ourselves
 ::  -- create the room and admit them, in one ordered request -- when it has
-::  never been opened, when its lease must have lapsed because nobody has asked
-::  for longer than it lasts, or when asks have failed for longer than a room
-::  takes to come up. Anything else is an ordinary admission, and the ask
-::  extends the lease. A room that may still be working is never opened
-::  afresh: that would throw out everybody inside.
+::  never been opened, when its lease must have lapsed because it has not been
+::  extended for longer than it lasts, or when asks have failed for longer
+::  than a room takes to come up. Anything else is an ordinary admission, and
+::  the ask extends the lease if world-renew has passed since it last was. A
+::  room that may still be working is never opened afresh: that would throw
+::  out everybody inside.
 ::
-::  ONE ID PER WINDOW (2026-10-31). Every browser asks at least every two
-::  minutes, and each ask used to send two new request ids; the call service
+::  ONE ID PER WINDOW (2026-10-31). Every browser asked at least every two
+::  minutes then (at half its pass's life since 2026-11-11), and each ask
+::  used to send two new request ids; the call service
 ::  counts every new id for a month, and ~nolset ran out (see world-window in
 ::  /sur). Now an opening's and an admission's id are per person per window
 ::  and the lease's per window, so a repeated ask is answered from the
@@ -1353,7 +1355,7 @@
   =/  held=(map place:g lock-mode:g)  (~(put by hosting) place %open)
   =/  fresh=?
     ?~  world  %.y
-    ?|  (gth now.bowl (add asked.u.world (mul ~s1 movement-ttl:g)))
+    ?|  (gth now.bowl (add asked.u.world (mul ~s1 world-ttl:g)))
         ?~(failing.u.world %.n (gth now.bowl (add u.failing.u.world world-reopen:g)))
     ==
   ?:  fresh
@@ -1361,22 +1363,31 @@
     :~  %-  calls-poke
         :*  %ensure-access
             (call-req place `@ud`(div now.bowl world-window:g) %ensure who)
-            (room-key place)  movement-ttl:g  who  %glurff
+            (room-key place)  world-ttl:g  who  %glurff
             (call-ctx place who 0)
         ==
     ==
-  :_  state(hosting held, world `[now.bowl ?~(world ~ failing.u.world)])
+  ::  ASKING LESS (2026-11-11): the lease is extended by the first ask
+  ::  world-renew after the last extension, not by every ask -- one request
+  ::  to the call service per ask, not two -- and first, so the pass this
+  ::  ask brings is likelier to reach to the new end of the lease.
+  =/  extend=?  ?~(world %.y (gte now.bowl (add asked.u.world world-renew:g)))
+  =/  at=@da  ?:(extend now.bowl ?~(world now.bowl asked.u.world))
+  :_  state(hosting held, world `[at ?~(world ~ failing.u.world)])
+  %+  weld
+    ?.  extend  ~
+    :~  %-  calls-poke
+        :*  %renew
+            (call-req place `@ud`(div now.bowl world-window:g) %renew our.bowl)
+            (room-key place)
+            world-ttl:g
+        ==
+    ==
   :~  %-  calls-poke
       :*  %renew-access
           (call-req place `@ud`(div now.bowl world-window:g) %access who)
           (room-key place)  who  %glurff
           (call-ctx place who 0)
-      ==
-      %-  calls-poke
-      :*  %renew
-          (call-req place `@ud`(div now.bowl world-window:g) %renew our.bowl)
-          (room-key place)
-          movement-ttl:g
       ==
   ==
 ::  What became of a request about the world room. Failing because the room is

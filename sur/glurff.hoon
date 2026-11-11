@@ -114,7 +114,8 @@
 ++  movement-base  950.000
 ::  Fifteen minutes, renewed by active participants. Long enough that a busy
 ::  host ship does not end a session people are still using; an abandoned
-::  room is gone soon after renewals stop. Mirrored in lib/movement.js.
+::  room is gone soon after renewals stop. Mirrored in lib/movement.js. The
+::  world room's lease is world-ttl (below); calls keep this one.
 ++  movement-ttl  900
 ::
 ::  THE WORLD ROOM. Each glurff names its host ship in the world config, and
@@ -130,11 +131,24 @@
 ::  lib/movement-session.js; the two MUST agree.
 ++  world-term   49.999
 ++  world-place  `place`(add movement-base world-term)
-::  The world room as its host keeps it: when somebody last asked to be let in
-::  -- every ask extends the room's lease, so the lease cannot outlast the last
-::  ask by more than movement-ttl -- and since when asks have been failing
-::  because the room is not there.
+::  The world room as its host keeps it: when its lease was last extended
+::  (2026-11-11; until then, when somebody last asked to be let in, as every
+::  ask extended it) -- so the lease cannot outlast that by more than
+::  world-ttl -- and since when asks have been failing because the room is
+::  not there.
 +$  world-room  [asked=@da failing=(unit @da)]
+::  ASKING LESS (2026-11-11). The world room's lease, and so every pass into
+::  it: half an hour, where calls and other movement rooms keep movement-ttl.
+::  Browsers renew a pass halfway through its life, so a longer lease is
+::  fewer asks of the host and fewer ids counted by the call service. It
+::  costs a room left open up to half an hour after the last person leaves,
+::  and a removed member's pass lasting up to that long.
+++  world-ttl  1.800
+::  How often the host extends the world room's lease: on the first ask at
+::  least this long after the last extension, not on every ask. A third of
+::  world-ttl, so an extension that fails has two more chances before the
+::  lease runs out, while anybody keeps asking.
+++  world-renew  ~m10
 ::  How long asks may fail before the room is opened afresh. Longer than a
 ::  room takes to come up, so a room still being created is never recreated:
 ::  opening afresh throws out everybody inside.
@@ -147,10 +161,12 @@
 ::  of the first, with no new row.
 ::
 ::  Under half the shortest grant a renewal can return. A grant lasts until
-::  the room's lease ends -- at least ten minutes while browsers ask every two
-::  and the lease is extended once a window -- and browsers ask again at half
-::  its life. A repeated grant past that point would have every browser
-::  asking again at once, over and over, until the window turned.
+::  the room's lease ends -- extended to world-ttl by the first ask at least
+::  world-renew after the last extension, so usually well over ten minutes
+::  -- and browsers ask again at half its life, a window or more after their
+::  last ask. A repeated grant past that point would have every browser
+::  asking again until the window turned (lib/movement waits at least
+::  MIN_RENEW_MS between renewals, so not at once).
 ++  world-window  ~m3
 ::
 ::  ------------------------------------------------------------- the calls

@@ -22,7 +22,8 @@ import { createInsideLease } from 'lib/inside-lease';
 import { createReliable } from 'lib/reliable';
 import { initNoltbook, nb, COMMONS_NOTE, visiblePeers, displayName, onChange, holdHistory, releaseHistory, worldJoined, worldStatus, worldMember, worldMembers, setWorldPresence, stopWorld, updateActiveCount, stopActiveStatus, requestProfile, askToJoinNote, joinAsked, joinRequests, answerJoinRequest, noteFacts, glurffMuted, loadGlurffMembers, glurffRoster, glurffNoteRevision, nbApi } from 'lib/noltbook';
 import * as G from 'lib/glurff';
-import { Game, startZoom } from 'world/game';
+import { Game, startZoom, holdAhead } from 'world/game';
+import { AHEAD_WAIT_MS } from 'world/ahead';
 import { TouchControls, watchTouch, watchLayout, touching } from 'ui/touch-controls';
 import { COMMONS, QUIET, roomById, regionAt, isChattyRoom, GAME_ROOM, isScene, MAIN_SCENE, portalOf, arrival, ITEMS } from 'world/places';
 import { assetUrl } from 'lib/world-config';
@@ -1401,8 +1402,20 @@ function paintConnectivity() {
   netPill.classList.toggle('stuck', stuck);
   netPill.hidden = !text;
 }
+/* GIVING WAY (2026-11-11): the maps ahead (world/game) wait while we join a
+ * call, and while we have no movement pass -- but not for longer than
+ * AHEAD_WAIT_MS at a stretch, so a host whose relay never comes up still
+ * sends its maps. */
+const JOINING=new Set(['requesting','transitioning','connecting']);
+let passlessSince=Date.now();
+function giveWay() {
+  const live=movement?.relayLive?.()??false;
+  if(live)passlessSince=null;else passlessSince??=Date.now();
+  holdAhead(JOINING.has(R.rooms.voice)||(passlessSince!==null&&Date.now()-passlessSince<AHEAD_WAIT_MS));
+}
 ticker=setInterval(()=>{
   checkAsleep();
+  giveWay();
   presence.tick();
   reach.check();
   paintConnectivity();

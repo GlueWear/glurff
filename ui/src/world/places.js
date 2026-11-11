@@ -107,6 +107,9 @@ export const scenePainting = (scene) => ({ size: SCENES.get(normalScene(scene)).
 export const sceneTile = (scene) => sceneInfo(scene).tile;
 export const sceneWorld = (scene) => sceneInfo(scene).world;
 export const sceneImages = (scene) => ({ image: sceneInfo(scene).image, over: sceneInfo(scene).over });
+/* What a picture weighs, by the document's own table: its address ends in
+ * its hash (lib/world-config assetUrl). 0 for anything not in it. */
+export const assetBytes = (url) => doc.assets?.[String(url ?? '').split('/').pop()]?.size ?? 0;
 export const sceneCharacterScale = (scene) => sceneInfo(scene).characterScale;
 export const sceneNameSize = (scene) => sceneInfo(scene).nameSize;
 export const sceneWalkSpeed = (scene) => sceneInfo(scene).walkSpeed;

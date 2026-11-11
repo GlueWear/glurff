@@ -21,7 +21,9 @@ import { CharacterAnimation } from './animation.js';
 import { buildWorld, regionAt, SPAWN, COMMONS, MAIN_SCENE, SCENE_IDS, spawnOf, roomsOf,
   normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
   walkPortalAt, walkItemAt, arrivalPoint, sceneInfo, sceneFront, sceneItemImages, scenePainting, sceneWorld } from 'world/places';
-import { ITEMS, sceneNeighbours, scenePaintTiles } from 'world/places';
+import { ITEMS, sceneNeighbours, scenePaintTiles, assetBytes } from 'world/places';
+import { fetchWhole, mapsAhead, AHEAD_WAIT_MS } from 'world/ahead';
+import { createPictureQueue } from 'world/picture-queue';
 import { signFontSize } from 'world/world-doc';
 import { paintSign, SIGN_COLOUR } from 'world/sign-art';
 import { wanderRoute, faceTowards } from 'world/npc-walk';
@@ -41,38 +43,19 @@ const mapAsset = (url) => ({ src: mapUrl(url), loadParser: 'loadTextures' });
  * host's ship sends each picture whole, on a flow of its own to ours, and a
  * busy one has taken minutes; our ship tells the page "not in time" (504)
  * after a minute and goes on waiting for it. So a picture is asked for again
- * until it comes -- our ship joins the fetch already on its way, and keeps
- * what it brings, so its host sends it once -- and never given up on while
- * the page is open. Two at a time, the scene we are going to first: the
- * host sends them one after another anyway, and a browser has only six
- * connections to our ship for everything else. One that cannot be had (not
- * ours to see, or gone) is drawn blank. */
+ * until it comes -- our ship joins the fetch already on its way, so its host
+ * sends it once -- and never given up on while the page is open. One that
+ * cannot be had (not ours to see, or gone) is drawn blank. Which go first,
+ * how many at once, and the maps ahead giving way: world/picture-queue. */
 const PICTURES_AT_ONCE = 2;
+const AHEAD_AT_ONCE = 1;
 const AGAIN = new Set([502, 503, 504]);
-const pictures = new Map();
-const queue = [];
-let fetching = 0;
-function picture(url, first = false) {
-  let p = pictures.get(url);
-  if (p) { if (first) hurry(url); return p.done; }
-  p = { url, done: null, go: null };
-  p.done = new Promise((resolve) => { p.go = resolve; });
-  pictures.set(url, p);
-  if (first) queue.unshift(p); else queue.push(p);
-  next();
-  return p.done;
-}
-function hurry(url) {
-  const i = queue.findIndex((q) => q.url === url);
-  if (i > 0) queue.unshift(...queue.splice(i, 1));
-}
-function next() {
-  while (fetching < PICTURES_AT_ONCE && queue.length) {
-    const p = queue.shift();
-    fetching++;
-    fetchPicture(p.url).then(p.go).finally(() => { fetching--; next(); });
-  }
-}
+const queue = createPictureQueue({ fetch: (url) => fetchPicture(url).catch(() => Texture.EMPTY),
+  atOnce: PICTURES_AT_ONCE, aheadAtOnce: AHEAD_AT_ONCE });
+const picture = (url, first = false) => queue.picture(url, first);
+/* The page's say over the maps ahead: held while it joins a call or has no
+ * movement pass (main.js giveWay). */
+export const holdAhead = (on) => queue.hold(on);
 async function fetchPicture(url) {
   for (let n = 0, odd = 0; ; n++) {
     let r = null;
@@ -549,15 +532,11 @@ export class Game {
    * (ui/loading). */
   async load(onProgress = () => {}) {
     /* The map you start on is ready before walking begins. The world's other
-     * maps -- Vatican City's painting is about 370 KB nobody needs at startup
-     * -- follow in the background, and are normally in long before anybody
-     * finds the way there; if not, the scene fills in as it arrives rather
-     * than blocking. One at a time, those its doors lead to first (2026-11-08):
-     * a world may have ten, and the host's ship sends each whole before the
-     * next rather than all of them at once beside everything else. */
-    const near = new Set(sceneNeighbours(this.scene));
-    const order = [...SCENE_IDS.filter((s) => near.has(s)), ...SCENE_IDS.filter((s) => s !== this.scene && !near.has(s))];
-    const maps = paintings(this.scene), later = [...new Set(order.flatMap(paintings))];
+     * maps follow in the background -- all of a small Glurff, the nearest of
+     * a big one (world/ahead, 2026-11-11) -- one at a time, giving way to
+     * everything else (holdAhead), and are normally in long before anybody
+     * finds the way there; if not, the loading screen says so (setScene). */
+    const maps = paintings(this.scene);
     /* The names over heads are drawn in the pixel face; wait for it (briefly,
      * see ui/fonts) so nobody's name is drawn once in a fallback and left so. */
     let pics = 0, parts = 0;
@@ -568,13 +547,21 @@ export class Game {
       fontsReady]);
     onProgress(1);
     this.mapTextures = new Map(maps.map((url, i) => [url, this.fit(got[i])]));
-    this.laterMaps = (async () => {
-      for (const url of later) {
-        if (this.mapTextures.has(url)) continue;
-        const t = await picture(url);
-        if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t));
-      }
-    })();
+    this.whole = fetchWhole(SCENE_IDS.flatMap(paintings), assetBytes);
+    /* Held until the page lets go (main.js) -- or, if it never says, not
+     * for longer than it would wait itself. */
+    setTimeout(() => queue.unheld(), AHEAD_WAIT_MS);
+    this.fetchAhead(this.scene);
+  }
+
+  /* The pictures of the maps ahead of `scene` (world/ahead), asked for in
+   * the background, nearest first. */
+  fetchAhead(scene) {
+    if (!this.mapTextures) return;
+    const urls = mapsAhead(scene, { ids: SCENE_IDS, neighbours: sceneNeighbours, whole: this.whole }).flatMap(paintings);
+    queue.ahead(urls.filter((url) => !this.mapTextures.has(url)), (url, done) => done.then((t) => {
+      if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t));
+    }));
   }
 
   /* Where we stand on the page: the middle of our character, in CSS pixels --
@@ -855,6 +842,7 @@ export class Game {
     this.world = buildWorld(next);
     this.dressScene();
     if (!this.sceneReady(next)) this.onSceneLoading(sceneInfo(next)?.name ?? 'the map', this.sceneLoaded(next));
+    if (next !== previous) this.fetchAhead(next);
     this.self.x = destination.x;
     this.self.y = destination.y;
     this.self.dir = destination.dir ?? this.self.dir;
