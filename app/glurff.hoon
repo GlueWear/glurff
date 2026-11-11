@@ -298,6 +298,32 @@
       listing=(unit @p)
       listed=(map @p listing:g)
   ==
+::  state-16 lived a few hours, on the dev ships only (2026-11-10): it kept
+::  other hosts' assets, which visitors must not. Read only to drop them
+::  (on-load); the state is state-15 again.
++$  state-16
+  $:  %16
+      =look:g
+      rev=look-rev:g
+      hosting=(map place:g lock-mode:g)
+      lease=(unit held:g)
+      sprite-lab=?
+      live=(unit live:g)
+      meters=(map @p meter:g)
+      door=(unit door:g)
+      world=(unit world-room:g)
+      prefs=@t
+      spots=(map @tas spot-app:g)
+      webs=(map @tas spot-web:g)
+      calls=(map place:g host-call:g)
+      home=(unit home:g)
+      fetches=(map [@p hash:g] fetch:g)
+      lease-world=(unit @p)
+      signs=(map @t sign:g)
+      listing=(unit @p)
+      listed=(map @p listing:g)
+      stash=(map hash:g kept:g)
+  ==
 +$  card  card:agent:gall
 --
 ::
@@ -332,6 +358,20 @@
     ?:(?=(%| -.res) ~ `p.res)
   ?^  fifteen
     :_  this(state u.fifteen)
+    [(bind:glurff-site) calls-watch:hc]
+  ::  The dev ships' few hours of state-16: what it kept of other hosts'
+  ::  pictures is dropped. A visitor's ship keeps none; its browser does.
+  =/  sixteen=(unit state-16)
+    =/  res  (mule |.(!<(state-16 old)))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  sixteen
+    =/  w=state-16  u.sixteen
+    :_  %=  this
+          state  :*  %15  look.w  rev.w  hosting.w  lease.w  sprite-lab.w  live.w
+                     meters.w  door.w  world.w  prefs.w  spots.w  webs.w  calls.w
+                     home.w  fetches.w  lease-world.w  signs.w  listing.w  listed.w
+                 ==
+        ==
     [(bind:glurff-site) calls-watch:hc]
   ::  Listed where Glurffs are listed for now, and nothing listed with us.
   =/  lift-15
@@ -911,7 +951,19 @@
       &+[mime.u.a [size.u.a data.u.a]]
     =^  cards  state  (asset-came:hc host u.h got)
     [cards this]
-  ::  ...or it has not come in time.
+  ::  ...or not in the time one browser waits (2026-11-10): that browser is
+  ::  told so, and asks again, joining the fetch, which goes on.
+  ?:  ?=([%fetch-for @ @ @ ~] wire)
+    =/  host=@p  (slav %p i.t.wire)
+    =/  h=(unit hash:g)  (unhex:gw i.t.t.wire)
+    =/  id=@ta  i.t.t.t.wire
+    ?~  h  `this
+    =/  f  (~(get by fetches) [host u.h])
+    ?.  ?&(?=(^ f) (~(has in ids.u.f) id))  `this
+    :_  this(fetches (~(put by fetches) [host u.h] u.f(ids (~(del in ids.u.f) id))))
+    (answer:hc id (error-out:hc 504 ~['the host did not answer in time']))
+  ::  A wait set before then, for every browser at once: all told so, and
+  ::  the fetch goes on as above.
   ?:  ?=([%fetch-wait @ @ @ ~] wire)
     =/  host=@p  (slav %p i.t.wire)
     =/  h=(unit hash:g)  (unhex:gw i.t.t.wire)
@@ -919,11 +971,10 @@
     ?~  h  `this
     =/  f  (~(get by fetches) [host u.h])
     ?.  ?&(?=(^ f) =(at at.u.f))  `this
-    =/  stop=(list card)
-      ?.  ?=(%scry via.u.f)  ~
-      ~[[%pass /fetch/(scot %p host)/(hex:gw u.h) %arvo %a %yawn host (asset-spur:hc u.h)]]
-    =^  cards  state  (asset-came:hc host u.h |+%timeout)
-    [(weld stop cards) this]
+    :_  this(fetches (~(put by fetches) [host u.h] u.f(ids ~)))
+    %-  zing
+    %+  turn  ~(tap in ids.u.f)
+    |=(id=@ta (answer:hc id (error-out:hc 504 ~['the host did not answer in time'])))
   ::  THE LEASE CLOCK. This is what makes a lease end when the room empties even
   ::  though the owner's browser is shut: nobody has to be watching for it.
   ::  THE STORE'S CLOCK (2026-11-08): let go what nothing has wanted for a
@@ -2477,7 +2528,9 @@
 ::
 ::  AN ASSET OF A HOST'S WORLD, for our page. Our own world's from our own
 ::  store, drafts included; any other host's fetched from it -- once, however
-::  many of our browsers are waiting -- and never kept here.
+::  many of our browsers are waiting, and however many times they give up
+::  waiting and ask again while it is on its way (2026-11-10) -- and never
+::  kept here: the browser keeps it.
 ++  asset-spur
   |=  h=hash:g
   ^-  path
@@ -2491,16 +2544,28 @@
     [(answer id (asset-payload mime.u.a [size.u.a data.u.a])) state]
   =/  key=[@p hash:g]  [host h]
   =/  f=(unit fetch:g)  (~(get by fetches) key)
-  ?^  f
-    `state(fetches (~(put by fetches) key u.f(ids (~(put in ids.u.f) id))))
+  ::  On its way already: waited for, not asked again.
+  ?:  ?&(?=(^ f) (lth (sub now.bowl at.u.f) fetch-stale:g))
+    :_  state(fetches (~(put by fetches) key u.f(ids (~(put in ids.u.f) id))))
+    ~[(fetch-timer host h id)]
+  ::  Asked, then -- or asked again, after so long that the first ask is not
+  ::  worth waiting on -- with anybody still waiting kept waiting.
   =/  =wire  /fetch/(scot %p host)/(hex:gw h)
-  :_  state(fetches (~(put by fetches) key [via (silt ~[id]) now.bowl]))
+  =/  ids=(set @ta)  (~(put in ?~(f *(set @ta) ids.u.f)) id)
+  :_  state(fetches (~(put by fetches) key [via ids now.bowl]))
   :~  ?-  via
         %scry  [%pass wire %keen & host (asset-spur h)]
         %poke  [%pass wire %agent [host %glurff] %poke %glurff-remote !>(`remote:g`[%asset-ask h])]
       ==
-      [%pass /fetch-wait/(scot %p host)/(hex:gw h)/(scot %da now.bowl) %arvo %b %wait (add now.bowl fetch-wait:g)]
+      (fetch-timer host h id)
   ==
+::  How long one browser waits before it is told "not in time" and asks
+::  again: its own clock, so a browser that joins a fetch late still waits
+::  its whole minute. The fetch itself goes on.
+++  fetch-timer
+  |=  [host=@p h=hash:g id=@ta]
+  ^-  card
+  [%pass [%fetch-for (scot %p host) (hex:gw h) id ~] %arvo %b %wait (add now.bowl fetch-wait:g)]
 ::  An asset came from a host, or will not: every browser waiting on it is
 ::  answered. The bytes must be the ones the hash names, so neither a host
 ::  nor a fault can put anything else on a page under its name.
@@ -2518,6 +2583,8 @@
     ?.  =(h (hash-of:gw octs.p.got))  (error-out 502 ~['the bytes are not what was asked for'])
     ?.  (~(has in mimes:gw) mime.p.got)  (error-out 502 ~['not a kind of file a world keeps'])
     (asset-payload mime.p.got octs.p.got)
+  ::  Given to whoever is waiting -- a browser asking again joins the fetch
+  ::  -- and to nobody else: nothing is kept.
   :_  state(fetches (~(del by fetches) [host h]))
   (zing (turn ~(tap in ids.u.f) |=(id=@ta (answer id pay))))
 ::  Whether `who` may visit the world we host: a member of its note, or

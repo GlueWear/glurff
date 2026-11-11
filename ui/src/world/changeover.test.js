@@ -138,3 +138,47 @@ test('private and secret are greyed: "Feature unavailable"', () => {
   assert.match(ed, /disabled: ACCESS_SOON\.has\(v\), title: ACCESS_SOON\.has\(v\) \? 'Feature unavailable' : null,/);
   assert.doesNotMatch(ed, /Coming soon/);
 });
+
+/* A busy host (2026-11-10): what is late is waited for, and never asked of
+ * its host twice; the browser keeps it, the ship does not. */
+test('the document: "not in time" is asked again until it comes; anything else is final', async () => {
+  const { documentOf } = await import('../boot.js');
+  const legacy = (await import('./legacy-world.js')).default;
+  let n = 0;
+  globalThis.fetch = async () => (++n < 3 ? { ok: false, status: 504 } : { ok: true, status: 200, json: async () => legacy });
+  const doc = await documentOf('~nolset', official.live, null, 5000, 5);
+  assert.ok(doc.maps.length);
+  assert.equal(n, 3, 'two 504s, then the document');
+  n = 0;
+  globalThis.fetch = async () => { n++; return { ok: false, status: 404 }; };
+  await assert.rejects(documentOf('~nolset', official.live, null, 5000, 5), /did not load/);
+  assert.equal(n, 1, 'a 404 is not asked again');
+  globalThis.fetch = async () => ({ ok: false, status: 504 });
+  await assert.rejects(documentOf('~nolset', official.live, null, 30, 5), (e) => /\(504\)/.test(e.detail), 'given up on only after the wait');
+});
+
+test('pictures: asked again until they come, two at a time, the scene we go to first; a map not in yet is a journey', () => {
+  const game = read('./game.js');
+  assert.match(game, /const PICTURES_AT_ONCE = 2;/);
+  assert.match(game, /const AGAIN = new Set\(\[502, 503, 504\]\);/);
+  assert.match(game, /if \(!this\.sceneReady\(next\)\) this\.onSceneLoading\(sceneInfo\(next\)\?\.name \?\? 'the map', this\.sceneLoaded\(next\)\);/);
+  assert.doesNotMatch(game, /Assets\.get\(mapUrl/);
+  assert.match(read('../main.js'), /onSceneLoading: \(name, ready\) => void loading\.map\(name, ready\),/);
+  const loading = read('../ui/loading.js');
+  assert.match(loading, /const rest = art >= 1 && world && built && joined\(\) && !mapWait;/);
+  assert.match(loading, /screen\.show\?\.\(\);\n      \/\* Travelling, not held: nothing is in the way, only the distance\. \*\/\n      screen\.notice\?\.\(null\);\n      const say = \(\) => screen\.progress\?\.\(0\.5, waited\('Fetching its map…', now\(\) - t0\)\);/);
+  assert.match(read('../../public/loading.js'), /want = 0; shown = 0;/);
+});
+
+test('visitors keep no assets: a fetch on its way is joined, not asked again, and what comes goes to the browser only', () => {
+  const hoon = read('../../../desk/app/glurff.hoon');
+  const sur = read('../../../desk/sur/glurff.hoon');
+  assert.match(hoon, /=\|  state-15\n/, 'the state is state-15');
+  assert.doesNotMatch(hoon.slice(hoon.indexOf('++  on-init')), /quip card state-16\)|stash-put|~\(get by stash\)/);
+  assert.match(hoon, /  \?\^  sixteen\n    =\/  w=state-16  u\.sixteen\n    :_  %=  this\n          state  :\*  %15 /, "the dev ships' state-16 is dropped to 15");
+  assert.doesNotMatch(sur, /kept-max/);
+  assert.match(sur, /\+\+  fetch-stale   ~m30/);
+  assert.match(hoon, /\?:  \?&\(\?=\(\^ f\) \(lth \(sub now\.bowl at\.u\.f\) fetch-stale:g\)\)/);
+  assert.match(hoon, /\?:  \?=\(\[%fetch-for @ @ @ ~\] wire\)/);
+  assert.match(hoon, /and never\n::  kept here: the browser keeps it\./);
+});

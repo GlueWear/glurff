@@ -37,6 +37,62 @@ const mapUrl = (url) => url;
  * it is an image, so it is told. */
 const mapAsset = (url) => ({ src: mapUrl(url), loadParser: 'loadTextures' });
 
+/* A MAP'S PICTURES, HOWEVER LONG THEIR HOST TAKES (2026-11-10). Another
+ * host's ship sends each picture whole, on a flow of its own to ours, and a
+ * busy one has taken minutes; our ship tells the page "not in time" (504)
+ * after a minute and goes on waiting for it. So a picture is asked for again
+ * until it comes -- our ship joins the fetch already on its way, and keeps
+ * what it brings, so its host sends it once -- and never given up on while
+ * the page is open. Two at a time, the scene we are going to first: the
+ * host sends them one after another anyway, and a browser has only six
+ * connections to our ship for everything else. One that cannot be had (not
+ * ours to see, or gone) is drawn blank. */
+const PICTURES_AT_ONCE = 2;
+const AGAIN = new Set([502, 503, 504]);
+const pictures = new Map();
+const queue = [];
+let fetching = 0;
+function picture(url, first = false) {
+  let p = pictures.get(url);
+  if (p) { if (first) hurry(url); return p.done; }
+  p = { url, done: null, go: null };
+  p.done = new Promise((resolve) => { p.go = resolve; });
+  pictures.set(url, p);
+  if (first) queue.unshift(p); else queue.push(p);
+  next();
+  return p.done;
+}
+function hurry(url) {
+  const i = queue.findIndex((q) => q.url === url);
+  if (i > 0) queue.unshift(...queue.splice(i, 1));
+}
+function next() {
+  while (fetching < PICTURES_AT_ONCE && queue.length) {
+    const p = queue.shift();
+    fetching++;
+    fetchPicture(p.url).then(p.go).finally(() => { fetching--; next(); });
+  }
+}
+async function fetchPicture(url) {
+  for (let n = 0, odd = 0; ; n++) {
+    let r = null;
+    try { r = await fetch(mapUrl(url), { credentials: 'include' }); } catch {}
+    /* The bytes are read through, so the browser keeps them, and Pixi's own
+     * load of the same address finds them there. */
+    if (r?.ok) {
+      try { await r.blob(); return await Assets.load(mapAsset(url)); } catch (e) { console.warn('glurff: picture', url, e); return Texture.EMPTY; }
+    }
+    /* Wrong bytes from a host (502) are asked for again a few times only. */
+    if (r && (!AGAIN.has(r.status) || (r.status === 502 && ++odd > 3))) {
+      console.warn('glurff: picture', url, r.status); return Texture.EMPTY;
+    }
+    await new Promise((ok) => setTimeout(ok, Math.min(5000, 500 * (n + 1))));
+  }
+}
+/* What a scene is painted with: its picture, what of it is in front of
+ * people, and its painted tiles. */
+const paintings = (scene) => [...Object.values(sceneImages(scene)).filter(Boolean), ...scenePaintTiles(scene).map((t) => t.url)];
+
 /* How far above the feet a name sits, as a fraction of the character's own
  * height. The art leaves empty rows above the head, so hanging the label off
  * the top of the frame left it floating a whole character clear of the person
@@ -126,7 +182,7 @@ export const startZoom = (width, height) => (Math.min(width, height) < 600 ? 2 :
 const ROOM_SETTLE = 6;
 
 export class Game {
-  constructor(mount, { onMove, onRoomChange, onSceneChange, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm, onTap,
+  constructor(mount, { onMove, onRoomChange, onSceneChange, onSceneLoading, onEmote, isClosed, isBlocked, onRoomDoor, onClockMoved, onClockHover, onArm, onTap,
     swellsNear, isShowing, onWalkInto } = {}) {
     /* The "1" key: take our weapon out, or put it away. */
     this.onArm = onArm ?? (() => {});
@@ -158,6 +214,9 @@ export class Game {
      * place switch -- the room is part of the same world. */
     this.onRoomChange = onRoomChange ?? (() => {});
     this.onSceneChange = onSceneChange ?? (() => {});
+    /* Going to a scene whose pictures are not in yet: (its name, when they
+     * are). The loading screen covers the wait (ui/loading `map`). */
+    this.onSceneLoading = onSceneLoading ?? (() => {});
     /* An item walked into, that is not a portal: (item). */
     this.onWalkInto = onWalkInto ?? (() => {});
     this.onEmote = onEmote ?? (() => {});
@@ -496,19 +555,24 @@ export class Game {
      * than blocking. One at a time, those its doors lead to first (2026-11-08):
      * a world may have ten, and the host's ship sends each whole before the
      * next rather than all of them at once beside everything else. */
-    const paintings = (scene) => [...Object.values(sceneImages(scene)).filter(Boolean), ...scenePaintTiles(scene).map((t) => t.url)];
     const near = new Set(sceneNeighbours(this.scene));
     const order = [...SCENE_IDS.filter((s) => near.has(s)), ...SCENE_IDS.filter((s) => s !== this.scene && !near.has(s))];
     const maps = paintings(this.scene), later = [...new Set(order.flatMap(paintings))];
     /* The names over heads are drawn in the pixel face; wait for it (briefly,
      * see ui/fonts) so nobody's name is drawn once in a fallback and left so. */
-    await Promise.all([Assets.load([...maps.map(mapAsset), ...allTextures()], (f) => onProgress(f)), fontsReady]);
+    let pics = 0, parts = 0;
+    const said = () => onProgress((pics + parts) / (maps.length + 1));
+    const [got] = await Promise.all([
+      Promise.all(maps.map((url) => picture(url, true).then((t) => { pics++; said(); return t; }))),
+      Assets.load(allTextures(), (f) => { parts = f; said(); }),
+      fontsReady]);
     onProgress(1);
-    this.mapTextures = new Map(maps.map(url => [url, this.fit(Assets.get(mapUrl(url)))]));
+    this.mapTextures = new Map(maps.map((url, i) => [url, this.fit(got[i])]));
     this.laterMaps = (async () => {
       for (const url of later) {
         if (this.mapTextures.has(url)) continue;
-        try { const t = await Assets.load(mapAsset(url)); if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t)); } catch {}
+        const t = await picture(url);
+        if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t));
       }
     })();
   }
@@ -528,13 +592,22 @@ export class Game {
     if (!url) return Texture.EMPTY;
     const t = this.mapTextures.get(url);
     if (t) return t;
-    /* Not in yet (somebody got there first, or a placed image): blank until
-     * it is, then the scene is dressed again. Pixi loads each file once. */
-    Assets.load(mapAsset(url)).then((loaded) => {
-      this.mapTextures.set(url, this.fit(loaded));
+    /* Not in yet (a placed image, or a map we went to before it came --
+     * behind the loading screen, see setScene): blank until it is, then the
+     * scene is dressed again. */
+    picture(url, true).then((loaded) => {
+      if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(loaded));
       if (this.painting) this.dressScene();
-    }, () => {});
+    });
     return Texture.EMPTY;
+  }
+
+  /* Whether a scene's pictures are all in; and when they will be. */
+  sceneReady(scene) { return paintings(scene).every((url) => this.mapTextures.has(url)); }
+  sceneLoaded(scene) {
+    return Promise.all(paintings(scene).map((url) => picture(url, true).then((t) => {
+      if (!this.mapTextures.has(url)) this.mapTextures.set(url, this.fit(t));
+    }))).then(() => { if (this.scene === scene && this.painting) this.dressScene(); });
   }
 
   /* A painting bigger than this device can hold as one texture is drawn from
@@ -781,6 +854,7 @@ export class Game {
     this.characterScale = sceneCharacterScale(next);
     this.world = buildWorld(next);
     this.dressScene();
+    if (!this.sceneReady(next)) this.onSceneLoading(sceneInfo(next)?.name ?? 'the map', this.sceneLoaded(next));
     this.self.x = destination.x;
     this.self.y = destination.y;
     this.self.dir = destination.dir ?? this.self.dir;

@@ -504,6 +504,7 @@ const game = new Game(document.getElementById('stage'), {
     if (c) c.at = clockAnchor(x, y, w, h);
     return s;
   }),
+  onSceneLoading: (name, ready) => void loading.map(name, ready),
   onSceneChange: (scene, from) => {
     diagnostic('scene-enter', { scene, from, hidden: document.hidden });
     /* A scene doorway changes the social room too. This leaves the old call,

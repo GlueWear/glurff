@@ -42,8 +42,23 @@ export function chosenHost(search = globalThis.location?.search ?? '') {
 
 /* The published document, as the host's ship holds it, checked here too:
  * a world that would not load is not started. */
-async function documentOf(host, live, card = null) {
-  const r = await fetch(`/apps/glurff/world/${host}/asset/${live.doc}`, { credentials: 'include' });
+/* A BUSY HOST (2026-11-10): our ship says "not in time" (504) after a minute
+ * and goes on waiting for the document, so it is asked for again -- joining
+ * the fetch on its way, not asking its host twice -- for up to DOC_WAIT_MS,
+ * saying how long it has been. */
+export const DOC_WAIT_MS = 10 * 60 * 1000;
+const AGAIN = [502, 503, 504];
+export async function documentOf(host, live, card = null, wait = DOC_WAIT_MS, every = 500) {
+  const t0 = Date.now();
+  let r = null;
+  for (let n = 0; ; n++) {
+    r = await fetch(`/apps/glurff/world/${host}/asset/${live.doc}`, { credentials: 'include' }).catch(() => null);
+    if ((r && !AGAIN.includes(r.status)) || Date.now() - t0 >= wait) break;
+    const s = Math.floor((Date.now() - t0) / 1000);
+    if (s >= 5) screen?.progress?.(0.03, `Fetching its map… ${s} s`);
+    await new Promise((ok) => setTimeout(ok, Math.min(5000, every * (n + 1))));
+  }
+  if (!r) throw refusal('This Glurff did not load', 'Our ship did not answer.');
   if (r.status === 403) throw Object.assign(refusal(`You are not in ${card?.name ?? 'this Glurff'} yet`,
     `Its members are its note's. Join it, as you would the note: a public Glurff lets you straight in, and a private one asks ${host}.`),
   { join: card && { host, note: card.note, name: card.name, live } });

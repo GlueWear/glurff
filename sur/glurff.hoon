@@ -556,7 +556,13 @@
 ::  with no event of its own, or by a poke answered with the bytes.
 +$  via  ?(%scry %poke)
 ::  fetch: browsers waiting on one asset from one host, kept until it comes.
+::  Since 2026-11-10 the fetch is kept until the asset comes even when every
+::  browser has stopped waiting, so a browser asking again joins it and the
+::  host is not asked twice. What comes goes to the browsers, never kept.
 +$  fetch  [=via ids=(set @ta) at=@da]
+::  kept: only the shape of the dev ships' few hours of state-16, read to be
+::  dropped (app/glurff on-load). Visitors keep no assets.
++$  kept  [mime=@t size=@ud data=@ used=@da]
 ::  The limits a host's store keeps to. Checked here, not only in the editor.
 ++  asset-max     20.971.520
 ::  Many: a painted map is kept in tiles (2026-11-08); `store-max` is what
@@ -574,6 +580,9 @@
 ++  let-go        ~d1
 ++  in-flight     ~m3
 ++  fetch-wait    ~s60
+::  A fetch on its way is waited for, not asked again, for this long: a
+::  host's ship under load has taken minutes to send one picture.
+++  fetch-stale   ~m30
 ::  The encrypted namespace a host publishes its world's assets under.
 ++  world-coop    /world
 ::
