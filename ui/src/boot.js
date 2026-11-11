@@ -18,6 +18,8 @@
  * (lib/glurffs), read from our agent before anything else -- the official one
  * until another is chosen. A Glurff we are not a member of offers to join it,
  * as its note would: a public one lets us straight in, a private one asks.
+ * The official one is joined for us instead (2026-11-10): everybody is in it,
+ * as when the app carried its map and joined its note behind it.
  */
 import { DEFAULT_HOST, setWorld } from './lib/world-config.js';
 import { validate } from './world/world-doc.js';
@@ -75,7 +77,9 @@ export async function chooseWorld() {
   if (card?.live) {
     screen?.to?.(card.name, host);
     screen?.progress?.(0.03, 'Fetching its map…');
-    const doc = await documentOf(host, card.live, card);
+    const doc = await documentOf(host, card.live, card)
+      .catch((e) => (e.join && host === DEFAULT_HOST ? joinOfficial(e.join) : Promise.reject(e)))
+      .catch((e) => Promise.reject(Object.assign(e, { host })));
     setWorld({ host, note: card.note, name: card.name, doc, release: card.live.release });
     return;
   }
@@ -104,18 +108,41 @@ function stopped(e) {
   }
 }
 
+/* Noltbook's request-join on a Glurff's note, from a channel of its own. */
+async function askToJoin(host, note) {
+  const url = `/~/channel/glurff-join-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const put = (body) => fetch(url, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const ship = String(globalThis.window?.ship ?? '').replace(/^~/, '');
+  const r = await put([{ id: 1, action: 'poke', ship, app: 'noltbook', mark: 'noltbook-action', json: { action: 'request-join', data: { noteId: note, host } } }]);
+  put([{ id: 2, action: 'delete' }]).catch(() => {});
+  if (!r.ok) throw new Error(`the request was refused (${r.status})`);
+}
+
+/* THE OFFICIAL GLURFF, JOINED ON THE WAY IN (2026-11-10): its map refused
+ * to somebody not in it yet, its note is joined for them -- it is public, so
+ * its host lets them in at once -- and the map fetched again until it comes.
+ * Nothing to press. A host that does not let them in within `wait` (they
+ * were removed, or it is slow) is said so, with Try again. */
+export const JOIN_WAIT_MS = 30000;
+export async function joinOfficial({ host, note, name, live }, wait = JOIN_WAIT_MS, every = 1000) {
+  screen?.progress?.(0.03, `Joining ${name}…`);
+  try { await askToJoin(host, note); }
+  catch (error) { throw refusal(`Could not join ${name}`, String(error.message ?? error)); }
+  const card = { note, name };
+  for (let waited = 0; waited < wait; waited += every) {
+    await new Promise((ok) => setTimeout(ok, every));
+    try { return await documentOf(host, live, card); } catch (e) { if (!e.join) throw e; }
+  }
+  throw refusal(`Could not join ${name}`, `${host} has not let you in yet. Try again in a moment.`);
+}
+
 /* JOIN, from the way in: Noltbook's request-join on the Glurff's note, then
  * in as soon as its host lets us fetch the map -- at once for a public one.
  * A private one waits for its host, and says so. */
 async function joinFrom({ host, note, name, live }) {
   screen?.notice?.({ title: `Joining ${name}…`, detail: 'Asking its host.', stop: true });
   try {
-    const url = `/~/channel/glurff-join-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const put = (body) => fetch(url, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const ship = String(globalThis.window?.ship ?? '').replace(/^~/, '');
-    const r = await put([{ id: 1, action: 'poke', ship, app: 'noltbook', mark: 'noltbook-action', json: { action: 'request-join', data: { noteId: note, host } } }]);
-    put([{ id: 2, action: 'delete' }]).catch(() => {});
-    if (!r.ok) throw new Error(`the request was refused (${r.status})`);
+    await askToJoin(host, note);
     for (let waited = 0; waited < 20000; waited += 2000) {
       await new Promise((ok) => setTimeout(ok, 2000));
       try { await documentOf(host, live); location.reload(); return; } catch {}

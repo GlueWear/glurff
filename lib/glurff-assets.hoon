@@ -8,11 +8,11 @@
   :~
     ['/apps/glurff/' /lib/glurff/site/index/html 1.979 'text/html; charset=utf-8']
     ['/apps/glurff/assets/___vite-browser-external_commonjs-proxy-6f37d1bc.js' /lib/glurff/site/assets/asset-vite-browser-externalcommonjs-proxy-6f37d1bc/js 10.877 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/edit-73e6c5f5.js' /lib/glurff/site/assets/edit-73e6c5f5/js 124.038 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/edit-7ad2a158.css' /lib/glurff/site/assets/edit-7ad2a158/css 10.348 'text/css; charset=utf-8']
-    ['/apps/glurff/assets/edit-d91efa47.js' /lib/glurff/site/assets/edit-d91efa47/js 124.022 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/host-api-1775b0ad.js' /lib/glurff/site/assets/host-api-1775b0ad/js 1.998 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/index-141a4dd2.js' /lib/glurff/site/assets/index-141a4dd2/js 63.457 'application/javascript; charset=utf-8']
-    ['/apps/glurff/assets/main-5efba70f.js' /lib/glurff/site/assets/main-5efba70f/js 4.045 'application/javascript; charset=utf-8']
+    ['/apps/glurff/assets/main-b1dc6d3f.js' /lib/glurff/site/assets/main-b1dc6d3f/js 4.593 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/main-cbe7bb7a.js' /lib/glurff/site/assets/main-cbe7bb7a/js 993.216 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/note-link-e64acf9c.js' /lib/glurff/site/assets/note-link-e64acf9c/js 223.093 'application/javascript; charset=utf-8']
     ['/apps/glurff/assets/playtest-a66bb5a3.js' /lib/glurff/site/assets/playtest-a66bb5a3/js 1.113 'application/javascript; charset=utf-8']

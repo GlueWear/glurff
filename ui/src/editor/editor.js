@@ -365,8 +365,9 @@ const ACCESS = {
   private: ['Private', 'People ask, and you or an admin let them in.'],
   secret: ['Secret', 'Only people you invite. Nobody else can see it.'],
 };
-/* For now every Glurff is public (2026-11-08): the others are shown, and
- * wait. A world already private or secret can still be made public. */
+/* For now every Glurff is public (2026-11-08): the others are shown, greyed,
+ * "Feature unavailable" (2026-11-10). A world already private or secret can
+ * still be made public. */
 const ACCESS_SOON = new Set(['private', 'secret']);
 const NAME_MAX = 64;
 const noteMeta = async () => (await fetch(`/~/scry/noltbook/api/notes/${S.home.note}/meta.json`, { credentials: 'include' })).json();
@@ -481,9 +482,9 @@ function glurffPanel() {
         onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); } })),
     el('p', { class: 'note' }, 'Who can come in'),
     ...Object.entries(ACCESS).map(([v, [label, says]]) => el('button', { class: `access-choice ${S.access === v ? 'on' : ''}`,
-      disabled: ACCESS_SOON.has(v), title: ACCESS_SOON.has(v) ? 'Coming soon' : null,
+      disabled: ACCESS_SOON.has(v), title: ACCESS_SOON.has(v) ? 'Feature unavailable' : null,
       onclick: () => { closePopover(); void setAccess(v); } },
-      el('strong', {}, `${S.access === v ? '✓ ' : ''}${label}`, ACCESS_SOON.has(v) && el('span', { class: 'soon' }, 'Coming soon')), el('span', { class: 'note' }, says))),
+      el('strong', {}, `${S.access === v ? '✓ ' : ''}${label}`, ACCESS_SOON.has(v) && el('span', { class: 'soon' }, 'Feature unavailable')), el('span', { class: 'note' }, says))),
     el('p', { class: 'note' }, hasNote() ? 'All of this takes effect now, not on Publish, and is the same as the world\'s note in Noltbook.'
       : 'Nothing of it is in Noltbook yet: its note is made, with this icon and name, when you first publish.'),
   ], 'glurff-panel');

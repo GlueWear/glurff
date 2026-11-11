@@ -87,3 +87,54 @@ test('everybody builds: EDIT GLURFF on our own card, the editor starts hosting, 
 test('a new version, so it reads as one', () => {
   assert.match(read('../../../desk/desk.docket-0'), /version\+\[0 3 0\]/);
 });
+
+/* The official Glurff joined on the way in (2026-11-10): its map is refused
+ * to somebody not in its note yet, and nothing is shown to press. */
+const official = { host: '~nolset', note: 'note-official', name: 'Glurff', live: { release: 1, doc: 'a'.repeat(64) } };
+function fakeShip({ admits = true, refuses = false } = {}) {
+  const seen = { joins: [], fetches: 0 };
+  let member = false;
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).startsWith('/~/channel/') && init.method === 'PUT') {
+      for (const a of JSON.parse(init.body)) if (a.json?.action === 'request-join') { seen.joins.push(a.json.data); if (admits) member = true; }
+      return { ok: !refuses, status: refuses ? 403 : 204 };
+    }
+    if (String(url).includes('/asset/')) {
+      seen.fetches++;
+      const legacy = (await import('./legacy-world.js')).default;
+      return member ? { ok: true, status: 200, json: async () => legacy } : { ok: false, status: 403 };
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  return seen;
+}
+
+test('the official Glurff, refused to somebody not in it yet, is joined for them and opens', async () => {
+  const { joinOfficial } = await import('../boot.js');
+  const seen = fakeShip();
+  const doc = await joinOfficial(official, 500, 10);
+  assert.ok(doc?.maps?.length, 'its map came');
+  assert.deepEqual(seen.joins, [{ noteId: 'note-official', host: '~nolset' }]);
+});
+
+test('one that does not let them in is said so, with Try again; a refused request too', async () => {
+  const { joinOfficial } = await import('../boot.js');
+  fakeShip({ admits: false });
+  await assert.rejects(joinOfficial(official, 60, 10), (e) => e.title === 'Could not join Glurff' && /has not let you in yet/.test(e.detail));
+  fakeShip({ refuses: true });
+  await assert.rejects(joinOfficial(official, 60, 10), (e) => e.title === 'Could not join Glurff' && /refused/.test(e.detail));
+});
+
+test('only the official Glurff is joined for us; any other still asks, with Join', () => {
+  const boot = read('../boot.js');
+  assert.match(boot, /\.catch\(\(e\) => \(e\.join && host === DEFAULT_HOST \? joinOfficial\(e\.join\) : Promise\.reject\(e\)\)\)\n      \.catch\(\(e\) => Promise\.reject\(Object\.assign\(e, \{ host \}\)\)\);/,
+    'a failure says which Glurff, so the official one offers no way back to itself');
+  assert.match(boot, /action: e\.join \? \{ label: 'Join', run: \(\) => joinFrom\(e\.join\) \}/);
+});
+
+test('private and secret are greyed: "Feature unavailable"', () => {
+  const ed = read('../editor/editor.js');
+  assert.match(ed, /const ACCESS_SOON = new Set\(\['private', 'secret'\]\);/);
+  assert.match(ed, /disabled: ACCESS_SOON\.has\(v\), title: ACCESS_SOON\.has\(v\) \? 'Feature unavailable' : null,/);
+  assert.doesNotMatch(ed, /Coming soon/);
+});
