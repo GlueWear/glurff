@@ -21,7 +21,7 @@ import { CharacterAnimation } from './animation.js';
 import { buildWorld, regionAt, SPAWN, COMMONS, MAIN_SCENE, SCENE_IDS, spawnOf, roomsOf,
   normalScene, sceneTile, sceneCharacterScale, sceneNameSize, sceneWalkSpeed, sceneImages, solidAt as mapSolid,
   walkPortalAt, walkItemAt, arrivalPoint, sceneInfo, sceneFront, sceneItemImages, scenePainting, sceneWorld } from 'world/places';
-import { ITEMS, sceneNeighbours, scenePaintTiles, assetBytes } from 'world/places';
+import { ITEMS, sceneNeighbours, scenePaintTiles, assetBytes, QUIET } from 'world/places';
 import { fetchWhole, mapsAhead, AHEAD_WAIT_MS } from 'world/ahead';
 import { createPictureQueue } from 'world/picture-queue';
 import { signFontSize } from 'world/world-doc';
@@ -211,6 +211,9 @@ export class Game {
     this.tile = sceneTile(this.scene);
     this.characterScale = sceneCharacterScale(this.scene);
     this.room = COMMONS;
+    /* The area floor in no area keeps us in (world/places regionAt): none
+     * until we step into one, and none again on arriving through a door. */
+    this.stay = null;
     this.settling = null; this.settled = 0;
     this.self = { x: SPAWN.x, y: SPAWN.y, dir: 'down', moving: false, frame: 0,
                   look: null, scene: MAIN_SCENE };
@@ -825,7 +828,7 @@ export class Game {
   takePortal(portal) {
     if (!portal?.to) return false;
     if (portal.area && (this.scene !== portal.area.scene ||
-        regionAt(this.self.x, this.self.y, this.scene, this.room) !== portal.area.id)) return false;
+        regionAt(this.self.x, this.self.y, this.scene, this.room, this.stay) !== portal.area.id)) return false;
     this.setScene(portal.to.scene, arrivalPoint(portal.to));
     return true;
   }
@@ -854,6 +857,7 @@ export class Game {
     this.pan = { x: 0, y: 0 };
     this.settling = null;
     this.settled = 0;
+    this.stay = null;                                   //  arriving: in no area until we step into one
     this.room = regionAt(this.self.x, this.self.y, next, this.room);
     this.portalWasUnder = walkItemAt(this.self.x, this.self.y, next)?.id ?? null;
     this.showHotspot(null);
@@ -1680,6 +1684,7 @@ export class Game {
     if (!spawn) return false;
     if (regionAt(spawn.x, spawn.y, this.scene) !== COMMONS) return false;
     this.self.x = spawn.x; this.self.y = spawn.y; this.self.dir = 'down';
+    this.stay = null;
     this.self.moving = false; this.self.frame = 0;
     this.keys.clear(); this.running = false; this.stick = null;
     this.pan = { x: 0, y: 0 };
@@ -1804,7 +1809,8 @@ export class Game {
 
     if (moving || wasMoving) this.onMove({ ...this.self });
 
-    const rawRoom = regionAt(this.self.x, this.self.y, this.scene, this.room);
+    const rawRoom = regionAt(this.self.x, this.self.y, this.scene, this.room, this.stay);
+    this.stay = rawRoom === QUIET ? null : rawRoom;
     /* A portal walked into -- Vatican City's way home -- takes us as we step
      * onto it; anything else set to be walked into opens as we step onto it.
      * Once a step, not every frame we stand there. */

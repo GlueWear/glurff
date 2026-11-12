@@ -23,7 +23,7 @@ import { displayName, visiblePeers, palStatus, worldMember, worldBanned, noteCre
 import { subscribeRaw } from 'lib/api';
 import { createRoommates } from 'lib/roommates';
 import { SfuSession } from 'lib/sfu';
-import { regionAt, COMMONS, placeIn, leasable, MAIN_SCENE, roomById, callsAt, commonsHuddles } from 'world/places';
+import { regionAt, COMMONS, QUIET, placeIn, leasable, MAIN_SCENE, roomById, callsAt, commonsHuddles } from 'world/places';
 import { clusterPeers, agreedMembers, electHost, huddleKey, huddlePlace, HUDDLE_BASE } from 'lib/huddle';
 import { micConstraints, camConstraints, refreshDevices } from 'lib/devices';
 import { createModeration } from 'lib/moderation-session';
@@ -165,13 +165,18 @@ function queueRoomCallSync() {
  * a room they are already in; it must never put them in one they have not
  * walked into, so the answer depends on where they were. See regionAt. */
 const peerRooms=new Map();
+/* ...and the area floor in no area keeps them in, on the map they were on
+ * (world/places regionAt): none until they are seen in one. */
+const peerStay=new Map();
 function roomOfPeer(who,spot){
   const was=peerRooms.get(who)??COMMONS;
-  const now=regionAt(spot.x,spot.y,spot.scene,was);
+  const st=peerStay.get(who);
+  const now=regionAt(spot.x,spot.y,spot.scene,was,st?.scene===spot.scene?st.area:null);
+  peerStay.set(who,{scene:spot.scene,area:now===QUIET?null:now});
   if(now!==was)peerRooms.set(who,now);
   return now;
 }
-export const forgetPeerRoom=(who)=>peerRooms.delete(who);
+export const forgetPeerRoom=(who)=>{peerRooms.delete(who);peerStay.delete(who);};
 /* Presence reports the room transition after the local collision/hysteresis
  * decision has settled. Prefer that decision over re-running geometry against
  * rounded or stalled relay coordinates. Older clients omit it and keep the

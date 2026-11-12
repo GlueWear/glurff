@@ -23,7 +23,7 @@ export { QUIET };
 
 const doc = WORLD_DOC;
 const WORLD_CHAT = worldChat(doc);
-const SCENES = new Map(doc.maps.map((m) => [m.id, { map: m, ...compile(m, WORLD_CHAT) }]));
+const SCENES = new Map(doc.maps.map((m) => [m.id, { map: m, ...compile(m, WORLD_CHAT), areaNums: new Set((m.areas ?? []).map((a) => a.num)) }]));
 
 /* Every arrival (a door), in its scene's units, with the shape drawn for it
  * in map pixels when there is one. */
@@ -209,11 +209,22 @@ export function solidAt(x, y, scene = MAIN_SCENE) {
  * a piece of its furniture, so the chat does not flicker to the Commons as you
  * walk along a wall. It never puts you into a room you have not entered, which
  * is why it is only consulted against `previous`.
+ *
+ * FLOOR IN NO AREA NEVER MOVES ANYBODY (2026-11-11). Areas drawn touching
+ * become one, so drawing leaves slivers of floor between them -- along walls
+ * above all -- and stepping on one took you out of your room, its chat and
+ * its call, into a "room" named after the map. Now such floor keeps you in
+ * `stay`: the area you were last in on this map. Arriving -- at the start,
+ * through a door -- you have none, and are in no area until you step into
+ * one. A quiet place is an area drawn quiet. Without `stay` (where an NPC
+ * may wander, which rooms are shut, a door's far side) the answer is as it
+ * always was: in no area.
  */
-export function regionAt(x, y, scene = MAIN_SCENE, previous = null) {
+export function regionAt(x, y, scene = MAIN_SCENE, previous = null, stay = null) {
   const s = SCENES.get(normalScene(scene));
   const feetCell = cellOf(s, x, y);
   const feet = feetCell < 0 ? COMMONS : s.zones[feetCell];
+  if (feet === QUIET) return stay !== null && stay !== QUIET && s.areaNums.has(stay) ? stay : QUIET;
   if (feet) return feet;
   /* Feet on OPEN FLOOR outside the room: you are outside it, and no amount of
    * body overlapping its wall changes that. The body point is only consulted

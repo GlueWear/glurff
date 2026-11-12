@@ -30,7 +30,7 @@ function pair(){
       noteVisibility:()=>'private',requestRemoteNotes:async()=>{},subscribeRaw:async()=>({}),nbAction:async()=>{},
       onNoltbook:()=>()=>{},nb:{calls:{},callMods:{},noteAdmins:{},notes:{}},noteCallRole:()=>null,
       noteCallMuted:()=>false,noteCallBooted:()=>false,glurffMuted:()=>false,noteCallRecording:()=>null,noteModerate:async()=>{},
-      noteCreator:()=>null,regionAt:()=>0,COMMONS:0,micConstraints:()=>({}),camConstraints:()=>({}),refreshDevices(){},
+      noteCreator:()=>null,regionAt:()=>0,COMMONS:0,QUIET:999,micConstraints:()=>({}),camConstraints:()=>({}),refreshDevices(){},
       G:{watchCallAccess:()=>Promise.resolve(),claimRoom:async()=>{},releaseRoom:async()=>{},
         sendPresence:async(to,event)=>queue.push({from:our,to,event:structuredClone(event)}),
         callKnock:async(host,place,attempt,mode)=>operations.push({op:'knock',host,place,attempt,mode}),
