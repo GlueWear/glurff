@@ -59,6 +59,34 @@ const BAR_GAP = 6;
 const shown = (el) => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity !== 0; };
 const SHORTCUT = (e) => e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyG';
 
+/* WHAT HAS THE KEYBOARD WHILE SOMETHING IS ON THE STAGE (2026-11-13).
+ *
+ * What is staged is a page in a frame, and a browser gives the keys to
+ * whatever was clicked last: a click on any of Glurff's controls took the
+ * keyboard away from the app -- and left it on the button, so Space or Enter
+ * in a game pressed that button again (the mic back on). Now:
+ *
+ *   ONE-CLICK CONTROLS -- the mic, the camera, the video tiles, the call's
+ *   retries -- never take the keyboard: it stays where it was, in the app
+ *   or in the chat box.
+ *   WHAT YOU TYPE INTO -- the chat -- keeps it while you type, after a send
+ *   too (ui/hud); Escape or closing the chat gives it back.
+ *   PANELS -- who is here, settings, Your Glurffs, cards, messages -- keep
+ *   it while open; closed, it goes back to the app.
+ *
+ * Only clicks and Escape are looked at, never Tab: somebody going round
+ * Glurff's controls with the keyboard is left to. */
+const ONE_CLICK = '#rail .media-icon, #rail .vids, #rail .mic-retry, #rail .retry-call';
+/* Something of Glurff's open that keeps the keyboard: a panel whose button
+ * says it is open (the chat's excepted: it keeps it only while you type), a
+ * card or a question, a menu, the character builder. The staged app's own
+ * panel is not one. */
+const PANELS = ['[aria-expanded="true"]:not(.chat-toggle)', '.card-overlay:not([hidden])', 'dialog[open]',
+  '[role="dialog"]:not(.app-panel)', '[role="menu"]', '.builder'].join(',');
+const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+const visible = (el) => !!el?.isConnected && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+export const panelOpen = (doc = document) => [...doc.querySelectorAll(PANELS)].some(visible);
+
 export class Stage {
   /* onStaged(true) when something comes onto the stage, showing, and
    * onStaged(false) when it goes or is minimized. */
@@ -100,6 +128,14 @@ export class Stage {
       if (this.source && !this.minimized && SHORTCUT(e)) { e.preventDefault(); e.stopPropagation(); this.minimize(); }
     };
     window.addEventListener('keydown', this.onKey, true);
+    /* The keyboard and the stage (above): a one-click control does not take
+     * it; after any click or Escape in Glurff's page, it goes back to the app
+     * unless something of Glurff's still wants it. */
+    document.addEventListener('mousedown', (e) => {
+      if (this.keyboardHome && e.target?.closest?.(ONE_CLICK)) e.preventDefault();
+    }, true);
+    document.addEventListener('click', () => { if (this.keyboardHome) setTimeout(() => this.settle(), 0); }, true);
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.keyboardHome) setTimeout(() => this.settle(), 0); });
     this.layout = this.layout.bind(this);
     window.addEventListener('resize', this.layout);
     window.visualViewport?.addEventListener?.('resize', this.layout);
@@ -147,6 +183,25 @@ export class Stage {
    * in the world (asleep when idle, waves with their button). */
   get active() { return this.minimized ? null : this.source; }
 
+  /* Where the keyboard belongs while nothing of Glurff's wants it: the frame
+   * of what is on the stage, showing. A video has none. */
+  get keyboardHome() { return !this.minimized && this.source?.frame?.isConnected ? this.source.frame : null; }
+  /* The keyboard to what is on the stage. */
+  handBack() {
+    const frame = this.keyboardHome;
+    if (!frame) return false;
+    try { frame.focus({ preventScroll: true }); } catch {}
+    return true;
+  }
+  /* ...unless a box is being typed in or a panel of Glurff's is open. */
+  settle() {
+    const home = this.keyboardHome, a = document.activeElement;
+    if (!home || a === home) return;
+    if (a && a !== document.body && a.matches?.(TYPING) && visible(a)) return;
+    if (panelOpen()) return;
+    this.handBack();
+  }
+
   enter(source) {
     if (this.source && this.source.id !== source.id) { const old = this.source; this.source = null; old.close(); }
     const fresh = !this.source;
@@ -168,6 +223,8 @@ export class Stage {
     if (source.frame) this.listenInside(source.frame);
     this.hint(source);
     this.onActivity(activityText(source));
+    /* Just staged: the keyboard is its, unless Glurff still has a use for it. */
+    setTimeout(() => this.settle(), 0);
   }
 
   leave(id) {
@@ -229,6 +286,7 @@ export class Stage {
     this.onStaged(true);
     this.layout();
     this.shrink(this.stagedElements(), false);
+    this.handBack();
   }
   /* Forget any hiding: something new took the stage, or it was let go. */
   unminimize() {

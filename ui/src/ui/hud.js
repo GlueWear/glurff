@@ -206,7 +206,11 @@ export class Hud {
      * pointer heads for a line's menu. Older ones are a scroll up. */
     this.setOpen=open=>{this.chatOpen=open;if(open)this.historySize=CHAT_LINES;if(touchy())this.root.querySelector('.say input').placeholder='Say something';
       document.documentElement.classList.toggle('chat-open',open);this.unread.open(open);setChatHistory(open?this.historySize:0);this.root.querySelector('.chat-content').hidden=!open;const b=this.root.querySelector('.chat-toggle');b.querySelector('.chat-toggle-label').textContent=open?'Close chat':'Open chat';b.setAttribute('aria-expanded',String(open));if(!open)this.root.querySelector('.say input').blur();this.paint();};
-    this.root.querySelector('.chat-toggle').onclick=()=>this.setOpen(!this.chatOpen);
+    /* On the stage (ui/stage), opening the chat puts you in its box, as
+     * though you had clicked into it: the keyboard is the chat's until
+     * Escape or closing it gives it back to what is staged. */
+    this.root.querySelector('.chat-toggle').onclick=()=>{this.setOpen(!this.chatOpen);
+      if(this.chatOpen&&staged()){this.chatSticky=true;this.root.querySelector('.say input').focus({preventScroll:true});}};
     this.stream = this.root.querySelector('.stream');
     /* OLDER MESSAGES: scrolled to the top -- or, while everything still fits,
      * a wheel turned up there -- brings fifty more. */
@@ -296,7 +300,8 @@ export class Hud {
     };
     form.onsubmit = (e) => {
       e.preventDefault();
-      if (!this.chatSticky) input.blur();
+      /* On the stage you stay in the chat after a send (ui/stage). */
+      if (!this.chatSticky && !staged()) input.blur();
       const v = input.value.trim();
       if (!v) return;
       input.value = '';
@@ -524,6 +529,8 @@ const CHAT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" s
 
 /* Played by touch: see ui/touch-controls. */
 const touchy = () => typeof document !== 'undefined' && document.documentElement.classList.contains('touch');
+/* Something showing on the stage (ui/stage): an app, a website, a video, the editor. */
+const staged = () => typeof document !== 'undefined' && document.documentElement.classList.contains('staged');
 
 const timeFormat = new Intl.DateTimeFormat([], {hour: '2-digit', minute: '2-digit'});
 
