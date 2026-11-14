@@ -83,6 +83,8 @@ export function maintainConnection(client, { onRestore = () => {} } = {}) {
   };
   function recover() {
     if (stopped || timer || rebuilding) return;
+    /* Tell the page: a revoked login looks like this first (lib/ship-watch). */
+    try { globalThis.dispatchEvent?.(new Event('glurff-channel-trouble')); } catch {}
     timer = setTimeout(rebuild, Math.min(8000, 500 * 2 ** retry++));
   }
   async function attach(record) {

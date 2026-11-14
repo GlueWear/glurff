@@ -17,6 +17,7 @@ import { initApi, our, closeChannel, subscribeRaw } from 'lib/api';
 import { watchNoltbookDependency } from 'lib/dependency';
 import { createTabGuard } from 'lib/tab';
 import { createSessionLease, newerMotion } from 'lib/session-lease';
+import { createShipWatch } from 'lib/ship-watch';
 import { createReachability } from 'lib/reachability';
 import { createInsideLease } from 'lib/inside-lease';
 import { createReliable } from 'lib/reliable';
@@ -108,6 +109,25 @@ window.addEventListener('glurff-exit', () => {
   noltbookDependency.close();
 });
 
+/* NO SHIP, NO WORLD (2026-11-14) -- see lib/ship-watch. Signed out of our ship,
+ * we leave the world at once; our ship gone two minutes, we leave and come back
+ * when it answers. Made before the tab guard, which may stand us down at once. */
+const shipWatch = createShipWatch({
+  trace: diagnostic,
+  onSignedOut: () => standDown('signed-out'),
+  onGone: () => standDown('ship-gone'),
+  onBack: () => location.reload(),
+});
+window.addEventListener('glurff-channel-trouble', () => shipWatch.nudge());
+window.addEventListener('pagehide', () => shipWatch.stop());
+/* Why we left the world, and what the card's button does (see standDown). */
+const LEFT = {
+  'another-session': ['Glurff is open on another device or browser.', 'Use here'],
+  'signed-out': ['You are signed out of this ship, so Glurff has left the world.', 'Sign in'],
+  'ship-gone': ['Your ship is not answering, so Glurff has left the world. It comes back when your ship does.', 'Try now'],
+};
+const signIn = () => { location.href = '/~/login?redirect=' + encodeURIComponent(location.pathname + location.search + location.hash); };
+
 /* ONE LIVE TAB PER BROWSER, the newest one -- see lib/tab.js. An older tab left
  * open holds a relay connection and a presence session nobody is watching, which
  * is what put a second, silent copy of a ship in the world and pushed everyone
@@ -140,11 +160,28 @@ const reach = createReachability({ trace: diagnostic });
 R.setReachability(reach);
 window.glurffReachability = () => reach.stats();
 
-/* A newer tab has taken over. Leave exactly as closing the tab does -- presence
- * says goodbye, the relay closes, a call hangs up, our "In Glurff" mark is
- * cleared -- then give the channel back and offer to take over again. */
+/* Why we left, and what the button does (LEFT and signIn, above). */
+function showLeft(reason) {
+  document.querySelector('body > .takeover')?.remove();
+  const [text, button] = LEFT[reason] ?? ['Glurff is open in another tab.', 'Use here'];
+  const el = document.createElement('div');
+  el.className = 'takeover';
+  el.innerHTML = '<div><p></p><button type="button"></button></div>';
+  el.querySelector('p').textContent = text;
+  el.querySelector('button').textContent = button;
+  el.querySelector('button').onclick = () => (reason === 'signed-out' ? signIn() : location.reload());
+  document.body.appendChild(el);
+}
+
+/* A newer tab has taken over -- or we lost our ship (lib/ship-watch). Leave
+ * exactly as closing the tab does -- presence says goodbye, the relay closes, a
+ * call hangs up, our "In Glurff" mark is cleared -- then give the channel back
+ * and say why. Only a ship that went away is still watched, to come back. */
 function standDown(reason) {
-  if (!liveTab) return;
+  if (reason !== 'ship-gone') shipWatch.stop();
+  /* Already left: the newer reason is the one to show -- a ship that came
+   * back without our login, or another tab taking over meanwhile. */
+  if (!liveTab) { if (reason !== 'ship-gone') showLeft(reason); return; }
   liveTab = false;
   diagnostic('tab-superseded', { reason });
   window.dispatchEvent(new Event('glurff-exit'));
@@ -152,13 +189,7 @@ function standDown(reason) {
   try { game.app?.ticker?.stop(); } catch {}
   /* Those goodbyes are pokes: let them leave before the channel goes. */
   setTimeout(closeChannel, 2000);
-  const el = document.createElement('div');
-  el.className = 'takeover';
-  el.innerHTML = reason === 'another-session'
-    ? '<div><p>Glurff is open on another device or browser.</p><button type="button">Use here</button></div>'
-    : '<div><p>Glurff is open in another tab.</p><button type="button">Use here</button></div>';
-  el.querySelector('button').onclick = () => location.reload();
-  document.body.appendChild(el);
+  showLeft(reason);
 }
 
 /* Created once presence exists. Referenced by callbacks that cannot fire before
@@ -1707,6 +1738,7 @@ function watchRelease() {
   /* What the signs say now, before anybody reads one. */
   if (WORLD_DOC?.maps?.some((m) => m.items?.some(editableSign))) signs.watch();
   if (!WORLD_PREVIEW) sessionLease.start();
+  shipWatch.start();
   milestone('world-subscribed');
   movement.moved({ ...game.self, host: R.rooms.host ?? null });
   socialReady();
