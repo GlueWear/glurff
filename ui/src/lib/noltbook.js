@@ -15,6 +15,7 @@ import { tabLease, ACTIVE_TTL, ACTIVE_REFRESH_MS, TAB_REFRESH_MS } from 'lib/act
  * silently. Prefer nbApi wherever the action exists there.
  */
 import { api, poke, subscribe, our } from 'lib/api';
+import { freshId } from 'lib/fresh-id';
 
 /* Posts made through Glurff are stamped `via` this desk, which is what makes
  * them read as "via Glurff" in Noltbook. */
@@ -919,7 +920,7 @@ function touchActiveTab() {
   if (!activeLease) {
     let storage;
     try { storage = window.localStorage; } catch {}
-    activeLease = tabLease(storage, `glurff-active/${our}/`, crypto.randomUUID());
+    activeLease = tabLease(storage, `glurff-active/${our}/`, freshId());
   }
   if (Date.now() - leaseAt >= TAB_REFRESH_MS) {
     leaseAt = Date.now(); activeLease.touch();

@@ -65,6 +65,8 @@ import { fontsReady } from 'ui/fonts';
 import { sendBox } from 'ui/send-box';
 import { sendBlocked } from 'lib/wallet';
 import { shipLike, validAmount } from 'lib/nock-receipt';
+import { freshId } from 'lib/fresh-id';
+import { showInsecureNotice } from 'ui/insecure-notice';
 
 const state = {
   look: DEFAULT_LOOK,
@@ -101,7 +103,9 @@ const loading = createLoading({ name: WORLD_PREVIEW ? `${WORLD_NAME} (playtest)`
   people: () => !!movement?.relayLive?.() && (movement?.rosterReady?.() ?? true),
   where: () => game.selfOnScreen(),
   /* A playtest lands once the draft is drawn: who is a member is no matter. */
-  ...(WORLD_PREVIEW ? { joined: () => true } : {}) });
+  ...(WORLD_PREVIEW ? { joined: () => true } : {}),
+  /* Opened over http://: say once, over the world, what that leaves out. */
+  onLand: () => { if (!WORLD_PREVIEW) void showInsecureNotice(); } });
 window.__loading = loading;   // debug handle
 window.addEventListener('glurff-exit', () => {
   closeDependencyPrompt();
@@ -137,7 +141,7 @@ let liveTab = true, ticker = null;
 const tabGuard = createTabGuard({
   locks: globalThis.navigator?.locks ?? null,
   storage: (() => { try { return window.localStorage; } catch { return null; } })(),
-  id: crypto.randomUUID(),
+  id: freshId(),
   name: TAB_KEY,
   onSuperseded: (reason) => standDown(reason),
 });
@@ -694,7 +698,7 @@ async function sendFrom(ship, at) {
  * (world/game reward). Cosmetic: it is our word, and only says so. */
 function rewarded(ship, sent) {
   game.reward(ship, sent.amount);
-  sendWorldAction({ kind: 'nock', id: crypto.randomUUID(), to: ship, amount: sent.amount, scene: game.scene, t0: Date.now() })
+  sendWorldAction({ kind: 'nock', id: freshId(), to: ship, amount: sent.amount, scene: game.scene, t0: Date.now() })
     .catch(() => {});
   if (!sent.posted) showNotice('Sent. The payment message could not be posted.');
   else if (!sent.recorded) showNotice('Sent. Noltbook could not record it in your activity.');
@@ -1024,7 +1028,7 @@ const here = () => ({stamp:Date.now(),...(asleep?{idle:lastInput}:{}),
   /* What of this Glurff's collectibles we have (lib/collection). */
   ...(foundPlaces.length?{found:foundPlaces}:{})});
 const presence = createMemberPresence({
-  our, session:crypto.randomUUID(),
+  our, session:freshId(),
   sessionGen: () => sessionLease.gen(),
   members: worldMembers,
   blocked: ship => palStatus(ship) === 'blocked',

@@ -23,6 +23,7 @@
  *
  * The jukebox stays ownerless: anybody allowed may operate it. */
 import { ITEMS } from '../world/places.js';
+import { freshId } from './fresh-id.js';
 
 /* The surfaces are the world's videos (world/places): a screen is
  * controlled, a player of your own -- the jukebox -- is not. */
@@ -64,7 +65,6 @@ export function playbackPosition(state, now = Date.now()) {
 }
 
 const RETIRED_KEPT = 32;
-const freshId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 export function createPlayerState({ our, now = () => Date.now(), send = () => {}, changed = () => {},
   allowed = () => true, id = freshId } = {}) {

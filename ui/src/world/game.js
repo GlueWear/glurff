@@ -263,7 +263,15 @@ export class Game {
     /* The obscure layer of the painting: doorways and anything else people pass
      * behind, drawn over everybody. */
     this.above = new Container();
-    this.camera.addChild(this.ground, this.actors, this.above);
+    /* NAME TAGS AND BUBBLES (2026-11-17): over the painting's front and the
+     * pictures in front of people -- who somebody is and what they say are
+     * never hidden by the map -- but under the covers of shut rooms, which
+     * give nothing away. Each character's tag rides here, not on the
+     * character, and follows it every frame (placeLabels). */
+    this.labels = new Container();
+    this.labels.sortableChildren = true;
+    this.shut = new Container();
+    this.camera.addChild(this.ground, this.actors, this.above, this.labels, this.shut);
     this.app.stage.addChild(this.camera);
     /* The clocks come in front of the map while they are being arranged. */
     this.app.stage.addChild(this.space.front);
@@ -436,6 +444,25 @@ export class Game {
     });
     this.mount.addEventListener('gestureend', (e) => { e.preventDefault(); this.safariPinch = null; });
     this.app.ticker.add(() => this.tick());
+    /* After tick has moved everybody (NORMAL, 0) and before Pixi draws (LOW,
+     * -25): the tags where their characters now are. */
+    this.app.ticker.add(() => this.placeLabels(), null, -10);
+  }
+
+  /* Each name tag where its character is (start: the layer of names). One
+   * whose character is gone goes too; one whose character is off the stage
+   * -- another map, taken off by a rebuild -- is hidden with it. */
+  placeLabels() {
+    if (!this.labels) return;
+    for (const plate of [...this.labels.children]) {
+      const node = plate.owner;
+      if (!node || node.destroyed) { plate.destroy({ children: true }); continue; }
+      const shown = !!node.parent && node.worldVisible;
+      plate.visible = shown;
+      if (!shown) continue;
+      plate.position.copyFrom(node.position);
+      plate.zIndex = node.zIndex;
+    }
   }
 
   onKey(e, down) {
@@ -809,13 +836,16 @@ export class Game {
     /* Rooms shut to us are covered over rather than merely un-walkable: an
      * invisible wall is a bug, a closed room is a fact. */
     this.covers = new Container();
-    this.above.addChild(this.covers);
+    this.shut.removeChildren();
+    this.shut.addChild(this.covers);
     /* A fresh, empty layer: forget what was drawn on the old one, or the cache
      * below says "already covered" and nothing is ever drawn again. */
     this.coveredRooms = null;
     this.coversAt = -Infinity;
     this.paintCovers();
 
+    /* The old self's name tag goes with it (others' follow their characters). */
+    this.selfSprite?.plate?.destroy({ children: true });
     this.selfSprite = this.makeCharacter(this.self.look, null, this.scene);
     this.actors.addChild(this.selfSprite.node);
     this.buildNpcs();
@@ -897,9 +927,18 @@ export class Game {
     label.anchor.set(0.5, 1);
     label.resolution = 2;
     nameplate.addChild(labelBackground, label);
-    node.addChild(nameplate);
+    /* On the layer of names, over the map's front (see start), following the
+     * character there (placeLabels). */
+    let plate = null;
+    if (this.labels) {
+      plate = new Container();
+      plate.owner = node;
+      plate.visible = false;
+      plate.addChild(nameplate);
+      this.labels.addChild(plate);
+    } else node.addChild(nameplate);
 
-    const ch = { node, body, companion, shadow, companionShadow, layers, nameplate, labelBackground, label,
+    const ch = { node, body, companion, shadow, companionShadow, layers, nameplate, plate, labelBackground, label,
       look: completeLook(look), dir: 'down', frame: 0,
       animation: new CharacterAnimation(), follow: null };
     this.actors.addChild(companionShadow, companion);

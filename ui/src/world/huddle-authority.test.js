@@ -11,6 +11,7 @@ import { createModeration } from '../lib/moderation-session.js';
 import { createRecorder, canRecord } from '../lib/recording.js';
 import * as CallMod from '../lib/moderation.js';
 import * as H from '../lib/huddle.js';
+import { freshId } from '../lib/fresh-id.js';
 
 const source=fs.readFileSync(new URL('../lib/rooms.js',import.meta.url),'utf8')
   .replace(/^import [^;]*;/gm,'').replace(/^export /gm,'');
@@ -22,7 +23,7 @@ function pair(){
     others(){return new Set();}setPositions(){}setFlatGain(){}setSilenced(){}audioTracks(){return [];}}
   const make=(our)=>{
     const operations=[];
-    const context=vm.createContext({CallController,createRoommates,createNoteCall,createModeration,createRecorder,canRecord,
+    const context=vm.createContext({CallController,createRoommates,createNoteCall,createModeration,createRecorder,canRecord,freshId,
       ...CallMod,...H,diagnostic:()=>{},console,performance,structuredClone,setTimeout:()=>0,clearTimeout(){},
       setInterval:()=>0,clearInterval(){},Date:FakeDate,Map,Set,Promise,JSON,Number,Math,String,Object,Array,
       navigator:{mediaDevices:{}},processMicrophone:async s=>({stream:s,cleanup(){}}),SfuSession:Sfu,

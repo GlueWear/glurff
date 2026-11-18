@@ -31,6 +31,7 @@ import { roleOf, rankOf, mayModerate, isMuted, isCallMuted, isBooted, mayPlay, r
 import { WORLD_HOST } from 'lib/world-config';
 import { createRecorder, canRecord } from 'lib/recording';
 import { createNoteCall } from 'lib/notecall';
+import { freshId } from 'lib/fresh-id';
 
 export const rooms = {
   /* room id -> { host, occupants:Set } , derived from presence every tick. */
@@ -285,8 +286,7 @@ export function setLease(lease, { reselect = true } = {}) {
  *
  * The tab id is per TAB and not per ship: two tabs, or a reload whose old seat
  * has not yet expired, must not be mistaken for each other. */
-const TAB = (typeof crypto !== 'undefined' && crypto.randomUUID)
-  ? crypto.randomUUID() : String(Math.random()).slice(2);
+const TAB = freshId();
 export const seatTab = () => TAB;
 /* Renewed well inside the agent's seat TTL, so one dropped poke is not an
  * eviction. Kept in step with the agent's own seat-renew. */
@@ -1091,7 +1091,7 @@ let huddlePending=null, huddleTimer=null, huddleSelf=null;
 let huddleRecovery=null;
 const safeShip=s=>typeof s==='string' && /^~[a-z-]{3,70}$/.test(s);
 const huddleSession=()=>({epoch:Date.now()*1000+Math.floor(Math.random()*1000),
-  session:globalThis.crypto?.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`});
+  session:freshId()});
 function readHuddleRecord(m){
   if(!m || !safeShip(m.host) || !Number.isSafeInteger(m.place) || m.place!==huddlePlace(m.host) ||
     !Number.isSafeInteger(m.epoch) || m.epoch<=0 || !Number.isSafeInteger(m.rev) || m.rev<0 ||
@@ -1645,7 +1645,7 @@ const cameraForCall=()=>startPreview().then(p=>{if(!p)throw new Error('Camera is
  * It ends when it should: you turn it off, the browser's own "stop sharing"
  * ends it, an admin mutes you, the track fails, or the tab closes. */
 let display=null, displaying=null;
-const freshScreenToken=()=>globalThis.crypto?.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const freshScreenToken=()=>freshId();
 function startDisplay(){
   if(display)return Promise.resolve(display);
   if(displaying)return displaying;

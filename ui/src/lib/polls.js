@@ -1,3 +1,4 @@
+import { freshIds } from './fresh-id.js';
 /* POLLS, IN ANY CHAT (2026-11-08): "/poll Pizza or tacos? | Pizza | Tacos"
  * -- or "/poll Pizza tonight?" for Yes and No -- puts a poll in the chat it
  * is said in.
@@ -47,7 +48,7 @@ export const resultText = (p) => `📊 ${p.question} ${p.options.map((o, i) => `
 
 /* send(event): to everybody in the Glurff. allowed(ship): somebody whose
  * polls and votes count -- in it, and not blocked or muted there. */
-export function createPolls({ our, send, allowed = () => true, now = () => Date.now(), random = globalThis.crypto }) {
+export function createPolls({ our, send, allowed = () => true, now = () => Date.now(), random = freshIds }) {
   const polls = new Map();          //  id -> poll
   const listeners = new Set();
   const changed = (poll = null) => listeners.forEach((fn) => { try { fn(poll); } catch (e) { console.error(e); } });

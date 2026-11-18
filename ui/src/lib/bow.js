@@ -1,6 +1,7 @@
 /* One action packet, local flight/strike check, and a victim-owned response.
  * No damage/health/score state is saved or sent. Scene is part of each action. */
 import { isScene } from '../world/places.js';
+import { freshId } from './fresh-id.js';
 export const FIRE_COOLDOWN = 600;
 /* EVERY SHOT ALIKE (2026-10-12): an arrow, a stone and a spell fly at one
  * speed, a little faster than arrows did, and keep going until they hit a
@@ -48,7 +49,7 @@ export function segmentHits(a,b,p,halfWidth=.25,halfHeight=.25) {
   return true;
 }
 export function createBow({our, self, visible, blocked=()=>false, send, solid,
-  hitBox=()=>({x:.25,y:.25}), shotBox=null, now=Date.now, id=()=>crypto.randomUUID(),
+  hitBox=()=>({x:.25,y:.25}), shotBox=null, now=Date.now, id=()=>freshId(),
   onShot=()=>{}, onHit=()=>{}}) {
   const shots=new Map(), seen=new Map(), lastReceived=new Map();
   let fired=-Infinity;

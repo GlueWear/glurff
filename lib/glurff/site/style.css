@@ -1425,6 +1425,8 @@ dialog.g-invite input { width: 100%; box-sizing: border-box; background: var(--r
   -webkit-mask: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 14px);
   mask: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 14px); }
 .loading-say { font-size: 13px; color: #c9d6f2; min-height: 1.4em; }
+/* Opened over http:// (2026-11-17, public/loading.js): what is off. */
+.loading-insecure { font-size: 12px; color: #ffd9a0; line-height: 1.4; }
 .loading-notice { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; padding: 10px 14px;
   background: rgba(10,14,30,.82); border: 1px solid #2c3a66; border-radius: var(--r); }
 .loading-notice[hidden] { display: none; }

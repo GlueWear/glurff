@@ -56,8 +56,11 @@ export function createLoading({
   status = worldStatus, joined = worldJoined, ready = () => nb.ready, retry = retryWorld,
   watch = (fn) => onChange(fn, (c) => ['world', 'notes', 'pals'].includes(c.field)),
   now = Date.now, every = setInterval, cancel = clearInterval,
+  /* Called once, the first time we land in the world (2026-11-17: the http
+   * card, ui/insecure-notice, waits for this so it shows over the world). */
+  onLand = () => {},
 } = {}) {
-  let art = 0, world = false, built = false, landed = false, landing = false, halted = false;
+  let art = 0, world = false, built = false, landed = false, landing = false, halted = false, arrived = false;
   let settledAt = null, said = undefined, off = null, mapWait = null, travelling = false;
   const began = now();
   screen?.to?.(name, host);
@@ -103,6 +106,7 @@ export function createLoading({
     screen.progress?.(1, 'Landing…');
     try { await screen.land?.(where); } finally { landing = false; landed = true; }
     paint();
+    if (!arrived) { arrived = true; try { onLand(); } catch {} }
   }
 
   const timer = every(paint, TICK_MS);

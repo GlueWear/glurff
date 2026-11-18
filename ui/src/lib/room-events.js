@@ -1,4 +1,5 @@
 import { validRoll, rollText } from './dice.js';
+import { freshIds } from './fresh-id.js';
 
 /* Rolls of the dice (lib/dice), and session-only chat for any room without a note of its
  * own. No history is replayed. Since 2026-10-13 a line can be edited or
@@ -6,7 +7,7 @@ import { validRoll, rollText } from './dice.js';
  *
  * `rooms` and `gameRoom` come from the map: hard-coded ids meant the dice
  * turned up in whichever room happened to have the old Game Room's number. */
-export function createRoomEvents({our, room, peers, send, random = crypto, trace = () => {},
+export function createRoomEvents({our, room, peers, send, random = freshIds, trace = () => {},
   rooms = (place) => place > 0 && place < 8 && place !== 5, gameRoom = 7}) {
   let messages = [];
   const listeners = new Set();
